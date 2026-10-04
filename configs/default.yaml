@@ -1,0 +1,91 @@
+# Default configuration. Thresholds are INITIAL internal targets (see report) and must be
+# recalibrated with real camera data. Changing a threshold that affects a gate requires an ADR.
+
+camera:
+  id: cam_01
+  uri: "0"               # webcam index, file path or rtsp:// URL (env RA_CAMERA_URI overrides)
+  analytic_fps: 5        # frames per second actually analysed
+  ring_buffer_size: 64
+  frame_age_timeout_s: 5.0
+  reconnect:
+    initial_backoff_s: 0.5
+    max_backoff_s: 8.0
+    jitter: 0.2
+
+window:
+  seconds: 1.0           # telemetry window length
+
+probes:
+  grid: [8, 8]           # occlusion grid (rows, cols)
+  black_level: 16
+  white_level: 240
+  blur_kernel: 11        # Crete-Roffet re-blur kernel
+  freeze_window: 10      # frames considered for repeat/loop detection
+  max_loop_period: 8
+  geometry:
+    every_n_frames: 5
+    orb_features: 500
+    min_matches: 12
+    ransac_reproj_px: 5.0
+
+# Per-fault rules over a telemetry window (absolute + robust z-score vs baseline).
+faults:
+  blackout:       { brightness_p50_max: 25, black_pixel_ratio_min: 0.85 }
+  overexposure:   { white_pixel_ratio_min: 0.45 }
+  focus_drift:    { blur_effect_min: 0.55, blur_z_min: 4.0, edge_density_drop_min: 0.5 }
+  freeze:         { exact_repeat_ratio_min: 0.9, repeated_hash_ratio_min: 0.95 }
+  lens_occlusion: { occluded_cell_ratio_min: 0.30 }
+  fov_shift:      { translation_px_min: 25, rotation_deg_min: 3.0, inlier_ratio_min: 0.35 }
+  low_fps:        { fps_ratio_max: 0.5 }
+  stream_down:    { frame_age_ms_min: 3000 }
+
+fusion:
+  enter_windows: 3       # consecutive windows to go SUSPECT -> CONFIRMED
+  exit_windows: 2        # consecutive healthy windows to return to HEALTHY
+  cooldown_s: 20         # after an action before re-opening the same fault
+
+baseline:
+  window: 300            # samples kept per metric
+  min_samples: 20
+  mad_epsilon: 1.0e-6
+
+planner:
+  kind: nemotron         # nemotron | rules
+  auto_execute: true     # Gate F6: set false to restrict Nemotron to explanation only
+  prompt_version: diagnose_v1
+  temperature: 0.1
+  max_output_tokens: 600
+  timeout_s: 20
+  max_calls_per_incident: 2
+  circuit_breaker: { failures: 3, open_s: 60 }
+
+nebius:
+  base_url: https://api.tokenfactory.nebius.com/v1/
+  # VERIFY with scripts/list_models.py before trusting (Gate F0, ADR-002).
+  models:
+    fast: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B
+    reasoning: nvidia/nemotron-3-super-120b-a12b
+  # Fallback prices (USD per 1M tokens) from the public catalog read on 2026-10-04.
+  prices:
+    nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B: { input: 0.06, output: 0.24 }
+    nvidia/Nemotron-3_5-Lightning: { input: 0.06, output: 0.24 }
+    nvidia/nemotron-3-super-120b-a12b: { input: 0.30, output: 0.90 }
+    nvidia/Nemotron-3-Ultra-550b-a55b: { input: 1.00, output: 3.00 }
+  extra_body: {}         # e.g. reasoning toggles once verified
+
+budget:
+  total_usd: 30
+  soft_cap_usd: 23
+  demo_cap_usd: 25
+  hard_cap_usd: 27
+  alerts_pct: [50, 70, 80]
+
+verification:
+  window_seconds: 15
+  min_relative_improvement: 0.10
+  baseline_recovery_ratio: 0.95
+  max_guard_regression: 0.10
+  healthy_windows_required: 2
+
+storage:
+  db_path: runs/agent.sqlite
