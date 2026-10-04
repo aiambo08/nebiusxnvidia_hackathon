@@ -101,7 +101,7 @@ class SyntheticSource(CameraSource):
         self.fault_strength: float = 1.0
         self._background = self._make_background()
         d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-        self._msize = max(24, int(min(width, height) * 0.3))
+        self._msize = max(24, int(min(width, height) * 0.15))
         self._marker = cv2.aruco.generateImageMarker(d, marker_id, self._msize)
 
     def _make_background(self) -> np.ndarray:
