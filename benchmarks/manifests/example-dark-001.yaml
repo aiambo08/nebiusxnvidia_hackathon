@@ -1,0 +1,18 @@
+# One manifest = one benchmark run. Split train/test by `session`, never by frame.
+id: example-dark-001
+session: s001
+source:
+  path: benchmarks/data/s001_clean.avi   # local only, never committed
+  sha256: TBD
+camera: { id: cam_01, resolution: [1280, 720], device: "laptop webcam" }
+fault:
+  kind: dark
+  strength: 0.95
+  start_frame: 150
+  end_frame: 450
+  seed: 42
+expected:
+  faults: [blackout]
+  action: set_exposure_bounded   # or needs_human / request_manual_cleaning
+  recoverable: true
+notes: synthetic darkening of a clean office recording
