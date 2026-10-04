@@ -3,9 +3,11 @@
 Last update: 2026-10-04 · Current phase: **F0** · Days to deadline: 26
 
 ## Snapshot
-- Repository scaffolded: contracts, FSM, capture, probes, baseline, fusion, Nemotron client with
-  budget guard, policy gate, simulated actions, verifier, SQLite event store, offline demo.
-- No live Token Factory call yet → Gate F0 open.
+- Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
+  baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
+  event store, orchestrator, CLI, read-only API, injectors, CI.
+- 222 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
+- No live Token Factory call yet → Gate F0 open. No real-webcam run yet → F1 open.
 
 ## Budget (update weekly from the Token Factory console)
 | Date | Ledger estimate (USD) | Console balance (USD) |

@@ -14,20 +14,29 @@ recalibrated with real camera data.
 | Phase | Name | Week | Owner agent | Status |
 |---|---|---|---|---|
 | F0 | Compliance & scope freeze | 1 | Architecture + Nebius | in progress |
-| F1 | Feasibility spikes | 1 | All | not started |
-| F2 | Ingestion & observability | 1 | Ingestion | not started |
-| F3 | Visual monitors | 2 | Vision | not started |
-| F4 | Dataset & reproducible benchmark | 2 | Evaluation | not started |
-| F5 | Adaptive baseline & temporal fusion | 2 | Architecture | not started |
-| F6 | Nemotron integration | 3 | Nebius | not started |
-| F7 | Executor & safety | 3 | Safety | not started |
-| F8 | Verification & rollback | 3 | Safety + Evaluation | not started |
+| F1 | Feasibility spikes | 1 | All | scripts ready |
+| F2 | Ingestion & observability | 1 | Ingestion | scaffolded |
+| F3 | Visual monitors | 2 | Vision | scaffolded |
+| F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
+| F5 | Adaptive baseline & temporal fusion | 2 | Architecture | scaffolded |
+| F6 | Nemotron integration | 3 | Nebius | scaffolded |
+| F7 | Executor & safety | 3 | Safety | scaffolded |
+| F8 | Verification & rollback | 3 | Safety + Evaluation | scaffolded |
 | F9 | Product & demo experience | 4 | Product | not started |
 | F10 | End-to-end validation | 4 | Evaluation | not started |
-| F11 | Hardening & security | 4 | Integrator | not started |
+| F11 | Hardening & security | 4 | Integrator | partially scaffolded |
 | F12 | Submission | 4 | Product + human | not started |
 
 "scaffolded" = interfaces, first implementation and unit tests exist; the gate is **not** passed.
+Ticked boxes are proven by unit/adversarial/e2e tests in CI; boxes that need real camera data,
+live Token Factory calls or human reviewers stay open until that evidence exists.
+
+### Evidence so far (synthetic, re-measure on real data)
+- Probe latency at 720p: p50 11.7 ms, p95 22.4 ms on the sandbox CPU (`scripts/bench_probes.py`).
+- Alert flapping vs frame-by-frame detector: ≥ 50% reduction on noisy synthetic sequences
+  (`tests/unit/test_baseline_fusion.py::test_hysteresis_reduces_alert_flapping`).
+- 5 MVP faults reach CONFIRMED (`test_mvp_faults_reach_confirmed`); 4 recoverable synthetic
+  scenarios commit and a harmful action is rolled back (`tests/e2e/test_scenarios.py`).
 
 ---
 
@@ -35,12 +44,12 @@ recalibrated with real camera data.
 - [ ] Successful runtime call to an NVIDIA model with our credentials (`scripts/spike_nemotron.py`)
 - [ ] Model ID obtained from the live API (`scripts/list_models.py`), not from old docs
 - [ ] Estimated cost per run recorded (`runs/spikes/nemotron.jsonl`)
-- [ ] No mandatory paid service (see `docs/budget.md`)
+- [x] No mandatory paid service (see `docs/budget.md`)
 - [ ] MVP runs locally on hardware already owned (webcam + RTX 4060 laptop/PC)
 - [ ] Every official requirement has planned evidence (`docs/compliance-matrix.md`)
 - [x] Licenses of critical dependencies reviewed (`docs/third-party-licenses.md`)
 - [x] ADR-001 recorded (`docs/adr/ADR-001-architecture.md`)
-- [ ] Out-of-scope list frozen (README "Out of scope")
+- [x] Out-of-scope list frozen (README "Out of scope")
 
 **Block:** model unavailable, credits not applied, a critical dependency requires payment, or the
 design needs hardware we do not own → change model/adapter/scope before continuing.
@@ -51,7 +60,7 @@ design needs hardware we do not own → change model/adapter/scope before contin
 - [ ] File + local RTSP read through the same `CameraSource` interface
 - [ ] Blur, darkness, freeze injected reproducibly and detected (`benchmarks/injectors`)
 - [ ] ≥ 19/20 Nemotron responses valid against schema with ≤ 1 repair retry
-- [ ] Simulated action applied and reverted twice, idempotently
+- [x] Simulated action applied and reverted twice, idempotently
 - [ ] Projected cost of 300 diagnoses ≤ 23 USD
 
 **Block:** if capture, structured response or rollback fails, do not start the full product.
@@ -61,8 +70,8 @@ design needs hardware we do not own → change model/adapter/scope before contin
 - [ ] Simulated RTSP disconnect detected in < 5 s
 - [ ] Reconnection does not block the main process
 - [ ] Telemetry resumes < 15 s after the stream returns
-- [ ] Ring buffer is bounded (unit test)
-- [ ] Frozen-but-connected stream reported separately for transport vs content (unit test)
+- [x] Ring buffer is bounded (unit test)
+- [x] Frozen-but-connected stream reported separately for transport vs content (unit test)
 - [ ] Ingestion package coverage ≥ 80% lines / ≥ 75% branches
 
 ## F3 — Visual monitors
@@ -72,8 +81,8 @@ On ≥ 10 runs per fault:
 - [ ] 0 freeze false positives on a 20-min static scene with healthy capture
 - [ ] 0 "camera moved" false positives across ≥ 20 person-walk-by trials
 - [ ] Probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS
-- [ ] Each probe returns score, evidence, measurement quality and `unknown` reason
-- [ ] Thresholds live in config, not in logic
+- [x] Each probe returns score, evidence, measurement quality and `unknown` reason
+- [x] Thresholds live in config, not in logic
 
 **Block:** a detector below minimum precision cannot trigger actions (experimental label only).
 
@@ -90,41 +99,41 @@ On ≥ 10 runs per fault:
 
 ## F5 — Adaptive baseline & temporal fusion
 - [ ] Calibration on clean data is automatic and yields a baseline version
-- [ ] Baseline frozen during SUSPECT / CONFIRMED / ACTING / VERIFYING (unit test)
+- [x] Baseline frozen during SUSPECT / CONFIRMED / ACTING / VERIFYING (unit test)
 - [ ] State and baseline restored from persistence after restart
-- [ ] Same events → same state sequence (determinism unit test)
+- [x] Same events → same state sequence (determinism unit test)
 - [ ] Hysteresis cuts state flapping ≥ 50% vs frame-by-frame detector
 - [ ] All 5 faults reach CONFIRMED; legitimate changes return to HEALTHY without calling Nemotron
 
 ## F6 — Nemotron integration
 - [ ] ≥ 98% schema-valid responses after ≤ 1 retry
 - [ ] ≥ 90% correct action choice on the golden set
-- [ ] 100% invented actions / out-of-range args rejected by policy gate (adversarial tests)
-- [ ] 0 direct executions from free text (planner only emits validated `NemotronPlan`)
-- [ ] Cloud timeout does not block capture/monitoring (circuit breaker + local fallback)
-- [ ] Prompt version + model recorded on every decision
+- [x] 100% invented actions / out-of-range args rejected by policy gate (adversarial tests)
+- [x] 0 direct executions from free text (planner only emits validated `NemotronPlan`)
+- [x] Cloud timeout does not block capture/monitoring (circuit breaker + local fallback)
+- [x] Prompt version + model recorded on every decision
 - [ ] Measured mean cost compatible with total budget
-- [ ] Offline mode produces a safe, useful escalation (`RuleBasedPlanner` / `needs_human`)
+- [x] Offline mode produces a safe, useful escalation (`RuleBasedPlanner` / `needs_human`)
 
 **Block:** if validity or action selection misses the gate, Nemotron is limited to explanation and
 classification; automatic planning stays disabled (`configs/default.yaml: planner.auto_execute`).
 
 ## F7 — Executor & safety
-- [ ] Each action has validation and rollback unit tests
-- [ ] Invalid args rejected before touching the device
-- [ ] Previous state persisted before execution
-- [ ] Two repeated executions cause no corruption
+- [x] Each action has validation and rollback unit tests
+- [x] Invalid args rejected before touching the device
+- [x] Previous state persisted before execution
+- [x] Two repeated executions cause no corruption
 - [ ] Crash during an action → recover or revert on next start
-- [ ] No risky physical action available
-- [ ] 100 adversarial cases cannot bypass allowlist, ranges or cooldown
-- [ ] Unsupported actions end in NEEDS_HUMAN, never a false confirmation
+- [x] No risky physical action available
+- [x] 100 adversarial cases cannot bypass allowlist, ranges or cooldown
+- [x] Unsupported actions end in NEEDS_HUMAN, never a false confirmation
 
 ## F8 — Verification & rollback
 - [ ] Each MVP action has a full commit test and a rollback test (simulated device)
 - [ ] ≥ 85% of recoverable incidents resolved without humans on the test bench
 - [ ] 100% of deliberate regressions end in rollback or safe mode
-- [ ] Rollback restores exactly the previous versioned config
-- [ ] Execution failure distinguished from "no improvement"
+- [x] Rollback restores exactly the previous versioned config
+- [x] Execution failure distinguished from "no improvement"
 - [ ] Before/after report with metrics and evidence persisted
 - [ ] Restart during VERIFYING does not lose the pending decision
 
@@ -159,9 +168,9 @@ Results must be generated from event files, never typed into the README by hand.
 
 ## F11 — Hardening & security
 - [ ] Secret scanner finds nothing (CI `gitleaks` job)
-- [ ] Without API key the product starts in local mode and explains the limitation
-- [ ] Above soft cap, non-essential calls are disabled (unit test)
-- [ ] Above hard cap, no call leaves the client (unit test)
+- [x] Without API key the product starts in local mode and explains the limitation
+- [x] Above soft cap, non-essential calls are disabled (unit test)
+- [x] Above hard cap, no call leaves the client (unit test)
 - [ ] All used dependencies have documented licenses
 - [ ] A different agent installs and runs from README only
 - [ ] Public repo contains no private videos, credentials or illegally redistributed datasets

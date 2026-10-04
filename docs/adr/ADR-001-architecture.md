@@ -39,4 +39,6 @@ Non-negotiables:
 
 ## FSM additions vs. the report
 The report's table is kept; we make terminal/branch states explicit: `SAFE_MODE`, `REJECTED`,
-`FAILED`, `ROLLED_BACK`, `CLOSED`. See `src/reliability_agent/incidents/state_machine.py`.
+`FAILED`, `ROLLED_BACK`, `CLOSED`, plus `ACTING → NEEDS_HUMAN` for ticket-only actions
+(cleaning / recalibration requests never touch the device). See
+`src/reliability_agent/incidents/state_machine.py`.
