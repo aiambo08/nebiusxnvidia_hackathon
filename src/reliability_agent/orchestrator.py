@@ -26,7 +26,7 @@ from reliability_agent.contracts.models import (
     VerificationStatus,
 )
 from reliability_agent.incidents.fusion import IncidentTracker, classify_window
-from reliability_agent.nemotron.planner import PlanOutcome, Planner
+from reliability_agent.nemotron.planner import Planner, PlanOutcome
 from reliability_agent.policy.gate import PolicyGate
 from reliability_agent.storage.event_store import EventStore
 from reliability_agent.verification.verifier import Verifier

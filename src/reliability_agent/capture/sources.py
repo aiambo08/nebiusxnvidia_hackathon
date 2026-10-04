@@ -30,6 +30,8 @@ class OpenCVSource(CameraSource):
         self.loop_file = loop_file
         self._cap: cv2.VideoCapture | None = None
         self._seq = 0
+        # logical settings only; real UVC/ONVIF imaging controls arrive with Phase-7 adapters
+        self.settings: dict = {"safe_mode": False, "profile": "main"}
         if isinstance(self.uri, int):
             self.kind = "webcam"
         elif str(self.uri).lower().startswith(("rtsp://", "rtsps://", "http://", "https://")):
@@ -69,6 +71,15 @@ class OpenCVSource(CameraSource):
     def capabilities(self) -> SourceCapabilities:
         # Real capability discovery per device is a Phase-7 task (UVC/ONVIF adapters).
         return SourceCapabilities(restartable=True)
+
+    def get_settings(self) -> dict:
+        return dict(self.settings)
+
+    def apply_settings(self, settings: dict) -> None:
+        unknown = set(settings) - set(self.settings)
+        if unknown:
+            raise NotImplementedError(f"device does not support {sorted(unknown)}")
+        self.settings.update(settings)
 
 
 class SyntheticSource(CameraSource):

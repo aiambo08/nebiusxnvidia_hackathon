@@ -41,7 +41,8 @@ def _median(windows: list[TelemetryWindow], metric: str) -> float | None:
 
 
 class Verifier:
-    def __init__(self, min_relative_improvement: float = 0.10, baseline_recovery_ratio: float = 0.95,
+    def __init__(self, min_relative_improvement: float = 0.10,
+                 baseline_recovery_ratio: float = 0.95,
                  max_guard_regression: float = 0.10, healthy_windows_required: int = 2,
                  guard_abs_tolerance: dict[str, float] | None = None) -> None:
         self.guard_abs = guard_abs_tolerance or {}
@@ -87,7 +88,8 @@ class Verifier:
         gain = (pb - pa) if lower else (pa - pb)
         rel = gain / abs(pb) if abs(pb) > 1e-9 else (gain if gain > 0 else 0.0)
         recovered = baseline_primary is not None and (
-            pa <= baseline_primary / self.recovery if lower else pa >= self.recovery * baseline_primary
+            pa <= baseline_primary / self.recovery if lower
+            else pa >= self.recovery * baseline_primary
         )
         if rel >= min_rel or recovered:
             reasons.append(f"{pm}: {pb:.3f} -> {pa:.3f} (rel {rel:+.0%})")

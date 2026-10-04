@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
+import cv2
 import numpy as np
 
 from reliability_agent.capture.base import Frame
@@ -16,8 +17,6 @@ from reliability_agent.contracts.models import (
     TransportMetrics,
     VisualMetrics,
 )
-import cv2
-
 from reliability_agent.probes.base import downscale, to_gray
 from reliability_agent.probes.geometry import GeometryProbe
 from reliability_agent.probes.occlusion import cell_stats, occlusion_probe

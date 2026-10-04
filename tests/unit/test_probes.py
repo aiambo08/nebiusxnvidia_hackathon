@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from reliability_agent.capture import SyntheticSource
+from reliability_agent.capture.worker import TransportMeter
 from reliability_agent.config import load_config
 from reliability_agent.probes.base import to_gray
 from reliability_agent.probes.geometry import GeometryProbe
@@ -12,7 +13,6 @@ from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 from reliability_agent.probes.sharpness import blur_effect, sharpness_probe
 from reliability_agent.probes.temporal import FreezeTracker, dhash
 from reliability_agent.tasks.marker import MarkerTask
-from reliability_agent.capture.worker import TransportMeter
 
 
 @pytest.fixture
