@@ -52,7 +52,7 @@ class Planner(Protocol):
 _RULES: list[tuple[FaultType, ActionName, dict[str, Any]]] = [
     (F.STREAM_DOWN, A.RESTART_CAPTURE, {}),
     (F.FREEZE, A.RESTART_CAPTURE, {}),
-    (F.BLACKOUT, A.SET_EXPOSURE_BOUNDED, {"delta_ev": 1.5}),
+    (F.BLACKOUT, A.SET_EXPOSURE_BOUNDED, {"delta_ev": 2.0}),
     (F.OVEREXPOSURE, A.SET_EXPOSURE_BOUNDED, {"delta_ev": -1.5}),
     (F.FOCUS_DRIFT, A.TRIGGER_AUTOFOCUS, {}),
     (F.LOW_FPS, A.SWITCH_STREAM_PROFILE, {"profile": "sub"}),

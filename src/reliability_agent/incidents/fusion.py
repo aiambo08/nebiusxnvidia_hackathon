@@ -47,9 +47,14 @@ def classify_window(
         hit(F.LOW_FPS, "transport.capture_fps", t.capture_fps)
 
     # content
-    if (v.exact_repeat_ratio or 0) >= r["freeze"]["exact_repeat_ratio_min"] or (
-        v.repeated_hash_ratio or 0
-    ) >= r["freeze"]["repeated_hash_ratio_min"] or (v.loop_period or 0) > 0:
+    fz = r["freeze"]
+    # Hash repeats alone are NOT a freeze: a static scene also repeats its perceptual hash.
+    # They count only when pixel differences are below the sensor-noise floor.
+    near_zero_motion = (v.temporal_mse_p50 is not None
+                        and v.temporal_mse_p50 <= fz["temporal_mse_floor"])
+    if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
+        (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"] and near_zero_motion
+    ) or (v.loop_period or 0) > 0:
         hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
             note="content frozen while transport connected")
 

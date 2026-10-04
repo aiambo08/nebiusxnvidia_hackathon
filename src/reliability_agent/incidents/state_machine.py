@@ -16,7 +16,7 @@ TRANSITIONS: dict[S, frozenset[S]] = {
     S.DIAGNOSING: frozenset({S.PLANNED, S.NEEDS_HUMAN}),
     S.PLANNED: frozenset({S.ACTING, S.REJECTED}),
     S.REJECTED: frozenset({S.NEEDS_HUMAN}),
-    S.ACTING: frozenset({S.VERIFYING, S.FAILED}),
+    S.ACTING: frozenset({S.VERIFYING, S.FAILED, S.NEEDS_HUMAN}),  # NEEDS_HUMAN: ticket opened
     S.FAILED: frozenset({S.ROLLING_BACK, S.NEEDS_HUMAN}),
     S.VERIFYING: frozenset({S.RECOVERED, S.ROLLING_BACK}),
     S.ROLLING_BACK: frozenset({S.ROLLED_BACK, S.NEEDS_HUMAN}),

@@ -183,3 +183,10 @@ def test_execution_failure_distinct_from_no_improvement():
     assert d.status is VerificationStatus.EXECUTION_FAILED
     d2 = Verifier().decide([_w(0.0)], [_w(1.0)], [set()], {FaultType.BLACKOUT}, SPEC)
     assert d2.status is VerificationStatus.INCONCLUSIVE
+
+
+def test_guard_noise_within_absolute_tolerance_is_ignored(cfg):
+    v = Verifier.from_config(cfg)
+    d = v.decide([_w(0.0, latency=1.0)], [_w(1.0, latency=2.5), _w(1.0, latency=2.5)],
+                 [set(), set()], {FaultType.BLACKOUT}, SPEC, baseline_primary=1.0)
+    assert d.status is VerificationStatus.COMMITTED, d.reasons

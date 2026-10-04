@@ -138,3 +138,14 @@ def test_cooldown_suppresses_refire(cfg):
     assert FaultType.BLACKOUT not in step.faults
     step = t.step(make_window(**FAULT_WINDOWS[FaultType.BLACKOUT]), now_s=25.0)
     assert FaultType.BLACKOUT in step.faults
+
+
+def test_static_scene_hash_repeats_are_not_freeze(cfg):
+    # identical perceptual hash but real sensor noise between frames -> not frozen
+    w = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                temporal_mse_p50=6.0))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert FaultType.FREEZE not in faults
+    w2 = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                 temporal_mse_p50=0.1))
+    assert FaultType.FREEZE in classify_window(w2, None, cfg["faults"])[0]

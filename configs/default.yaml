@@ -33,7 +33,7 @@ faults:
   blackout:       { brightness_p50_max: 25, black_pixel_ratio_min: 0.85 }
   overexposure:   { white_pixel_ratio_min: 0.45 }
   focus_drift:    { blur_effect_min: 0.55, blur_z_min: 4.0, edge_density_drop_min: 0.5 }
-  freeze:         { exact_repeat_ratio_min: 0.9, repeated_hash_ratio_min: 0.95 }
+  freeze:         { exact_repeat_ratio_min: 0.9, repeated_hash_ratio_min: 0.95, temporal_mse_floor: 0.5 }
   lens_occlusion: { occluded_cell_ratio_min: 0.30 }
   fov_shift:      { translation_px_min: 25, rotation_deg_min: 3.0, inlier_ratio_min: 0.35 }
   low_fps:        { fps_ratio_max: 0.5 }
@@ -86,6 +86,11 @@ verification:
   baseline_recovery_ratio: 0.95
   max_guard_regression: 0.10
   healthy_windows_required: 2
+  # absolute noise tolerance per guard metric: smaller changes are never a "regression"
+  guard_abs_tolerance:
+    task.latency_ms_p95: 5.0
+    transport.capture_fps: 1.0
+    transport.frame_age_ms_p95: 50.0
 
 storage:
   db_path: runs/agent.sqlite

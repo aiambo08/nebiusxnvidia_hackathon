@@ -88,7 +88,9 @@ class SyntheticSource(CameraSource):
         seed: int = 0,
         marker_id: int = 7,
         noise_sigma: float = 2.0,
+        clock=None,
     ) -> None:
+        self.clock = clock or now
         self.w, self.h = width, height
         self.seed = seed
         self.noise_sigma = noise_sigma
@@ -158,11 +160,11 @@ class SyntheticSource(CameraSource):
             return None
         if self.fault == "freeze" and self._last is not None:
             self._seq += 1
-            return Frame(self._last.copy(), self._seq, now(), None)
+            return Frame(self._last.copy(), self._seq, self.clock(), None)
         img = self._render()
         self._last = img
         self._seq += 1
-        return Frame(img, self._seq, now(), None)
+        return Frame(img, self._seq, self.clock(), None)
 
     def _render(self) -> np.ndarray:
         img = self._background.copy()

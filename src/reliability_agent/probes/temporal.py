@@ -26,11 +26,14 @@ def hamming(a: int, b: int) -> int:
 
 
 class FreezeTracker:
-    def __init__(self, window: int = 10, max_loop_period: int = 8, hash_tol: int = 0) -> None:
+    def __init__(self, window: int = 10, max_loop_period: int = 8, hash_tol: int = 0,
+                 loop_mse_max: float = 0.5) -> None:
         self.window = window
         self.max_loop_period = max_loop_period
         self.hash_tol = hash_tol
+        self.loop_mse_max = loop_mse_max
         self._prev: np.ndarray | None = None
+        self._frames: deque[np.ndarray] = deque(maxlen=2 * max_loop_period)
         self._hashes: deque[int] = deque(maxlen=max(window, 2 * max_loop_period + 1))
         self._exact: deque[bool] = deque(maxlen=window)
         self._mse: deque[float] = deque(maxlen=window)
@@ -44,6 +47,7 @@ class FreezeTracker:
             self._mse.append(mse)
             self._exact.append(mse == 0.0)
         self._prev = small
+        self._frames.append(small)
         self._hashes.append(h)
         hs = list(self._hashes)
         rep = [hamming(a, b) <= self.hash_tol for a, b in zip(hs, hs[1:], strict=False)]
@@ -54,7 +58,7 @@ class FreezeTracker:
                 "temporal_mse": float(self._mse[-1]) if self._mse else float("nan"),
                 "repeated_hash_ratio": float(np.mean(recent)) if recent else 0.0,
                 "exact_repeat_ratio": float(np.mean(self._exact)) if self._exact else 0.0,
-                "loop_period": float(self._loop_period(hs)),
+                "loop_period": float(self._loop_period()),
             },
         )
         if len(self._exact) < 2:
@@ -62,14 +66,21 @@ class FreezeTracker:
             res.unknown_reason = "warming up"
         return res
 
-    def _loop_period(self, hs: list[int]) -> int:
-        """Smallest p in [2, max] such that the last 2p hashes repeat with period p, else 0."""
+    def _loop_period(self) -> int:
+        """Smallest p in [2, max] such that frame[t-i] ~= frame[t-i-p] for i < p (pixel MSE
+        below the sensor-noise floor) while consecutive frames differ. A static scene has
+        consecutive frames that are equal up to noise, so it is never reported as a loop."""
+        fr = list(self._frames)
+
+        def mse(a: np.ndarray, b: np.ndarray) -> float:
+            return float(np.mean((a.astype(np.float32) - b.astype(np.float32)) ** 2))
+
         for p in range(2, self.max_loop_period + 1):
-            if len(hs) < 2 * p:
+            if len(fr) < 2 * p:
                 break
-            tail = hs[-2 * p :]
-            if all(hamming(tail[i], tail[i + p]) <= self.hash_tol for i in range(p)) and len(
-                set(tail[:p])
-            ) > 1:
+            tail = fr[-2 * p :]
+            if all(mse(tail[i], tail[i + p]) <= self.loop_mse_max for i in range(p)) and all(
+                mse(tail[i], tail[i + 1]) > self.loop_mse_max for i in range(p)
+            ):
                 return p
         return 0

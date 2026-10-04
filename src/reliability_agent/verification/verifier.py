@@ -1,6 +1,6 @@
 """Commit-or-rollback rule (report, Phase 8). Parameters are initial and must be calibrated.
 
-Commit iff ALL hold:
+Commit iff ALL hold (guard changes within `guard_abs_tolerance` are treated as noise):
 1. primary metric improves >= min_relative_improvement OR reaches recovery_ratio * baseline;
 2. no guard metric regresses more than max_guard_regression;
 3. the original faults are absent for `healthy_windows_required` consecutive windows;
@@ -42,7 +42,9 @@ def _median(windows: list[TelemetryWindow], metric: str) -> float | None:
 
 class Verifier:
     def __init__(self, min_relative_improvement: float = 0.10, baseline_recovery_ratio: float = 0.95,
-                 max_guard_regression: float = 0.10, healthy_windows_required: int = 2) -> None:
+                 max_guard_regression: float = 0.10, healthy_windows_required: int = 2,
+                 guard_abs_tolerance: dict[str, float] | None = None) -> None:
+        self.guard_abs = guard_abs_tolerance or {}
         self.min_rel = min_relative_improvement
         self.recovery = baseline_recovery_ratio
         self.max_guard = max_guard_regression
@@ -52,7 +54,8 @@ class Verifier:
     def from_config(cls, cfg: dict) -> Verifier:
         v = cfg["verification"]
         return cls(v["min_relative_improvement"], v["baseline_recovery_ratio"],
-                   v["max_guard_regression"], v["healthy_windows_required"])
+                   v["max_guard_regression"], v["healthy_windows_required"],
+                   v.get("guard_abs_tolerance"))
 
     def decide(
         self,
@@ -95,6 +98,8 @@ class Verifier:
         for g in spec.guard_metrics:
             if g not in a or g not in b or abs(b[g]) < 1e-9:
                 continue
+            if abs(a[g] - b[g]) <= self.guard_abs.get(g, 0.0):
+                continue  # within measurement noise
             worse = (a[g] - b[g]) / abs(b[g]) if g in LOWER_IS_BETTER else (b[g] - a[g]) / abs(b[g])
             if worse > self.max_guard:
                 ok = False

@@ -16,6 +16,8 @@ from reliability_agent.contracts.models import (
     TransportMetrics,
     VisualMetrics,
 )
+import cv2
+
 from reliability_agent.probes.base import downscale, to_gray
 from reliability_agent.probes.geometry import GeometryProbe
 from reliability_agent.probes.occlusion import cell_stats, occlusion_probe
@@ -45,10 +47,18 @@ class ProbeRunner:
         self._last_geom: dict[str, float] = {}
         self._geom_quality = "no_reference"
 
+    @staticmethod
+    def _normalised(gray: np.ndarray) -> np.ndarray:
+        """Brightness-normalised copy so texture probes are not fooled by a dim scene."""
+        m = float(gray.mean())
+        if m < 1.0:
+            return gray
+        return np.clip(gray.astype(np.float32) * (128.0 / m), 0, 255).astype(np.uint8)
+
     def calibrate_reference(self, frame: Frame) -> None:
         gray = downscale(to_gray(frame.image))
-        self.geometry.set_reference(gray)
-        self.baseline_cells = cell_stats(gray, self.grid)
+        self.geometry.set_reference(cv2.equalizeHist(gray))
+        self.baseline_cells = cell_stats(self._normalised(gray), self.grid)
 
     def analyse(self, frame: Frame) -> dict[str, float]:
         gray = downscale(to_gray(frame.image))
@@ -57,9 +67,9 @@ class ProbeRunner:
         out.update(exposure_probe(gray, self.cfg["black_level"], self.cfg["white_level"]).values)
         out.update(sharpness_probe(gray, self.cfg["blur_kernel"]).values)
         out.update(self.freeze.update(gray).values)
-        out.update(occlusion_probe(gray, self.grid, self.baseline_cells).values)
+        out.update(occlusion_probe(self._normalised(gray), self.grid, self.baseline_cells).values)
         if self._n % self.geometry_every == 1 or self.geometry_every == 1:
-            g = self.geometry.measure(gray)
+            g = self.geometry.measure(cv2.equalizeHist(gray))
             self._last_geom, self._geom_quality = g.values, g.quality
         out.update({f"geom_{k}": v for k, v in self._last_geom.items()})
         t = self.task.run(gray)
