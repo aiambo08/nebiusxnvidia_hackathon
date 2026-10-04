@@ -2,6 +2,7 @@
 
 Any coding agent (Devin, Copilot, Claude Code, Codex, …) working on this repository must read this
 file, `docs/phases-and-gates.md` and `docs/agents/PROJECT_STATE.md` before changing code.
+Task playbooks live in `.agents/skills/` (see its README); load the matching one before a task.
 
 ## Language
 - Code, comments, docs, UI, commit messages: **English**.

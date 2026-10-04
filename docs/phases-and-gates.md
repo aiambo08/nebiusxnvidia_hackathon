@@ -167,7 +167,7 @@ during an action · process restart in every state · 4-hour soak.
 Results must be generated from event files, never typed into the README by hand.
 
 ## F11 — Hardening & security
-- [ ] Secret scanner finds nothing (CI `gitleaks` job)
+- [x] Secret scanner finds nothing (CI `gitleaks` job)
 - [x] Without API key the product starts in local mode and explains the limitation
 - [x] Above soft cap, non-essential calls are disabled (unit test)
 - [x] Above hard cap, no call leaves the client (unit test)
