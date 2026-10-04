@@ -1,0 +1,8 @@
+Physical AI Reliability Agent
+Copyright 2026 Aibo Ni
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party components and their licenses are inventoried in
+docs/third-party-licenses.md. No third-party source code is vendored in this
+repository at the time of writing; dependencies are installed from PyPI.

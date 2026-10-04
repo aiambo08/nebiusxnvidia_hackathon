@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime data
+runs/
+data/
+*.sqlite
+*.sqlite3
+*.db
+benchmarks/reports/*
+!benchmarks/reports/.gitkeep
+benchmarks/data/
+
+# Media (private recordings must never be pushed)
+*.mp4
+*.avi
+*.mkv
+*.mov
+!benchmarks/fixtures/*.mp4
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Node (dashboard, Phase 9)
+node_modules/
