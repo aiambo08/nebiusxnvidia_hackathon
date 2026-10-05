@@ -14,7 +14,7 @@ recalibrated with real camera data.
 | Phase | Name | Week | Owner agent | Status |
 |---|---|---|---|---|
 | F0 | Compliance & scope freeze | 1 | Architecture + Nebius | in progress |
-| F1 | Feasibility spikes | 1 | All | scripts ready |
+| F1 | Feasibility spikes | 1 | All | in progress |
 | F2 | Ingestion & observability | 1 | Ingestion | scaffolded |
 | F3 | Visual monitors | 2 | Vision | scaffolded |
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
@@ -45,7 +45,7 @@ live Token Factory calls or human reviewers stay open until that evidence exists
 - [x] Model ID obtained from the live API (`scripts/list_models.py`, `docs/evidence/f0/models-2026-10-05.json`)
 - [x] Estimated cost per run recorded (`docs/evidence/f0/*.jsonl`, `cost_usd` per call; ADR-002)
 - [x] No mandatory paid service (see `docs/budget.md`)
-- [ ] MVP runs locally on hardware already owned (webcam + RTX 4060 laptop/PC)
+- [x] MVP runs locally on hardware already owned (webcam + RTX 4060 laptop/PC) (`docs/evidence/f1/README.md`, native Windows)
 - [ ] Every official requirement has planned evidence (`docs/compliance-matrix.md`)
 - [x] Licenses of critical dependencies reviewed (`docs/third-party-licenses.md`)
 - [x] ADR-001 recorded (`docs/adr/ADR-001-architecture.md`)
@@ -55,14 +55,14 @@ live Token Factory calls or human reviewers stay open until that evidence exists
 design needs hardware we do not own → change model/adapter/scope before continuing.
 
 ## F1 — Feasibility spikes
-- [ ] 30 min webcam capture, no crash, memory growth ≤ 10% after warm-up (`scripts/spike_capture.py`)
-- [ ] ≥ 95% of 1-s intervals produce valid telemetry
+- [x] 30 min webcam capture, no crash, memory growth ≤ 10% after warm-up (`scripts/spike_capture.py`; 0.4%, `docs/evidence/f1/README.md`)
+- [x] ≥ 95% of 1-s intervals produce valid telemetry (1629/1629, `docs/evidence/f1/README.md`)
 - [ ] File + local RTSP read through the same `CameraSource` interface
 - [ ] Blur, darkness, freeze injected reproducibly and detected (`benchmarks/injectors`)
-- [ ] ≥ 19/20 Nemotron responses valid against schema with ≤ 1 repair retry
+- [x] ≥ 19/20 Nemotron responses valid against schema with ≤ 1 repair retry (20/20, `docs/evidence/f0/nemotron-fast-thinking-off.jsonl`)
 - [x] Simulated action applied and reverted twice, idempotently
-- [ ] Projected cost of 300 diagnoses ≤ 23 USD
-- [ ] Mean cost ≤ 0.005 USD per diagnosis and p95 diagnosis latency ≤ 8 s (added 2026-10-05: the 23 USD bound is not informative at measured prices)
+- [x] Projected cost of 300 diagnoses ≤ 23 USD (~0.03 USD, same evidence)
+- [x] Mean cost ≤ 0.005 USD per diagnosis and p95 diagnosis latency ≤ 8 s (0.0001 USD, p95 2.5 s, same evidence) (added 2026-10-05: the 23 USD bound is not informative at measured prices)
 
 **Block:** if capture, structured response or rollback fails, do not start the full product.
 
