@@ -37,7 +37,7 @@ packages = ["src/reliability_agent"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "."]
+pythonpath = ["src", ".", "scripts"]
 markers = [
   "live: requires a real NEBIUS_API_KEY and network (skipped by default)",
   "slow: long-running tests",

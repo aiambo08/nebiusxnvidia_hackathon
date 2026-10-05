@@ -2,6 +2,7 @@
 
 import time
 
+import _src_path  # noqa: F401  (adds src/ to sys.path)
 import numpy as np
 
 from reliability_agent.capture import SyntheticSource

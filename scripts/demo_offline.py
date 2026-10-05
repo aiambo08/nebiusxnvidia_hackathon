@@ -6,6 +6,8 @@
 
 import sys
 
+import _src_path  # noqa: F401  (adds src/ to sys.path)
+
 from reliability_agent.cli import main
 
 if __name__ == "__main__":
