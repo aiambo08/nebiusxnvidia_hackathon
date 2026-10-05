@@ -12,11 +12,11 @@ budget, API keys, private recordings.
 | LLM passes out-of-range / wrong-type / extra args | Typed `ParamSpec` bounds; NaN/inf rejected; extra keys rejected | adversarial |
 | LLM picks an action not offered for this incident | Plan action must be in `incident.allowed_actions` | unit |
 | Action spam / oscillation | Per-action cooldown + hourly rate limit | adversarial |
-| Prompt injection via camera metadata (names, ONVIF strings, logs) | Only whitelisted numeric fields and enums enter the packet; free text truncated and marked untrusted; output is schema-validated | `tests/unit/test_planner.py` |
-| Action makes the task worse | Verification window + guard metrics + automatic rollback | `tests/unit/test_verifier.py` |
-| Crash mid-action | Snapshot persisted **before** apply; idempotent rollback | `tests/unit/test_actions.py` |
-| Budget exhaustion | Soft/demo/hard caps, cache, max calls per incident | `tests/unit/test_budget.py` |
-| Cloud outage | Timeout + circuit breaker → local `needs_human` plan | `tests/unit/test_planner.py` |
+| Prompt injection via camera metadata (names, ONVIF strings, logs) | Only whitelisted numeric fields and enums enter the packet; free text truncated and marked untrusted; output is schema-validated | `tests/unit/test_planner_budget.py` |
+| Action makes the task worse | Verification window + guard metrics + automatic rollback | `tests/unit/test_policy_actions_verifier.py` |
+| Crash mid-action | Snapshot persisted **before** apply; idempotent rollback | `tests/unit/test_policy_actions_verifier.py` |
+| Budget exhaustion | Soft/demo/hard caps, cache, max calls per incident | `tests/unit/test_planner_budget.py` |
+| Cloud outage | Timeout + circuit breaker → local `needs_human` plan | `tests/unit/test_planner_budget.py` |
 | Secret leakage | `.env` git-ignored, redacted logging, gitleaks in CI | CI |
 
 ## Action risk classes

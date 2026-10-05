@@ -71,7 +71,9 @@ nebius:
     nvidia/Nemotron-3_5-Lightning: { input: 0.06, output: 0.24 }
     nvidia/nemotron-3-super-120b-a12b: { input: 0.30, output: 0.90 }
     nvidia/Nemotron-3-Ultra-550b-a55b: { input: 1.00, output: 3.00 }
-  extra_body: {}         # e.g. reasoning toggles once verified
+  # Verified 2026-10-05: Nemotron 3 thinks by default and spends max_tokens on reasoning,
+  # leaving empty content. Disable it for structured diagnosis (ADR-002).
+  extra_body: { chat_template_kwargs: { enable_thinking: false } }
 
 budget:
   total_usd: 30
