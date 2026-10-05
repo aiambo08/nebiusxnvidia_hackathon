@@ -8,6 +8,7 @@ import json
 import sys
 from datetime import date
 
+import _src_path  # noqa: F401  (adds src/ to sys.path)
 import httpx
 
 from reliability_agent.config import REPO_ROOT, api_key, load_config

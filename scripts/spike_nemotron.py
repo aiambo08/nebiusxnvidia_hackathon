@@ -10,6 +10,8 @@ import statistics
 import sys
 import time
 
+import _src_path  # noqa: F401  (adds src/ to sys.path)
+
 from reliability_agent.config import REPO_ROOT, api_key, load_config
 from reliability_agent.contracts.models import (
     Evidence,
