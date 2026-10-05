@@ -183,3 +183,12 @@ def test_rule_planner_respects_allowed_actions():
     inc = incident()
     inc.allowed_actions = [A.NEEDS_HUMAN]
     assert RuleBasedPlanner().plan(inc).plan.action.name is A.NEEDS_HUMAN
+
+
+def test_default_config_disables_nemotron_thinking():
+    # Live F0 spike (ADR-002): with thinking on, the output budget goes to reasoning and
+    # `content` comes back empty, so every plan fails schema validation.
+    from reliability_agent.config import load_config
+
+    extra = load_config()["nebius"]["extra_body"]
+    assert extra["chat_template_kwargs"]["enable_thinking"] is False

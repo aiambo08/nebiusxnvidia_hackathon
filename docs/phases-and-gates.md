@@ -41,9 +41,9 @@ live Token Factory calls or human reviewers stay open until that evidence exists
 ---
 
 ## F0 — Compliance & scope freeze
-- [ ] Successful runtime call to an NVIDIA model with our credentials (`scripts/spike_nemotron.py`)
-- [ ] Model ID obtained from the live API (`scripts/list_models.py`), not from old docs
-- [ ] Estimated cost per run recorded (`runs/spikes/nemotron.jsonl`)
+- [x] Successful runtime call to an NVIDIA model with our credentials (`scripts/spike_nemotron.py`, `docs/evidence/f0/nemotron-fast-thinking-off.jsonl`)
+- [x] Model ID obtained from the live API (`scripts/list_models.py`, `docs/evidence/f0/models-2026-10-05.json`)
+- [x] Estimated cost per run recorded (`docs/evidence/f0/*.jsonl`, `cost_usd` per call; ADR-002)
 - [x] No mandatory paid service (see `docs/budget.md`)
 - [ ] MVP runs locally on hardware already owned (webcam + RTX 4060 laptop/PC)
 - [ ] Every official requirement has planned evidence (`docs/compliance-matrix.md`)
@@ -62,6 +62,7 @@ design needs hardware we do not own → change model/adapter/scope before contin
 - [ ] ≥ 19/20 Nemotron responses valid against schema with ≤ 1 repair retry
 - [x] Simulated action applied and reverted twice, idempotently
 - [ ] Projected cost of 300 diagnoses ≤ 23 USD
+- [ ] Mean cost ≤ 0.005 USD per diagnosis and p95 diagnosis latency ≤ 8 s (added 2026-10-05: the 23 USD bound is not informative at measured prices)
 
 **Block:** if capture, structured response or rollback fails, do not start the full product.
 

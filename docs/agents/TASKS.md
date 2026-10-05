@@ -3,12 +3,17 @@
 Format: `- [ ] [Fx][role] task — acceptance`
 
 ## F0
-- [ ] [F0][human] Create Token Factory key and local `.env` — `scripts/list_models.py` lists NVIDIA models
-- [ ] [F0][nebius] Confirm model IDs, regions, json_schema support, reasoning toggle — update ADR-002
-- [ ] [F0][nebius] 20 live diagnoses — ≥ 19 schema-valid, cost logged
+- [x] [F0][human] Create Token Factory key and local `.env` — `scripts/list_models.py` lists NVIDIA models
+- [x] [F0][nebius] Confirm model IDs, regions, json_schema support, reasoning toggle — update ADR-002
+- [x] [F0][nebius] 20 live diagnoses — ≥ 19 schema-valid, cost logged
 - [ ] [F0][architecture] Freeze contracts v1.0 — tag `contracts-v1`
 
+## F0 (remaining)
+- [ ] [F0][human] Run on own hardware: `python scripts/spike_capture.py --minutes 1` on native Windows (MVP runs on owned hardware)
+- [ ] [F0][architecture] Fill planned evidence for every row of `docs/compliance-matrix.md`
+
 ## F1
+- [ ] [F1][ingestion] Probe UVC exposure/autofocus support of the integrated webcam (set-and-read-back)
 - [ ] [F1][ingestion] 30-min webcam soak — `spikes/capture-report.md`
 - [ ] [F1][ingestion] Local RTSP via MediaMTX + same source contract
 - [ ] [F1][evaluation] Inject blur/dark/freeze on a recorded clip — manifests committed

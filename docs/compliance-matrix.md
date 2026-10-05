@@ -10,8 +10,8 @@ implementation, design, potential impact, quality of the idea.
 
 | ID | Requirement | How we satisfy it | Evidence | Status |
 |---|---|---|---|---|
-| R1 | Runs on Nebius Token Factory or AI Cloud (runtime call) | `NemotronPlanner` calls Token Factory `/v1/chat/completions` at runtime for every confirmed incident | `src/reliability_agent/nemotron/client.py`, `runs/spikes/nemotron.jsonl`, video 1:05–1:30 | pending live call |
-| R2 | Uses ≥ 1 NVIDIA open model | Nemotron 3 (Nano / Super) via Token Factory; IDs discovered from `/v1/models` | `scripts/list_models.py` output, decision log `model` field | pending |
+| R1 | Runs on Nebius Token Factory or AI Cloud (runtime call) | `NemotronPlanner` calls Token Factory `/v1/chat/completions` at runtime for every confirmed incident | `src/reliability_agent/nemotron/client.py`, `docs/evidence/f0/nemotron-fast-thinking-off.jsonl`, video 1:05–1:30 | live call verified (F0) |
+| R2 | Uses ≥ 1 NVIDIA open model | Nemotron 3 (Nano / Super) via Token Factory; IDs discovered from `/v1/models` | `docs/evidence/f0/models-2026-10-05.json`, `model` field in spike JSONL | done |
 | R3 | Fits one track | Physical AI track: camera sensing + acting on a real perception pipeline | Devpost form | planned |
 | R4 | Project description (what, why, how) | README sections + Devpost text | README | draft (README written) |
 | R5 | Working demo URL | **Not required** for Physical AI; optional recorded deterministic demo | — | n/a |
