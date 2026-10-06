@@ -37,3 +37,23 @@ The live probe p95 (68 ms after 1 min, 110 ms after 30 min, at 640 × 480) is 3�
 2. GIL contention with the 30 FPS capture thread.
 3. Geometry and ArUco cost more on real textured frames than on synthetic ones.
 4. CPU throttling over long runs.
+
+## Fault injection on a real clip — pending (tooling in place)
+Reproduce on the owner's laptop (native Windows, repo root):
+```
+uv run python scripts/record_clip.py --uri 0 --seconds 90 --session s001
+uv run python scripts/spike_inject.py --clip benchmarks/data/s001_clean.avi --session s001
+```
+- The clip is REAL HARDWARE and stays local (`benchmarks/data/` is git-ignored); only its SHA-256 is
+  published in the manifests `benchmarks/manifests/f1-s001-*.yaml`.
+- Faults are SIMULATION: seeded `dark` (0.95), `gaussian_blur` (0.8), `freeze`, frames 40–70 s.
+  A negative control (clean clip) must raise no incident.
+- Detection is local only (probes + `IncidentTracker`), no Nemotron calls, zero cost.
+- Each degraded clip can be regenerated with `python -m benchmarks.make_degraded <manifest> <out.avi>`.
+- Dry run on a SIMULATION 640×480 clip (CI box): 4/4 runs pass, detection delay 2.8–4.8 s,
+  0 suspect windows before onset.
+
+## File + RTSP through the same `CameraSource` — pending
+The file variant runs in CI (`tests/integration/test_source_contract.py`). Webcam and RTSP variants
+run when `RA_TEST_WEBCAM` / `RA_TEST_RTSP` are set; the RTSP run uses the phone (IP Webcam app)
+on the local network.
