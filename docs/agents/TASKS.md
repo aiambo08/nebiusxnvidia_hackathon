@@ -9,12 +9,13 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F0][architecture] Freeze contracts v1.0 — tag `contracts-v1`
 
 ## F0 (remaining)
-- [ ] [F0][human] Run on own hardware: `python scripts/spike_capture.py --minutes 1` on native Windows (MVP runs on owned hardware)
+- [x] [F0][human] Run on own hardware: `python scripts/spike_capture.py --minutes 1` on native Windows (MVP runs on owned hardware)
 - [ ] [F0][architecture] Fill planned evidence for every row of `docs/compliance-matrix.md`
 
 ## F1
 - [ ] [F1][ingestion] Probe UVC exposure/autofocus support of the integrated webcam (set-and-read-back)
-- [ ] [F1][ingestion] 30-min webcam soak — `spikes/capture-report.md`
+- [x] [F1][ingestion] 30-min webcam soak — `docs/evidence/f1/README.md`
+- [ ] [F3][vision] Explain live probe p95 (110 ms at 640×480) vs isolated bench (20.5 ms at 720p) — see `docs/evidence/f1/README.md`
 - [ ] [F1][ingestion] Local RTSP via MediaMTX + same source contract
 - [ ] [F1][evaluation] Inject blur/dark/freeze on a recorded clip — manifests committed
 - [ ] [F1][safety] Simulated action apply/rollback ×2 — unit test green
