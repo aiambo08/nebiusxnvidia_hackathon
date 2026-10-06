@@ -1,8 +1,10 @@
-"""Make `reliability_agent` importable when a script runs without the package installed."""
+"""Make `reliability_agent` and `benchmarks` importable when a script runs without the package
+installed."""
 
 import sys
 from pathlib import Path
 
-_SRC = str(Path(__file__).resolve().parents[1] / "src")
-if _SRC not in sys.path:
-    sys.path.insert(0, _SRC)
+_ROOT = Path(__file__).resolve().parents[1]
+for _p in (str(_ROOT / "src"), str(_ROOT)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)

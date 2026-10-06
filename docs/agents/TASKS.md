@@ -16,8 +16,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F1][ingestion] Probe UVC exposure/autofocus support of the integrated webcam (set-and-read-back)
 - [x] [F1][ingestion] 30-min webcam soak — `docs/evidence/f1/README.md`
 - [ ] [F3][vision] Explain live probe p95 (110 ms at 640×480) vs isolated bench (20.5 ms at 720p) — see `docs/evidence/f1/README.md`
-- [ ] [F1][ingestion] Local RTSP via MediaMTX + same source contract
-- [ ] [F1][evaluation] Inject blur/dark/freeze on a recorded clip — manifests committed
+- [ ] [F1][ingestion] Local RTSP from the phone (IP Webcam app) through the same source contract — run `RA_TEST_RTSP=<url> pytest tests/integration/test_source_contract.py` (awaiting Aibo)
+- [ ] [F1][evaluation] Inject blur/dark/freeze on a recorded clip — tooling ready (`scripts/record_clip.py`, `scripts/spike_inject.py`, `benchmarks/replay.py`); awaiting real clip + manifests from Aibo
 - [ ] [F1][safety] Simulated action apply/rollback ×2 — unit test green
 
 ## F2–F8
