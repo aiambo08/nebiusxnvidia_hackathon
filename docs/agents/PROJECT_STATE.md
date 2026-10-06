@@ -12,7 +12,9 @@ Last update: 2026-10-05 · Current phase: **F0** · Days to deadline: 25
 - Real webcam verified (REAL HARDWARE, native Windows, integrated 640×480 webcam): 30-min soak 100% valid
   windows, heap +0.4%, 0 reconnects (`docs/evidence/f1/`). Risk: live probe p95 110 ms vs 20.5 ms isolated.
 - F1 replay tooling: record a clean clip, inject seeded blur/dark/freeze, replay it through
-  `OpenCVSource` + probes + tracker offline (no LLM). SIMULATION clip: 4/4 runs pass, 0 false alarms.
+  `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
+  dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip. Risk: spurious `freeze`
+  ranked first on dark and blur (F3).
 
 ## Budget (update weekly from the Token Factory console)
 | Date | Ledger estimate (USD) | Console balance (USD) |
@@ -24,6 +26,6 @@ Last update: 2026-10-05 · Current phase: **F0** · Days to deadline: 25
 - Token Factory console balance to be confirmed by Aibo.
 
 ## Next 3 actions
-1. Aibo: record a 90-s clip, run `scripts/spike_inject.py` on it and the RTSP contract test with the phone (F1).
+1. Aibo: RTSP contract test + 1-min capture with the phone (IP Webcam, Android) to close F1's last box.
 2. Ingestion: probe UVC exposure/autofocus on the integrated webcam (decides UVC vs pipeline action).
 3. Nebius (F6): golden set including the cases where the reasoning tier disagrees with the local top fault.

@@ -58,7 +58,7 @@ design needs hardware we do not own → change model/adapter/scope before contin
 - [x] 30 min webcam capture, no crash, memory growth ≤ 10% after warm-up (`scripts/spike_capture.py`; 0.4%, `docs/evidence/f1/README.md`)
 - [x] ≥ 95% of 1-s intervals produce valid telemetry (1629/1629, `docs/evidence/f1/README.md`)
 - [ ] File + local RTSP read through the same `CameraSource` interface
-- [ ] Blur, darkness, freeze injected reproducibly and detected (`benchmarks/injectors`)
+- [x] Blur, darkness, freeze injected reproducibly and detected (`benchmarks/injectors`) — `docs/evidence/f1/` (risk: spurious `freeze` ranked first, F3)
 - [x] ≥ 19/20 Nemotron responses valid against schema with ≤ 1 repair retry (20/20, `docs/evidence/f0/nemotron-fast-thinking-off.jsonl`)
 - [x] Simulated action applied and reverted twice, idempotently
 - [x] Projected cost of 300 diagnoses ≤ 23 USD (~0.03 USD, same evidence)

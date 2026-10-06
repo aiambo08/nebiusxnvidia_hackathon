@@ -1,0 +1,21 @@
+id: f1-s001-dark
+session: s001
+source:
+  path: benchmarks/data/s001_clean.avi
+  sha256: f0195d0b08a08d1d4d7c2362c3a2873e21f9ac4f9c1a0e564cc13e20e13c6e1b
+camera:
+  id: cam_01
+  resolution:
+  - 640
+  - 480
+  device: laptop webcam
+fault:
+  kind: dark
+  strength: 0.95
+  start_frame: 1091
+  end_frame: 1909
+  seed: 42
+expected:
+  faults:
+  - blackout
+notes: 'F1 spike: SIMULATION fault on a REAL HARDWARE clip'
