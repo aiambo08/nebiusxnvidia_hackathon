@@ -38,20 +38,36 @@ The live probe p95 (68 ms after 1 min, 110 ms after 30 min, at 640 × 480) is 3�
 3. Geometry and ArUco cost more on real textured frames than on synthetic ones.
 4. CPU throttling over long runs.
 
-## Fault injection on a real clip — pending (tooling in place)
-Reproduce on the owner's laptop (native Windows, repo root):
+## Fault injection on a real clip — `scripts/spike_inject.py` (REAL HARDWARE clip, SIMULATION faults)
+Recorded and replayed on the owner's laptop (native Windows, integrated webcam, 2026-10-06):
 ```
 uv run python scripts/record_clip.py --uri 0 --seconds 90 --session s001
 uv run python scripts/spike_inject.py --clip benchmarks/data/s001_clean.avi --session s001
 ```
-- The clip is REAL HARDWARE and stays local (`benchmarks/data/` is git-ignored); only its SHA-256 is
-  published in the manifests `benchmarks/manifests/f1-s001-*.yaml`.
-- Faults are SIMULATION: seeded `dark` (0.95), `gaussian_blur` (0.8), `freeze`, frames 40–70 s.
-  A negative control (clean clip) must raise no incident.
-- Detection is local only (probes + `IncidentTracker`), no Nemotron calls, zero cost.
-- Each degraded clip can be regenerated with `python -m benchmarks.make_degraded <manifest> <out.avi>`.
-- Dry run on a SIMULATION 640×480 clip (CI box): 4/4 runs pass, detection delay 2.8–4.8 s,
-  0 suspect windows before onset.
+Clip `s001`: 2692 frames, 27.28 FPS, 640×480, 0 read misses, sha256
+`f0195d0b08a08d1d4d7c2362c3a2873e21f9ac4f9c1a0e564cc13e20e13c6e1b`. The clip stays local
+(`benchmarks/data/` is git-ignored). Manifests: `benchmarks/manifests/f1-s001-{dark,gaussian_blur,freeze}.yaml`.
+
+Faults: seeded (seed 42), frames [1091, 1909) = 40–70 s. Detection is local only (probes +
+`IncidentTracker`), with no Nemotron calls and zero cost.
+
+| injected | expected | confirmed (ranked) | delay s | pre-fault suspect windows | passed |
+|---|---|---|---|---|---|
+| none | - | - | - | 0/107 | True |
+| dark | blackout | freeze, blackout | 2.89 | 0/107 | True |
+| gaussian_blur | focus_drift | freeze, focus_drift | 2.89 | 0/107 | True |
+| freeze | freeze | freeze | 2.89 | 0/107 | True |
+
+Each degraded clip can be regenerated with `python -m benchmarks.make_degraded <manifest> <out.avi>`.
+A dry run on a SIMULATION 640×480 clip did not show the spurious `freeze`.
+
+### Open risk for F3 — spurious `freeze` on dark and blur
+On the real clip, `dark` and `gaussian_blur` also confirm `freeze`, and `freeze` is ranked first.
+All three faults are detected, so the F1 item holds. But a planner that trusts the top candidate
+could pick `restart_capture` instead of the right action. Hypothesis, not yet verified: darkening or
+blurring removes sensor noise, so consecutive frames fall under `freeze.temporal_mse_floor` and repeat
+their perceptual hash. F3 must fix the rule's specificity, with an ADR and a benchmark report.
+Thresholds are not changed here.
 
 ## File + RTSP through the same `CameraSource` — pending
 The file variant runs in CI (`tests/integration/test_source_contract.py`). Webcam and RTSP variants
