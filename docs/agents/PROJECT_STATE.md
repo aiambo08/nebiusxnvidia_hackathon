@@ -26,6 +26,6 @@ Last update: 2026-10-05 · Current phase: **F0** · Days to deadline: 25
 - Token Factory console balance to be confirmed by Aibo.
 
 ## Next 3 actions
-1. Aibo: rerun the RTSP contract test with the phone (IP Webcam, Android) on the retry fix to close F1's last box; the 1-min RTSP capture already passed (96.2% valid windows).
+1. Aibo: rerun the RTSP contract test with the phone (IP Webcam, Android) on the warm-up fix to close F1's last box; the 1-min RTSP capture passed twice (96.2% valid windows, 2 decode errors on the retry build).
 2. Ingestion: probe UVC exposure/autofocus on the integrated webcam (decides UVC vs pipeline action).
 3. Nebius (F6): golden set including the cases where the reasoning tier disagrees with the local top fault.

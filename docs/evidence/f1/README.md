@@ -90,5 +90,26 @@ probe with `cv2.VideoCapture`: 53/60 frames decodable over UDP, 41/60 over TCP
 `nal size exceeds length`, `decode_slice_header error`. TCP did not help, so the loss is in the
 app's H.264 encoder/muxer, not in the network. Fix (this PR): `OpenCVSource` retries up to 3
 undecodable frames on network sources and reports them as `decode_errors` in the transport
-telemetry (`spike_capture.py` now prints them). Files and webcams are unchanged. The contract test
-must be rerun on the phone to tick the box; the test itself was not relaxed.
+telemetry (`spike_capture.py` now prints them). Files and webcams are unchanged. The test itself
+was not relaxed.
+
+Rerun on the retry fix (2026-10-07, same phone, 640x480, audio disabled in the app):
+```
+source: rtsp | duration: 1.0 min
+windows: 53, valid telemetry: 51 (96.2%) — gate >= 95%
+python heap growth after warm-up: 0.0% — gate <= 10%
+probe latency p95: 109.2 ms/frame (analytic 5 FPS)
+reconnects: 0, dropped frames: 0, decode errors: 2, ring buffer overwritten: 1721
+```
+Only 2 undecodable frames in ~1770 reads once the stream is running, yet the contract test still
+failed on `rtsp`. Every direct probe reported `first_fail 0`: the stream opens with a burst of
+undecodable frames until the first parameter sets and keyframe arrive, longer than 3 retries.
+Fix (second PR): `OpenCVSource.open` warms up network sources — discards frames until the first
+decodable one, bounded by `warmup_timeout_s` (5 s; a stream that never yields a picture raises
+`SourceError`, so the worker's reconnect/backoff path handles it). Warm-up frames are reported in
+`warmup_frames` and `decode_errors`. Files and webcams do not warm up. Contract rerun pending.
+
+Side result: the app's MJPEG endpoint (`http://<phone>:8080/video`) decoded 60/60 frames in a direct
+probe, but `OpenCVSource.open` on it raised `cannot open http source` after ~31 s right after the
+RTSP soak; `open` is the same `cv2.VideoCapture(uri)` call for both schemes, so this points at the
+app serving one video client at a time. HTTP/MJPEG is a diagnostic aid only: the F1 box requires RTSP.
