@@ -22,22 +22,41 @@ def parse_uri(uri: str | int) -> str | int:
     return int(uri) if str(uri).isdigit() else str(uri)
 
 
-class OpenCVSource(CameraSource):
-    """Webcam index, video file or rtsp:// URL through ``cv2.VideoCapture``."""
+NETWORK_SCHEMES = ("rtsp://", "rtsps://", "http://", "https://")
 
-    def __init__(self, uri: str | int, *, loop_file: bool = False) -> None:
+
+class OpenCVSource(CameraSource):
+    """Webcam index, video file or rtsp:// / http:// URL through ``cv2.VideoCapture``.
+
+    Network streams (phone apps, IP cameras) deliver some frames FFmpeg cannot decode: lost or
+    reordered packets, truncated NAL units. ``cv2.VideoCapture.read`` returns ``(False, None)``
+    for each of them. For network sources ``read`` retries up to ``read_retries`` times before
+    reporting a transient failure, and counts every skipped frame in ``decode_errors`` so the
+    transport telemetry stays honest. Files and webcams never retry.
+    """
+
+    def __init__(self, uri: str | int, *, loop_file: bool = False, read_retries: int = 3) -> None:
         self.uri = parse_uri(uri)
         self.loop_file = loop_file
+        self.read_retries = max(0, int(read_retries))
+        self.decode_errors = 0
         self._cap: cv2.VideoCapture | None = None
         self._seq = 0
         # logical settings only; real UVC/ONVIF imaging controls arrive with Phase-7 adapters
         self.settings: dict = {"safe_mode": False, "profile": "main"}
+        lower = str(self.uri).lower()
         if isinstance(self.uri, int):
             self.kind = "webcam"
-        elif str(self.uri).lower().startswith(("rtsp://", "rtsps://", "http://", "https://")):
+        elif lower.startswith(("rtsp://", "rtsps://")):
             self.kind = "rtsp"
+        elif lower.startswith(("http://", "https://")):
+            self.kind = "http"
         else:
             self.kind = "file"
+
+    @property
+    def is_network(self) -> bool:
+        return self.kind in ("rtsp", "http")
 
     def open(self) -> None:
         self._cap = cv2.VideoCapture(self.uri)
@@ -53,6 +72,11 @@ class OpenCVSource(CameraSource):
         if self._cap is None:
             raise SourceError("source not open")
         ok, img = self._cap.read()
+        for _ in range(self.read_retries if self.is_network else 0):
+            if ok and img is not None:
+                break
+            self.decode_errors += 1
+            ok, img = self._cap.read()
         if not ok or img is None:
             if self.kind == "file" and self.loop_file:
                 self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
