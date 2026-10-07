@@ -69,7 +69,26 @@ blurring removes sensor noise, so consecutive frames fall under `freeze.temporal
 their perceptual hash. F3 must fix the rule's specificity, with an ADR and a benchmark report.
 Thresholds are not changed here.
 
-## File + RTSP through the same `CameraSource` — pending
+## File + RTSP through the same `CameraSource` — partial (REAL HARDWARE)
 The file variant runs in CI (`tests/integration/test_source_contract.py`). Webcam and RTSP variants
-run when `RA_TEST_WEBCAM` / `RA_TEST_RTSP` are set; the RTSP run uses the phone (IP Webcam app)
-on the local network.
+run when `RA_TEST_WEBCAM` / `RA_TEST_RTSP` are set; the RTSP run uses the phone (IP Webcam app,
+Android) on the local Wi-Fi, URL `rtsp://<phone>:8080/h264_ulaw.sdp`.
+
+RTSP 1-min capture on the owner's laptop (2026-10-07, `scripts/spike_capture.py --uri rtsp://... --minutes 1`):
+```
+source: rtsp | duration: 1.0 min
+windows: 53, valid telemetry: 51 (96.2%) — gate >= 95%
+python heap growth after warm-up: 1.6% — gate <= 10%
+probe latency p95: 109.4 ms/frame (analytic 5 FPS)
+reconnects: 0, dropped frames: 0, ring buffer overwritten: 1713
+```
+Both F1 capture gates hold over RTSP, with a thin margin on telemetry validity.
+
+The contract test failed on the same stream (`assert f is not None` on the second read). Direct
+probe with `cv2.VideoCapture`: 53/60 frames decodable over UDP, 41/60 over TCP
+(`OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp`), with FFmpeg logging `non-existing PPS`,
+`nal size exceeds length`, `decode_slice_header error`. TCP did not help, so the loss is in the
+app's H.264 encoder/muxer, not in the network. Fix (this PR): `OpenCVSource` retries up to 3
+undecodable frames on network sources and reports them as `decode_errors` in the transport
+telemetry (`spike_capture.py` now prints them). Files and webcams are unchanged. The contract test
+must be rerun on the phone to tick the box; the test itself was not relaxed.

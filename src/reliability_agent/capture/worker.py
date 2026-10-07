@@ -107,6 +107,7 @@ class CaptureWorker:
         self._restart = threading.Event()
         self._thread: threading.Thread | None = None
         self._attempt = 0
+        self._source_decode_errors = 0
 
     # -- lifecycle
     def start(self) -> None:
@@ -137,6 +138,13 @@ class CaptureWorker:
         return self.meter.frame_age_s() > self.frame_timeout_s
 
     # -- loop
+    def _account_source_decode_errors(self) -> None:
+        """Frames the source skipped internally (undecodable RTSP frames) are decode errors."""
+        total = int(getattr(self.source, "decode_errors", 0))
+        if total > self._source_decode_errors:
+            self.meter.decode_errors += total - self._source_decode_errors
+            self._source_decode_errors = total
+
     def _connect(self) -> bool:
         try:
             self.source.open()
@@ -168,6 +176,7 @@ class CaptureWorker:
             except SourceError:
                 self.meter.connected = False
                 continue
+            self._account_source_decode_errors()
             if frame is None:
                 self.meter.decode_errors += 1
                 if self.stale():

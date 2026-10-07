@@ -72,6 +72,7 @@ def main() -> int:
         f"- python heap growth after warm-up: {100 * growth:.1f}% — gate <= 10%",
         f"- probe latency p95: {p95:.1f} ms/frame (analytic {fps} FPS)",
         f"- reconnects: {snap.reconnect_count}, dropped frames: {snap.dropped_frames}, "
+        f"decode errors: {snap.decode_errors}, "
         f"ring buffer overwritten: {worker.buffer.overwritten}",
         f"- generated: {time.strftime('%Y-%m-%d %H:%M:%S')}",
     ]
