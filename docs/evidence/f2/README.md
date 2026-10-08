@@ -72,10 +72,12 @@ real staleness.
   `fusion.enter_windows` consecutive windows, so the FSM reacts ~3 windows later by design.
 - The non-blocking test uses a 50 ms main-thread poll bound on a shared CI runner.
 
-## Still open (needs the owner's hardware)
-- Contract suite on the integrated webcam: `$env:RA_TEST_WEBCAM = "0"; uv run pytest -q tests/integration/test_source_contract.py`
-- Contract suite on the phone over RTSP: `$env:RA_TEST_RTSP = "rtsp://<phone>:8080/h264_ulaw.sdp"; uv run pytest -q tests/integration/test_source_contract.py`
-  (last attempt on 2026-10-08 failed before `open()` because the phone was unreachable; see `docs/evidence/f1/README.md`).
+## Contract suite on the owner's hardware (REAL HARDWARE, 2026-10-08)
+- Phone over RTSP: `$env:RA_TEST_RTSP = "rtsp://<phone>:8080/h264_ulaw.sdp"; uv run pytest -q tests/integration/test_source_contract.py` → `2 passed`.
+- Integrated webcam, with `RA_TEST_RTSP` still set (file + webcam + RTSP in one run):
+  `$env:RA_TEST_WEBCAM = "0"; uv run pytest -q tests/integration/test_source_contract.py` → `2 passed`.
+  Details and the 1-min RTSP capture in `docs/evidence/f1/README.md`.
+- Still open on hardware: real RTSP recovery time after a phone-side outage (see residual risks).
 
 Reviewer confirmation pass on this follow-up (SIMULATION, 694-outage sweep): worst resume 12.97 s with maximum
 jitter, 13.00 s with random jitter, delay never above 8.0 s; every earlier `redact_uri` leak is masked.

@@ -69,7 +69,7 @@ blurring removes sensor noise, so consecutive frames fall under `freeze.temporal
 their perceptual hash. F3 must fix the rule's specificity, with an ADR and a benchmark report.
 Thresholds are not changed here.
 
-## File + RTSP through the same `CameraSource` — partial (REAL HARDWARE)
+## File + RTSP through the same `CameraSource` (REAL HARDWARE)
 The file variant runs in CI (`tests/integration/test_source_contract.py`). Webcam and RTSP variants
 run when `RA_TEST_WEBCAM` / `RA_TEST_RTSP` are set; the RTSP run uses the phone (IP Webcam app,
 Android) on the local Wi-Fi, URL `rtsp://<phone>:8080/h264_ulaw.sdp`.
@@ -107,9 +107,37 @@ undecodable frames until the first parameter sets and keyframe arrive, longer th
 Fix (second PR): `OpenCVSource.open` warms up network sources — discards frames until the first
 decodable one, bounded by `warmup_timeout_s` (5 s; a stream that never yields a picture raises
 `SourceError`, so the worker's reconnect/backoff path handles it). Warm-up frames are reported in
-`warmup_frames` and `decode_errors`. Files and webcams do not warm up. Contract rerun pending.
+`warmup_frames` and `decode_errors`. Files and webcams do not warm up.
 
 Side result: the app's MJPEG endpoint (`http://<phone>:8080/video`) decoded 60/60 frames in a direct
 probe, but `OpenCVSource.open` on it raised `cannot open http source` after ~31 s right after the
 RTSP soak; `open` is the same `cv2.VideoCapture(uri)` call for both schemes, so this points at the
 app serving one video client at a time. HTTP/MJPEG is a diagnostic aid only: the F1 box requires RTSP.
+
+Contract rerun on `main` with the warm-up fix (2026-10-08, same phone, 640x480, audio disabled; the
+phone was first checked reachable with `Test-NetConnection <phone> -Port 8080` → `True`):
+```
+$env:RA_TEST_RTSP = "rtsp://<phone>:8080/h264_ulaw.sdp"
+uv run pytest -q tests/integration/test_source_contract.py      → 2 passed in 16.73s
+$env:RA_TEST_WEBCAM = "0"   # RA_TEST_RTSP still set: file + webcam + RTSP in one run
+uv run pytest -q tests/integration/test_source_contract.py      → 2 passed in 6.24s
+```
+File, integrated webcam and phone RTSP are read through the same `CameraSource` interface and pass
+the same contract. The box is closed on REAL HARDWARE; the test was not relaxed.
+
+1-min RTSP capture in the same session:
+```
+source: rtsp | duration: 1.0 min
+windows: 54, valid telemetry: 51 (94.4%) — gate >= 95%
+python heap growth after warm-up: 0.1% — gate <= 10%
+probe latency p95: 240.2 ms/frame (analytic 5 FPS)
+reconnects: 0, dropped frames: 0, decode errors: 4, ring buffer overwritten: 1645
+```
+Not a pass at 1 min. `spike_capture.py` counts every 1-s window from the moment the worker starts
+opening the source, so the RTSP handshake and the H.264 warm-up (up to `warmup_timeout_s` = 5 s)
+fall inside the measured minute; a window with no frame yet is invalid, and each one weighs 1.85 %
+of a 1-min run. Hypothesis, not yet verified: the 3 invalid windows are start-up windows. The F1
+validity box is defined on the 30-min webcam soak (1629/1629) and is unaffected; a 10-min RTSP soak
+is pending to confirm the start-up hypothesis (validity should then be ≥ 99 %). Neither the gate
+threshold nor the script is changed. The probe p95 (240 ms vs 109 ms the day before on the same
+laptop) is tracked against the F3 latency box (≤ 40 ms/frame at 720p).

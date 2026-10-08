@@ -57,7 +57,7 @@ design needs hardware we do not own → change model/adapter/scope before contin
 ## F1 — Feasibility spikes
 - [x] 30 min webcam capture, no crash, memory growth ≤ 10% after warm-up (`scripts/spike_capture.py`; 0.4%, `docs/evidence/f1/README.md`)
 - [x] ≥ 95% of 1-s intervals produce valid telemetry (1629/1629, `docs/evidence/f1/README.md`)
-- [ ] File + local RTSP read through the same `CameraSource` interface
+- [x] File + local RTSP read through the same `CameraSource` interface (REAL HARDWARE 2026-10-08: phone RTSP passes `tests/integration/test_source_contract.py`, `docs/evidence/f1/README.md`)
 - [x] Blur, darkness, freeze injected reproducibly and detected (`benchmarks/injectors`) — `docs/evidence/f1/` (risk: spurious `freeze` ranked first, F3)
 - [x] ≥ 19/20 Nemotron responses valid against schema with ≤ 1 repair retry (20/20, `docs/evidence/f0/nemotron-fast-thinking-off.jsonl`)
 - [x] Simulated action applied and reverted twice, idempotently
@@ -67,7 +67,7 @@ design needs hardware we do not own → change model/adapter/scope before contin
 **Block:** if capture, structured response or rollback fails, do not start the full product.
 
 ## F2 — Ingestion & observability
-- [ ] Webcam, file and local RTSP pass the same contract suite (`tests/integration/test_source_contract.py`) — synthetic + file in CI; webcam (`RA_TEST_WEBCAM=0`) and RTSP (`RA_TEST_RTSP`, phone) await the owner's hardware run (`docs/evidence/f2/README.md`)
+- [x] Webcam, file and local RTSP pass the same contract suite (`tests/integration/test_source_contract.py`) — synthetic + file in CI; REAL HARDWARE 2026-10-08: integrated webcam (`RA_TEST_WEBCAM=0`) and phone RTSP (`RA_TEST_RTSP`) in one run, `2 passed` (`docs/evidence/f2/README.md`)
 - [x] Simulated RTSP disconnect detected in < 5 s (`tests/unit/test_capture_resilience.py::test_simulated_rtsp_disconnect_detected_under_5s`: `stream_down` at 3 s via `faults.stream_down.frame_age_ms_min`, watchdog reconnect at 5 s; SIMULATION, fake clock)
 - [x] Reconnection does not block the main process (`test_reconnection_never_blocks_the_main_thread`: a hanging `open()` on the capture thread, main-thread polls < 50 ms)
 - [x] Telemetry resumes < 15 s after the stream returns (SIMULATION, fake clock: `test_telemetry_resumes_under_15s_after_stream_returns` for outages of 0.5–95 s, `test_first_read_none_after_reconnect_gets_a_grace_period`; `test_default_config_bounds_recovery_under_15s`: max backoff 8 s (jitter clamped) + 5 s warm-up = 13 s; real RTSP handshake time still to be measured on the owner's phone)
