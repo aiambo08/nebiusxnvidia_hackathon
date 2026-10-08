@@ -27,7 +27,8 @@ NETWORK_SCHEMES = ("rtsp://", "rtsps://", "http://", "https://")
 
 
 def redact_uri(uri: str | int) -> str:
-    """Hide credentials embedded in a stream URL (``rtsp://user:pass@host/...``) for logs."""
+    """Hide credentials embedded in a stream URL for logs: ``rtsp://user:pass@host/...`` and
+    query parameters such as ``?user=..&password=..`` or ``?token=..``."""
     text = str(uri)
     if "://" not in text:
         return text
@@ -35,7 +36,18 @@ def redact_uri(uri: str | int) -> str:
     authority, sep, path = rest.partition("/")
     if "@" in authority:
         authority = "***@" + authority.rsplit("@", 1)[1]
-    return f"{scheme}://{authority}{sep}{path}"
+    path, qmark, query = path.partition("?")
+    if qmark:
+        query = "&".join(
+            f"{k}=***" if k.lower() in _SECRET_PARAMS else kv
+            for kv in query.split("&")
+            for k in [kv.partition("=")[0]]
+        )
+    return f"{scheme}://{authority}{sep}{path}{qmark}{query}"
+
+
+_SECRET_PARAMS = frozenset({"user", "username", "pwd", "pass", "password", "token", "key",
+                            "apikey", "api_key", "auth", "secret"})
 
 
 class OpenCVSource(CameraSource):

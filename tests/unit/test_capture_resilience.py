@@ -3,7 +3,6 @@ clock, so "< 5 s" and "< 15 s" are measured on the simulated timeline, not on CI
 The one real-thread test checks that reconnecting never blocks the caller."""
 
 import json
-import threading
 import time
 
 import numpy as np
@@ -200,7 +199,7 @@ def test_reconnection_never_blocks_the_main_thread():
     w.stop()
     assert src.open_calls >= 2, "worker kept retrying in the background"
     assert polls >= 20 and worst_ms < 50.0, f"main thread stalled: {worst_ms:.1f} ms"
-    assert threading.active_count() >= 1 and not w.alive
+    assert not w.alive
 
 
 def test_frozen_but_connected_stream_is_transport_healthy(clock, cfg):
@@ -227,6 +226,149 @@ def test_read_error_on_open_source_counts_as_disconnect(clock, cfg):
     assert w.meter.reconnects == 1 and not w.meter.connected and not src.is_open
     w._step()  # reconnects and fails again: still bounded, never raises
     assert w.meter.reconnects == 2 and src.open_calls == 2
+
+
+@pytest.mark.parametrize("failure", ["read_raises", "read_none", "open_raises_runtime"])
+def test_reconnect_storm_is_bounded_by_backoff(clock, cfg, failure):
+    """A source that opens but never delivers must not spin: backoff applies to every failed
+    session, and the attempt counter is reset only by a real frame (reviewer finding)."""
+    class Flaky(ScriptedNetworkSource):
+        def open(self):
+            if failure == "open_raises_runtime":
+                self.open_calls += 1
+                raise RuntimeError("cv2 blew up")
+            super().open()
+
+        def read(self):
+            if failure == "read_raises":
+                raise SourceError("device lost")
+            return None if failure == "read_none" else super().read()
+
+    src = Flaky(clock)
+    w = _worker(src, clock, cfg)
+    t0 = clock.t
+    steps = 0
+    while clock.t - t0 < 600.0:
+        w._step()
+        steps += 1
+        assert steps < 100_000, "loop is spinning without advancing the simulated clock"
+    rc = cfg["camera"]["reconnect"]
+    worst_opens = 600.0 / rc["initial_backoff_s"] + 20
+    assert src.open_calls < worst_opens, f"{src.open_calls} opens in 600 s"
+    assert src.open_calls < 600.0 / rc["max_backoff_s"] * 2 + 20, "backoff did not grow"
+    assert w._attempt >= 3 and w.meter.last_seq is None  # never delivered a frame
+    assert w.meter.reconnects <= src.open_calls
+    # once the source behaves, the next session recovers and the counter resets
+    failure = "none"
+    while not w.meter.connected or w.meter.last_seq is None:
+        w._step()
+    assert w._attempt == 0 and w.health()["connected"]
+
+
+def test_first_read_none_after_reconnect_gets_a_grace_period(clock, cfg):
+    """The watchdog must count from the (re)connect, not from the previous session's last frame;
+    otherwise a stream whose first read is empty is torn down forever (reviewer finding)."""
+    class SlowStart(ScriptedNetworkSource):
+        def open(self):
+            super().open()
+            self.pending_empty = 3
+
+        def read(self):
+            if self.pending_empty:
+                self.pending_empty -= 1
+                return None
+            return super().read()
+
+    src = SlowStart(clock)
+    w = _worker(src, clock, cfg)
+    _run_healthy(w, clock, 2.0)
+    src.up = False
+    t_down = clock.t
+    while clock.t - t_down < 30.0:
+        w._step()
+    assert not w.meter.connected
+    src.up = True
+    t_back = clock.t
+    last_seq = w.meter.last_seq
+    while w.meter.last_seq == last_seq and clock.t - t_back < 20.0:
+        w._step()
+    assert w.meter.last_seq > last_seq and clock.t - t_back < 15.0
+    assert w.meter.reconnects == 1, "the empty first reads must not count as new outages"
+
+
+def test_restart_requested_during_outage_does_not_tear_down_the_new_session(clock, cfg):
+    src = ScriptedNetworkSource(clock)
+    w = _worker(src, clock, cfg)
+    _run_healthy(w, clock, 1.0)
+    src.up = False
+    t_down = clock.t
+    while clock.t - t_down < 10.0:
+        w._step()
+    w.request_restart()
+    src.up = True
+    while not w.meter.connected:
+        w._step()
+    opens = src.open_calls
+    _run_healthy(w, clock, 2.0)
+    assert src.open_calls == opens and w.meter.reconnects == 1
+
+
+def test_non_source_errors_do_not_kill_the_capture_thread():
+    class Exploding(ScriptedNetworkSource):
+        def read(self):
+            self.n += 1
+            if self.n % 3 == 0:
+                raise ValueError("cv2 internal error")
+            return Frame(np.zeros((2, 2, 3), np.uint8), self.n, self.clock())
+
+        def close(self):
+            super().close()
+            raise RuntimeError("close failed")
+
+    src = Exploding(time.monotonic)
+    w = CaptureWorker(src, buffer_size=4, backoff=BackoffPolicy(0.01, 0.02, 0.0), max_fps=200)
+    w.start()
+    time.sleep(0.3)
+    assert w.alive and w.health()["alive"]
+    assert w.meter.reconnects >= 1 and w.buffer.latest() is not None
+    w.stop()
+    assert not w.alive
+
+
+def test_max_fps_throttle_runs_on_the_fake_clock(clock, cfg):
+    src = ScriptedNetworkSource(clock)
+    w = _worker(src, clock, cfg)
+    for _ in range(10):
+        w._step(min_dt=0.2)
+    assert clock.t - 1000.0 == pytest.approx(2.0)
+    assert w.meter.last_seq == 10
+
+
+def test_meter_snapshot_is_safe_while_frames_arrive():
+    m = worker_mod.TransportMeter(horizon_s=0.05)
+    stop = time.monotonic() + 0.3
+    errors = []
+
+    def producer():
+        i = 0
+        while time.monotonic() < stop:
+            i += 1
+            m.on_frame(Frame(np.zeros((1, 1, 3), np.uint8), i, time.monotonic()))
+
+    def consumer():
+        while time.monotonic() < stop:
+            try:
+                m.snapshot()
+            except RuntimeError as exc:  # deque mutated during iteration
+                errors.append(exc)
+
+    import threading
+    ts = [threading.Thread(target=producer), threading.Thread(target=consumer)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert not errors
 
 
 def test_restart_request_is_honoured_before_reading(clock, cfg):
@@ -306,6 +448,10 @@ def test_base_source_defaults(clock):
         ("rtsp://user:p@ss@cam/live", "rtsp://***@cam/live"),
         ("http://10.0.0.2:8080/video", "http://10.0.0.2:8080/video"),
         ("rtsps://a:b@host", "rtsps://***@host"),
+        ("http://cam/video?user=admin&password=hunter2&fps=10",
+         "http://cam/video?user=***&password=***&fps=10"),
+        ("rtsp://u:p@cam:554/live?token=abc", "rtsp://***@cam:554/live?token=***"),
+        ("http://cam/video?x=1", "http://cam/video?x=1"),
         ("clip.avi", "clip.avi"),
         (0, "0"),
     ],

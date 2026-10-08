@@ -6,7 +6,7 @@ Last update: 2026-10-08 · Current phase: **F2** (F0/F1 boxes awaiting owner's h
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
   baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
   event store, orchestrator, CLI, read-only API, injectors, CI.
-- 267 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
+- 276 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
 - F2 resilience proven on a simulated clock (`tests/unit/test_capture_resilience.py`): stream_down in
   3 s, non-blocking reconnect, telemetry back < 15 s; capture coverage gate enforced in CI
   (`scripts/check_coverage.py`, 96%/91%). `CaptureWorker.health()` JSON export. `docs/evidence/f2/`.
