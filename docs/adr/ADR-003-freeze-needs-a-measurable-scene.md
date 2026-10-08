@@ -41,11 +41,21 @@ to measure motion is not in the image.
    limitation, covered by `test_frozen_dark_pipeline_is_attributed_to_blackout`.
 
 ## Consequences
+- Ranking: freeze is evaluated after blackout/overexposure/focus drift, so `rank_faults` gives it
+  priority among equal scores; otherwise a real freeze co-occurring with overexposure ranked second
+  and the rule planner chose the exposure action (independent review of PR #10, 5/10 runs).
+- Quantified recall cost (independent review, SIMULATION): when a freeze is **not** bit-exact
+  (e.g. an RTSP server re-encoding the last frame) **and** the scene is strongly blurred, freeze
+  windows drop from 196/210 to 42/210. Accepted: that case is reported as `focus_drift`, which is
+  the measurable fault; a frozen re-encoded stream on a sharp scene is unaffected.
 - Dark and blurred live scenes no longer rank `freeze` first, so the planner is not steered towards
   `restart_capture` when the right action is exposure/focus.
 - Freeze recall on lit scenes is unchanged (`test_frozen_lit_scene_pixels_classify_as_freeze`,
   `test_each_fault_rule_fires[FREEZE]`, replay manifest `f1-s001-freeze.yaml`).
-- Still open for F3: the absolute `temporal_mse_floor` (0.5) is close to the MSE of a healthy quiet
-  sensor on a smooth scene (0.42–0.45 measured above). The 20-min static-scene false-positive gate
+- Still open for F3 (confirmed by the independent review on `origin/main`, so not caused by this
+  change): the absolute `temporal_mse_floor` (0.5) is reached by a healthy, lit, textured static scene
+  with σ = 2 webcam noise (MSE 0.413 after the 4×4 area downscale divides the variance by 16; hash
+  repeat 1.0) — freeze fired in 358/400 windows and was confirmed in 9/10 healthy clips. Semi-dark
+  smooth scenes with σ 0.5–0.7 confirm freeze in every run. The 20-min static-scene false-positive gate
   must be measured with a benchmark before relying on it; a baseline-relative floor is the candidate
   follow-up and will need its own ADR.

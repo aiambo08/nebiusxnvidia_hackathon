@@ -31,6 +31,12 @@ manifests (`python scripts/spike_inject.py`, clip is git-ignored) and check that
 appears among the confirmed faults. Command for the owner (PowerShell, repo root, after merging):
 `uv run python scripts/spike_inject.py --clip benchmarks\data\s001_clean.avi --faults dark,gaussian_blur,freeze`.
 
+Independent review of this PR (SIMULATION, `origin/main` vs branch): freeze recall on lit scenes unchanged
+(manifest `f1-s001-freeze.yaml` 10/10, loop4/loop8 10/10, clean clip 0/700 windows, static wall σ=0.7 10/10);
+no `configs/` diff. Findings folded into the PR: freeze ranking priority (`rank_faults`); blur recall cost
+quantified in ADR-003. Finding **not** caused by this PR and now the first open F3 item: a healthy lit textured
+static scene with σ=2 noise already trips the absolute `temporal_mse_floor` on `main` (358/400 windows).
+
 ## Open F3 boxes
 Recall/precision per detector (≥ 10 runs per fault), the 20-min static-scene freeze false-positive
 run, the 20 walk-by trials for `fov_shift`, and the probe-set p95 ≤ 40 ms/frame at 720p are not

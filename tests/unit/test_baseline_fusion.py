@@ -3,7 +3,7 @@ import pytest
 
 from reliability_agent.baselines.robust import RobustBaseline
 from reliability_agent.contracts.models import FaultType, IncidentState
-from reliability_agent.incidents.fusion import IncidentTracker, classify_window
+from reliability_agent.incidents.fusion import IncidentTracker, classify_window, rank_faults
 from tests.conftest import make_window
 
 FAULT_WINDOWS = {
@@ -149,6 +149,24 @@ def test_static_scene_hash_repeats_are_not_freeze(cfg):
     w2 = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
                                  temporal_mse_p50=0.1))
     assert FaultType.FREEZE in classify_window(w2, None, cfg["faults"])[0]
+
+
+def test_frozen_overexposed_window_ranks_freeze_first(cfg):
+    w = make_window(visual=dict(
+        white_pixel_ratio=0.6,
+        repeated_hash_ratio=1.0,
+        exact_repeat_ratio=1.0,
+        temporal_mse_p50=0.0,
+    ))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert set(faults) == {FaultType.FREEZE, FaultType.OVEREXPOSURE}
+    assert rank_faults(faults)[0] is FaultType.FREEZE
+
+
+def test_rank_faults_orders_by_score_then_priority():
+    F = FaultType
+    ranked = rank_faults({F.OVEREXPOSURE: 1.0, F.FREEZE: 1.0, F.FOV_SHIFT: 0.4, F.STREAM_DOWN: 1.0})
+    assert ranked == [F.STREAM_DOWN, F.FREEZE, F.OVEREXPOSURE, F.FOV_SHIFT]
 
 
 def test_dark_live_scene_is_blackout_not_freeze(cfg):

@@ -22,6 +22,17 @@ from reliability_agent.incidents.state_machine import IncidentStateMachine
 F = FaultType
 
 
+# Ranking priority among faults with equal scores: the rule planner walks ``candidate_faults`` in
+# order, so a frozen pipeline must outrank a co-occurring exposure fault even though freeze is now
+# evaluated last (ADR-003). Transport faults come first because nothing else is measurable then.
+_RANK_PRIORITY = {FaultType.STREAM_DOWN: 0, FaultType.LOW_FPS: 1, FaultType.FREEZE: 2}
+
+
+def rank_faults(faults: dict[FaultType, float]) -> list[FaultType]:
+    """Order candidate faults by score, then by actionability priority, then by name."""
+    return sorted(faults, key=lambda f: (-faults[f], _RANK_PRIORITY.get(f, 9), str(f)))
+
+
 def classify_window(
     tw: TelemetryWindow, baseline: RobustBaseline | None, rules: dict[str, Any]
 ) -> tuple[dict[FaultType, float], list[Evidence]]:
@@ -153,7 +164,7 @@ class IncidentTracker:
                     self.fsm.to(IncidentState.CONFIRMED, f"persisted {self._bad} windows")
                     incident = Incident(
                         camera_id=self.camera_id,
-                        candidate_faults=sorted(faults, key=lambda f: -faults[f]),
+                        candidate_faults=rank_faults(faults),
                         fault_scores={str(k): round(v, 3) for k, v in self._scores.items()},
                         evidence=self._evidence,
                         baseline_ref=self.baseline.version,
