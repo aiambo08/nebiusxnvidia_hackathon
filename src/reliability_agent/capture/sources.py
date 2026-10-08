@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 
 import cv2
 import numpy as np
@@ -33,13 +34,28 @@ class OpenCVSource(CameraSource):
     for each of them. For network sources ``read`` retries up to ``read_retries`` times before
     reporting a transient failure, and counts every skipped frame in ``decode_errors`` so the
     transport telemetry stays honest. Files and webcams never retry.
+
+    Network streams also start with a burst of undecodable frames until the first keyframe and
+    parameter sets arrive. ``open`` therefore warms up network sources: it discards frames until
+    the first decodable one, or raises ``SourceError`` after ``warmup_timeout_s`` so a stream
+    that never produces a picture is a connection failure, not an endless loop. Warm-up frames
+    are counted in ``warmup_frames`` (and in ``decode_errors``).
     """
 
-    def __init__(self, uri: str | int, *, loop_file: bool = False, read_retries: int = 3) -> None:
+    def __init__(
+        self,
+        uri: str | int,
+        *,
+        loop_file: bool = False,
+        read_retries: int = 3,
+        warmup_timeout_s: float = 5.0,
+    ) -> None:
         self.uri = parse_uri(uri)
         self.loop_file = loop_file
         self.read_retries = max(0, int(read_retries))
+        self.warmup_timeout_s = max(0.0, float(warmup_timeout_s))
         self.decode_errors = 0
+        self.warmup_frames = 0
         self._cap: cv2.VideoCapture | None = None
         self._seq = 0
         # logical settings only; real UVC/ONVIF imaging controls arrive with Phase-7 adapters
@@ -59,10 +75,27 @@ class OpenCVSource(CameraSource):
         return self.kind in ("rtsp", "http")
 
     def open(self) -> None:
-        self._cap = cv2.VideoCapture(self.uri)
-        if not self._cap.isOpened():
-            self._cap = None
+        cap = cv2.VideoCapture(self.uri)
+        if not cap.isOpened():
             raise SourceError(f"cannot open {self.kind} source")
+        if self.is_network:
+            self._warm_up(cap)
+        self._cap = cap
+
+    def _warm_up(self, cap: cv2.VideoCapture) -> None:
+        deadline = time.monotonic() + self.warmup_timeout_s
+        while True:
+            ok, img = cap.read()
+            if ok and img is not None:
+                return
+            self.warmup_frames += 1
+            self.decode_errors += 1
+            if time.monotonic() >= deadline:
+                cap.release()
+                raise SourceError(
+                    f"{self.kind} source opened but delivered no decodable frame "
+                    f"in {self.warmup_timeout_s:.1f}s ({self.warmup_frames} frames discarded)"
+                )
 
     @property
     def is_open(self) -> bool:
