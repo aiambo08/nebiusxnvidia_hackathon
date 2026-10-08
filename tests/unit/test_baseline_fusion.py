@@ -140,15 +140,69 @@ def test_cooldown_suppresses_refire(cfg):
     assert FaultType.BLACKOUT in step.faults
 
 
+def _noise_floor_baseline(mse_values):
+    b = RobustBaseline(min_samples=5)
+    for m in mse_values:
+        b.update({"visual.temporal_mse_p50": m})
+    return b
+
+
 def test_static_scene_hash_repeats_are_not_freeze(cfg):
     # identical perceptual hash but real sensor noise between frames -> not frozen
     w = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
                                 temporal_mse_p50=6.0))
-    faults, _ = classify_window(w, None, cfg["faults"])
-    assert FaultType.FREEZE not in faults
+    assert FaultType.FREEZE not in classify_window(w, None, cfg["faults"])[0]
+    # ADR-004: with a camera whose healthy noise floor is ~12 the same hash repeats with the
+    # pixel differences collapsed to 0.1 are a freeze ...
     w2 = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
                                  temporal_mse_p50=0.1))
-    assert FaultType.FREEZE in classify_window(w2, None, cfg["faults"])[0]
+    noisy_cam = _noise_floor_baseline([12.0 + 0.1 * i for i in range(30)])
+    faults, ev = classify_window(w2, noisy_cam, cfg["faults"])
+    assert FaultType.FREEZE in faults
+    assert any(e.note == "sensor noise collapsed" and e.baseline for e in ev)
+    # ... but a quiet sensor whose healthy floor *is* 0.4 (lit static scene, sigma 2 counts
+    # after the 4x4 downscale) is alive at 0.4, even though that sits below the absolute floor
+    quiet_cam = _noise_floor_baseline([0.4 + 0.01 * (i % 7) for i in range(30)])
+    w3 = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                 temporal_mse_p50=0.41))
+    assert FaultType.FREEZE not in classify_window(w3, quiet_cam, cfg["faults"])[0]
+    # and the same quiet camera with its noise gone (codec jitter only) is frozen
+    w4 = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                 temporal_mse_p50=0.05))
+    assert FaultType.FREEZE in classify_window(w4, quiet_cam, cfg["faults"])[0]
+
+
+def test_hash_repeats_need_a_learned_noise_floor(cfg):
+    """Cold start (no baseline): only bit-exact repeats and loops are freeze evidence."""
+    w = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                temporal_mse_p50=0.0001))
+    assert FaultType.FREEZE not in classify_window(w, None, cfg["faults"])[0]
+    exact = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=1.0,
+                                    temporal_mse_p50=0.0))
+    assert FaultType.FREEZE in classify_window(exact, None, cfg["faults"])[0]
+    loop = make_window(visual=dict(repeated_hash_ratio=0.0, exact_repeat_ratio=0.0,
+                                   temporal_mse_p50=30.0, loop_period=4))
+    assert FaultType.FREEZE in classify_window(loop, None, cfg["faults"])[0]
+
+
+def test_baseline_quantile_is_the_quiet_tail():
+    b = _noise_floor_baseline([float(x) for x in range(1, 31)])
+    assert b.quantile("visual.temporal_mse_p50", 0.1) == pytest.approx(3.9)
+    assert b.quantile("visual.temporal_mse_p50", 0.5) == b.median("visual.temporal_mse_p50")
+    assert RobustBaseline().quantile("visual.temporal_mse_p50", 0.1) is None
+
+
+def test_quiet_static_camera_never_confirms_freeze_through_the_tracker(cfg):
+    """SIMULATION of the F3 gate row: healthy static scene, quiet sensor, many windows."""
+    t = _tracker(cfg)
+    rng = np.random.default_rng(1)
+    for _ in range(400):
+        step = t.step(make_window(visual=dict(
+            repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+            temporal_mse_p50=float(rng.uniform(0.35, 0.5)))))
+        assert step.incident is None
+    assert t.fsm.state is IncidentState.HEALTHY
+    assert t.baseline.ready
 
 
 def test_frozen_overexposed_window_ranks_freeze_first(cfg):

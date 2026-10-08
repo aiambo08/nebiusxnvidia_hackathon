@@ -54,6 +54,13 @@ class RobustBaseline:
         s = self.stats(metric)
         return None if s is None else s[0]
 
+    def quantile(self, metric: str, q: float) -> float | None:
+        """Low quantiles give the quietest healthy value seen, e.g. a camera's noise floor."""
+        vals = self._data.get(metric)
+        if not vals or len(vals) < self.min_samples:
+            return None
+        return float(np.quantile(np.asarray(vals), q))
+
     def z(self, metric: str, value: float | None) -> float | None:
         s = self.stats(metric)
         if s is None or value is None or not np.isfinite(value):

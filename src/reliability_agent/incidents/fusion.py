@@ -88,18 +88,27 @@ def classify_window(
     # noise (pixels repeat, even bit-exactly, on a live camera) and strong blur removes the
     # high-frequency detail that makes perceptual hashes differ, so those faults explain the
     # missing motion (ADR-003). Hash repeats alone are never a freeze: a static scene repeats its
-    # perceptual hash too; they count only when pixel differences are below the noise floor.
+    # perceptual hash too, and its temporal MSE *is* the sensor noise, which for a quiet sensor
+    # sits below any absolute floor. Repeats therefore count only when the pixel differences have
+    # collapsed relative to the quietest healthy windows this camera has shown (ADR-004); until a
+    # noise floor is learned only bit-exact repeats and loops are freeze evidence.
     fz = r["freeze"]
     if not dark:
-        near_zero_motion = (v.temporal_mse_p50 is not None
-                            and v.temporal_mse_p50 <= fz["temporal_mse_floor"])
+        noise_floor = (baseline.quantile("visual.temporal_mse_p50", fz["noise_floor_quantile"])
+                       if baseline else None)
+        noise_collapsed = (v.temporal_mse_p50 is not None and noise_floor is not None
+                           and v.temporal_mse_p50 <= fz["temporal_mse_floor"]
+                           and v.temporal_mse_p50 <= fz["noise_collapse_ratio"] * noise_floor)
         blurred = F.FOCUS_DRIFT in faults
         if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
             not blurred and (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"]
-            and near_zero_motion
+            and noise_collapsed
         ) or (v.loop_period or 0) > 0:
             hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
                 note="content frozen while transport connected")
+            if noise_collapsed:
+                ev.append(Evidence(metric="visual.temporal_mse_p50", value=v.temporal_mse_p50,
+                                   baseline=noise_floor, note="sensor noise collapsed"))
 
     fv = r["fov_shift"]
     if (g.quality == "ok" and g.homography_inlier_ratio is not None

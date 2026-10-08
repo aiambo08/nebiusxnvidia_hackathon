@@ -67,9 +67,12 @@ class FreezeTracker:
         return res
 
     def _loop_period(self) -> int:
-        """Smallest p in [2, max] such that frame[t-i] ~= frame[t-i-p] for i < p (pixel MSE
-        below the sensor-noise floor) while consecutive frames differ. A static scene has
-        consecutive frames that are equal up to noise, so it is never reported as a loop."""
+        """Smallest p in [2, max] such that frame[t-i] ~= frame[t-i-p] for i < p while consecutive
+        frames differ: either pixel MSE below the loop floor with real motion between frames, or a
+        bit-exact period (a replayed buffer) on frames that merely differ by noise. A live static
+        scene has consecutive frames that are equal up to noise but never bit-exact across a
+        period, so it is never reported as a loop; a bit-exact repeat of one frame is a freeze,
+        not a loop."""
         fr = list(self._frames)
 
         def mse(a: np.ndarray, b: np.ndarray) -> float:
@@ -79,8 +82,11 @@ class FreezeTracker:
             if len(fr) < 2 * p:
                 break
             tail = fr[-2 * p :]
-            if all(mse(tail[i], tail[i + p]) <= self.loop_mse_max for i in range(p)) and all(
-                mse(tail[i], tail[i + 1]) > self.loop_mse_max for i in range(p)
-            ):
+            period = [mse(tail[i], tail[i + p]) for i in range(p)]
+            step = [mse(tail[i], tail[i + 1]) for i in range(p)]
+            if all(d <= self.loop_mse_max for d in period) and all(d > self.loop_mse_max
+                                                                   for d in step):
+                return p
+            if all(d == 0.0 for d in period) and all(d > 0.0 for d in step):
                 return p
         return 0

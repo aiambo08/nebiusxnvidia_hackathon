@@ -163,3 +163,18 @@ def test_frozen_lit_scene_pixels_classify_as_freeze(cfg):
     frames = [_wall_scene(rng, n=1)[0]] * 30
     faults, _ = _classify_frames(cfg, frames)
     assert FaultType.FREEZE in faults
+
+
+def test_bit_exact_loop_of_a_static_noisy_scene_is_a_freeze(cfg):
+    """A replayed 4-frame buffer of a static scene differs frame to frame only by the sensor
+    noise it captured, so the motion-based loop rule cannot see it; the bit-exact period can."""
+    from reliability_agent.contracts.models import FaultType
+
+    rng = np.random.default_rng(3)
+    live = _wall_scene(rng, n=30, sigma=2.0)
+    faults, tw = _classify_frames(cfg, live)
+    assert tw.visual.loop_period is None and FaultType.FREEZE not in faults
+    looped = live[:10] + [live[10 + (i % 4)] for i in range(20)]
+    faults, tw = _classify_frames(cfg, looped)
+    assert tw.visual.loop_period == 4
+    assert FaultType.FREEZE in faults

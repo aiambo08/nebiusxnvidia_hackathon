@@ -37,6 +37,28 @@ no `configs/` diff. Findings folded into the PR: freeze ranking priority (`rank_
 quantified in ADR-003. Finding **not** caused by this PR and now the first open F3 item: a healthy lit textured
 static scene with σ=2 noise already trips the absolute `temporal_mse_floor` on `main` (358/400 windows).
 
+## Freeze noise floor relative to the camera (ADR-004) — SIMULATION
+Independent review of PR #10 found that a healthy, lit, static textured scene with σ=2 webcam noise
+tripped `freeze` in 358/400 windows on `main`: after the 4×4 downscale its temporal MSE (≈ 0.41) sits
+under the absolute `temporal_mse_floor` (0.5) while dHash repeats. The hash-repeat path now needs the
+window's MSE to collapse to ≤ 0.25× the camera's own healthy noise floor (10 % quantile of the
+`temporal_mse_p50` baseline); without a learned baseline only bit-exact repeats and loops count. A
+bit-exact period on frames that differ only by noise (a replayed buffer) is now a loop.
+
+`python scripts/bench_static_scene.py` (20 min per healthy scene, 3 min per frozen scene, full local
+path through `benchmarks.replay.replay`) → `static-scene.md`:
+- 7 healthy static scenes × 20 min (smooth wall σ 0.7/2, textured σ 1/2/3, dim gain 0.3, slow 15 %
+  light drift): **0 freeze windows, 0 freeze confirmations** in 8 400 windows.
+- Frozen bit-exact (textured and wall), frozen + decoder jitter 0.1, loop of 4 frames: `freeze`
+  confirmed 2–4 s after the fault.
+- Documented limit: decoder jitter ≥ ~0.3 counts on a frozen stream flips dHash bits, so the hash
+  path loses it (0.2 → 22/180 freeze windows, still confirmed; 0.5 → not detected). Bit-exact repeats
+  and loops are unaffected; repeated P-frames of a frozen encoder decode bit-exactly in practice.
+- Finding, not caused by this PR: the smooth-wall scenes confirm `fov_shift` (noise-driven ORB
+  keypoints after `equalizeHist`), tracked as the next F3 item in `docs/agents/TASKS.md`.
+
+The 20-min box remains open on REAL HARDWARE (owner's webcam at rest).
+
 ## Open F3 boxes
 Recall/precision per detector (≥ 10 runs per fault), the 20-min static-scene freeze false-positive
 run, the 20 walk-by trials for `fov_shift`, and the probe-set p95 ≤ 40 ms/frame at 720p are not

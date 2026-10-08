@@ -6,7 +6,7 @@ Last update: 2026-10-08 · Current phase: **F3** (F1/F2 hardware box awaiting ow
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
   baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
   event store, orchestrator, CLI, read-only API, injectors, CI.
-- 283 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
+- 295 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
 - F2 resilience proven on a simulated clock (`tests/unit/test_capture_resilience.py`): stream_down in
   3 s, non-blocking reconnect, telemetry back < 15 s; capture coverage gate enforced in CI
   (`scripts/check_coverage.py`, 96%/91%). `CaptureWorker.health()` JSON export. `docs/evidence/f2/`.
@@ -18,8 +18,11 @@ Last update: 2026-10-08 · Current phase: **F3** (F1/F2 hardware box awaiting ow
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.
 - F3 started: spurious `freeze` on dark/blurred live scenes fixed by causal suppression (ADR-003,
-  `docs/evidence/f3/`); owner to confirm on the real clip replay. Open: the absolute MSE floor is
-  close to a quiet healthy sensor; recall/precision, static-scene and latency gates not measured.
+  `docs/evidence/f3/`); owner to confirm on the real clip replay. The absolute MSE floor that
+  flagged a healthy σ=2 static scene is replaced by a camera-relative noise floor (ADR-004,
+  `scripts/bench_static_scene.py` → `docs/evidence/f3/static-scene.md`: 20-min SIMULATION static
+  scenes with 0 freeze false positives, frozen/looped streams still confirmed). Open: the 20-min
+  box on REAL HARDWARE, recall/precision per detector, walk-by FOV trials, probe p95 at 720p.
 
 ## Budget (update weekly from the Token Factory console)
 | Date | Ledger estimate (USD) | Console balance (USD) |
