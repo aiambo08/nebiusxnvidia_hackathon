@@ -1,12 +1,12 @@
 # Project state
 
-Last update: 2026-10-08 · Current phase: **F3** (F1/F2 hardware box awaiting owner) · Days to deadline: 22
+Last update: 2026-10-08 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 22
 
 ## Snapshot
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
   baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
   event store, orchestrator, CLI, read-only API, injectors, CI.
-- 295 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
+- 298 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
 - F2 resilience proven on a simulated clock (`tests/unit/test_capture_resilience.py`): stream_down in
   3 s, non-blocking reconnect, telemetry back < 15 s; capture coverage gate enforced in CI
   (`scripts/check_coverage.py`, 96%/91%). `CaptureWorker.health()` JSON export. `docs/evidence/f2/`.
@@ -34,7 +34,7 @@ Last update: 2026-10-08 · Current phase: **F3** (F1/F2 hardware box awaiting ow
 - Token Factory console balance to be confirmed by Aibo.
 
 ## Next 3 actions
-1. Aibo (when the phone is available): `RA_TEST_RTSP` and `RA_TEST_WEBCAM=0` contract runs to close the shared F1/F2 box; the 1-min RTSP capture passed twice (96.2% valid windows). Last attempt (2026-10-08) failed before `open()`: phone unreachable.
+1. Webcam + phone RTSP contract passed on REAL HARDWARE (2026-10-08), closing the shared F1/F2 box. Aibo: 10-min RTSP soak to confirm that the 1-min run's 94.4 % valid windows is start-up only; independent F1/F2 gate review.
 1b. Devin: F3 visual monitors — freeze specificity on dark/blurred real frames (ADR + benchmark), per-cell occlusion, live probe p95.
 2. Ingestion: probe UVC exposure/autofocus on the integrated webcam (decides UVC vs pipeline action).
 3. Nebius (F6): golden set including the cases where the reasoning tier disagrees with the local top fault.

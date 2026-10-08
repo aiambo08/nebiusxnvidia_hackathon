@@ -16,7 +16,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F1][ingestion] Probe UVC exposure/autofocus support of the integrated webcam (set-and-read-back)
 - [x] [F1][ingestion] 30-min webcam soak — `docs/evidence/f1/README.md`
 - [ ] [F3][vision] Explain live probe p95 (110 ms at 640×480) vs isolated bench (20.5 ms at 720p) — see `docs/evidence/f1/README.md`
-- [ ] [F1][ingestion] Local RTSP from the phone (IP Webcam app) through the same source contract — 1-min capture PASSED (REAL HARDWARE, `docs/evidence/f1/README.md`); contract test failed on undecodable H.264 frames: bounded read retries (PR #6) were not enough for the startup burst, `open()` now warms up network sources until the first decodable frame; rerun `RA_TEST_RTSP=<url> pytest tests/integration/test_source_contract.py` (awaiting Aibo)
+- [x] [F1][ingestion] Local RTSP from the phone (IP Webcam app) through the same source contract — `2 passed` on REAL HARDWARE (2026-10-08) after the decode retries (PR #6) and the network warm-up (PR #7), `docs/evidence/f1/README.md`
 - [x] [F1][evaluation] Inject blur/dark/freeze on a recorded clip — `docs/evidence/f1/README.md`, manifests `benchmarks/manifests/f1-s001-*.yaml`
 - [x] [F3][vision] Freeze rule fires on dark/blurred real frames and ranks first — fixed by causal suppression (ADR-003, `docs/evidence/f3/README.md`); owner to confirm on the real clip replay
 - [x] [F3][vision] Absolute `temporal_mse_floor` (0.5) fired on a healthy lit static scene with σ=2 noise (358/400 windows, per independent review) — replaced by the camera-relative noise floor (ADR-004, `scripts/bench_static_scene.py`, `docs/evidence/f3/static-scene.md`: 20-min SIMULATION static scenes, 0 false positives). floor learned from still windows only after the independent review found that 30 s of motion at start-up re-created the false freeze; AGC/light-driven noise drops documented as a residual risk for F5 per-mode baselines. REAL HARDWARE 20-min run on the owner's webcam still pending
@@ -29,7 +29,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 ## F2–F8
 - [x] [F2][ingestion] Coverage ≥ 80% lines / 75% branches on `capture/` — CI `scripts/check_coverage.py` (96.1% / 90.8% sandbox)
 - [x] [F2][ingestion] Disconnect < 5 s, non-blocking reconnect, telemetry resume < 15 s — `tests/unit/test_capture_resilience.py`
-- [ ] [F2][human] Contract suite on the integrated webcam (`RA_TEST_WEBCAM=0`) and on the phone RTSP (`RA_TEST_RTSP`) — awaiting Aibo's hardware run (F1/F2 shared box)
+- [x] [F2][human] Contract suite on the integrated webcam (`RA_TEST_WEBCAM=0`) and on the phone RTSP (`RA_TEST_RTSP`) — `2 passed` in one run (REAL HARDWARE, 2026-10-08)
+- [ ] [F1][human] 10-min RTSP soak (`scripts/spike_capture.py --uri <rtsp> --minutes 10`): the 1-min run gave 94.4 % valid windows, probably the start-up handshake/warm-up; confirm without changing the gate or the script
 - [ ] [F3][vision] Per-cell occlusion against baseline cells
 - [ ] [F3][vision] Day/night baselines + reference bank for geometry
 - [ ] [F4][evaluation] `scripts/run_benchmark.py` producing a markdown report from event files
