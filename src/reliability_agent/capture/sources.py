@@ -33,7 +33,10 @@ def redact_uri(uri: str | int) -> str:
     text = str(uri)
     if "://" not in text:
         return text
-    parts = urlsplit(text)
+    try:
+        parts = urlsplit(text)
+    except ValueError:  # e.g. an unbalanced IPv6 bracket; never let a repr raise
+        return "<unparseable uri>"
     netloc = parts.netloc
     if "@" in netloc:
         netloc = "***@" + netloc.rsplit("@", 1)[1]

@@ -477,6 +477,11 @@ def test_opencv_source_repr_and_settings_never_leak_credentials():
     assert not src.is_open
 
 
+def test_redact_uri_never_raises_on_malformed_input():
+    assert redact_uri("rtsp://[bad/live?password=x") == "<unparseable uri>"
+    assert "password" not in repr(OpenCVSource("rtsp://[bad/live?password=x"))
+
+
 def test_backoff_jitter_never_exceeds_max_delay():
     b = BackoffPolicy(initial_s=0.5, max_s=8.0, jitter=0.2)
     assert all(b.delay(attempt) <= 8.0 for attempt in range(12) for _ in range(200))

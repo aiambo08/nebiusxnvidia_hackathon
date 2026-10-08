@@ -76,3 +76,8 @@ real staleness.
 - Contract suite on the integrated webcam: `$env:RA_TEST_WEBCAM = "0"; uv run pytest -q tests/integration/test_source_contract.py`
 - Contract suite on the phone over RTSP: `$env:RA_TEST_RTSP = "rtsp://<phone>:8080/h264_ulaw.sdp"; uv run pytest -q tests/integration/test_source_contract.py`
   (last attempt on 2026-10-08 failed before `open()` because the phone was unreachable; see `docs/evidence/f1/README.md`).
+
+Reviewer confirmation pass on this follow-up (SIMULATION, 694-outage sweep): worst resume 12.97 s with maximum
+jitter, 13.00 s with random jitter, delay never above 8.0 s; every earlier `redact_uri` leak is masked.
+Known gap: credentials embedded in the *path* (`rtsp://host/user=admin&password=x&...sdp`, seen on cheap IP
+cameras) are not masked — the URI is never logged or exported, so the exposure is limited to `repr()`.
