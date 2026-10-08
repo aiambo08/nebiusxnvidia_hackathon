@@ -3,7 +3,12 @@ import pytest
 
 from reliability_agent.baselines.robust import RobustBaseline
 from reliability_agent.contracts.models import FaultType, IncidentState
-from reliability_agent.incidents.fusion import IncidentTracker, classify_window, rank_faults
+from reliability_agent.incidents.fusion import (
+    STILL_NOISE_METRIC,
+    IncidentTracker,
+    classify_window,
+    rank_faults,
+)
 from tests.conftest import make_window
 
 FAULT_WINDOWS = {
@@ -143,7 +148,7 @@ def test_cooldown_suppresses_refire(cfg):
 def _noise_floor_baseline(mse_values):
     b = RobustBaseline(min_samples=5)
     for m in mse_values:
-        b.update({"visual.temporal_mse_p50": m})
+        b.update({STILL_NOISE_METRIC: m})
     return b
 
 
@@ -187,9 +192,9 @@ def test_hash_repeats_need_a_learned_noise_floor(cfg):
 
 def test_baseline_quantile_is_the_quiet_tail():
     b = _noise_floor_baseline([float(x) for x in range(1, 31)])
-    assert b.quantile("visual.temporal_mse_p50", 0.1) == pytest.approx(3.9)
-    assert b.quantile("visual.temporal_mse_p50", 0.5) == b.median("visual.temporal_mse_p50")
-    assert RobustBaseline().quantile("visual.temporal_mse_p50", 0.1) is None
+    assert b.quantile(STILL_NOISE_METRIC, 0.1) == pytest.approx(3.9)
+    assert b.quantile(STILL_NOISE_METRIC, 0.5) == b.median(STILL_NOISE_METRIC)
+    assert RobustBaseline().quantile(STILL_NOISE_METRIC, 0.1) is None
 
 
 def test_quiet_static_camera_never_confirms_freeze_through_the_tracker(cfg):
@@ -261,3 +266,54 @@ def test_frozen_dark_pipeline_is_attributed_to_blackout(cfg):
                                 temporal_mse_p50=0.0))
     faults, _ = classify_window(w, None, cfg["faults"])
     assert set(faults) == {FaultType.BLACKOUT}
+
+
+def _motion_window(rng):
+    return make_window(visual=dict(repeated_hash_ratio=0.0, exact_repeat_ratio=0.0,
+                                   temporal_mse_p50=float(rng.uniform(20.0, 40.0))))
+
+
+def _still_window(rng, lo=0.35, hi=0.5):
+    return make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                   temporal_mse_p50=float(rng.uniform(lo, hi))))
+
+
+def test_noise_floor_is_learned_from_still_windows_only(cfg):
+    """Reviewer case: a person walks by while the baseline is learned, then the scene rests.
+    Motion windows carry scene change, not sensor noise, so they must not define the floor."""
+    t = _tracker(cfg)
+    rng = np.random.default_rng(7)
+    for _ in range(60):  # 2 min of motion: baseline ready, but no still window learned yet
+        assert t.step(_motion_window(rng)).incident is None
+    assert t.baseline.ready
+    assert t.baseline.quantile(STILL_NOISE_METRIC, 0.1) is None
+    for _ in range(400):  # scene rests at its normal noise: never a freeze
+        step = t.step(_still_window(rng))
+        assert step.incident is None, step
+    assert t.fsm.state is IncidentState.HEALTHY
+    floor = t.baseline.quantile(STILL_NOISE_METRIC, 0.1)
+    assert floor is not None and 0.3 < floor < 0.45
+    # the noise then really collapses (frozen frames differing only by codec dither)
+    incident = None
+    for _ in range(10):
+        incident = t.step(_still_window(rng, 0.0, 0.05)).incident or incident
+    assert incident is not None and FaultType.FREEZE in incident.candidate_faults
+
+
+def test_alternating_motion_and_rest_never_confirms_freeze(cfg):
+    t = _tracker(cfg)
+    rng = np.random.default_rng(11)
+    for cycle in range(8):
+        for _ in range(15):
+            assert t.step(_motion_window(rng)).incident is None
+        for _ in range(15):
+            assert t.step(_still_window(rng)).incident is None
+    assert t.fsm.state is IncidentState.HEALTHY
+
+
+def test_tracker_sample_tags_still_windows(cfg):
+    t = _tracker(cfg)
+    rng = np.random.default_rng(3)
+    assert STILL_NOISE_METRIC not in t._sample(_motion_window(rng))
+    s = t._sample(_still_window(rng))
+    assert s[STILL_NOISE_METRIC] == s["visual.temporal_mse_p50"]

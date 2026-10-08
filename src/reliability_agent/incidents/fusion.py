@@ -19,6 +19,9 @@ from reliability_agent.contracts.models import (
 )
 from reliability_agent.incidents.state_machine import IncidentStateMachine
 
+STILL_NOISE_METRIC = "visual.still_temporal_mse_p50"  # learned by IncidentTracker only
+
+
 F = FaultType
 
 
@@ -94,7 +97,9 @@ def classify_window(
     # noise floor is learned only bit-exact repeats and loops are freeze evidence.
     fz = r["freeze"]
     if not dark:
-        noise_floor = (baseline.quantile("visual.temporal_mse_p50", fz["noise_floor_quantile"])
+        # the floor is learned only from windows that were themselves still (see
+        # IncidentTracker.step); a baseline learned under motion gives no floor (cold start)
+        noise_floor = (baseline.quantile(STILL_NOISE_METRIC, fz["noise_floor_quantile"])
                        if baseline else None)
         noise_collapsed = (v.temporal_mse_p50 is not None and noise_floor is not None
                            and v.temporal_mse_p50 <= fz["temporal_mse_floor"]
@@ -148,6 +153,17 @@ class IncidentTracker:
         for f in faults:
             self._suppressed[f] = now_s + self.cooldown_s
 
+    def _sample(self, tw: TelemetryWindow) -> dict[str, float]:
+        """Flat metrics plus the still-window noise floor sample: the temporal MSE of a healthy
+        window whose frames repeated by hash, i.e. the sensor noise of this camera on a still
+        scene. Windows with motion carry scene change, not noise, and must not raise the floor."""
+        sample = tw.flat()
+        v = tw.visual
+        if (v.temporal_mse_p50 is not None and (v.repeated_hash_ratio or 0)
+                >= self.rules["freeze"]["repeated_hash_ratio_min"]):
+            sample[STILL_NOISE_METRIC] = float(v.temporal_mse_p50)
+        return sample
+
     def step(self, tw: TelemetryWindow, now_s: float = 0.0) -> TrackerStep:
         faults, ev = classify_window(tw, self.baseline if self.baseline.ready else None,
                                      self.rules)
@@ -162,7 +178,7 @@ class IncidentTracker:
                 self._bad, self._good = 1, 0
                 self._scores, self._evidence = dict(faults), list(ev)
             else:
-                learned = self.baseline.update(tw.flat(), frozen=self.fsm.baseline_frozen)
+                learned = self.baseline.update(self._sample(tw), frozen=self.fsm.baseline_frozen)
         elif state is IncidentState.SUSPECT:
             if faults:
                 self._bad += 1

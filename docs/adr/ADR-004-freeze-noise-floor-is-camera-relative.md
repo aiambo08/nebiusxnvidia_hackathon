@@ -28,7 +28,12 @@ Alternatives measured (SIMULATION, 640×480, 12 frames per scene):
 - In `classify_window` the hash-repeat path counts as freeze only when the window's
   `temporal_mse_p50` is both under the absolute cap `temporal_mse_floor` **and** under
   `noise_collapse_ratio` (0.25) × the camera's healthy noise floor, defined as the
-  `noise_floor_quantile` (0.1) of `visual.temporal_mse_p50` in the baseline. The evidence list
+  `noise_floor_quantile` (0.1) of `visual.still_temporal_mse_p50` in the baseline — the temporal
+  MSE of healthy windows that were themselves still (`repeated_hash_ratio ≥ repeated_hash_ratio_min`),
+  tagged by `IncidentTracker._sample`. Windows with motion carry scene change, not sensor noise, and
+  do not contribute: a baseline learned while someone walks through the scene has no floor yet and
+  behaves as cold start (independent review of the first version: 30 s of motion at start-up left a
+  floor of ~5 and the resting wall scene tripped `freeze` in 328/360 windows). The evidence list
   then carries `visual.temporal_mse_p50` with that floor as baseline ("sensor noise collapsed").
 - Without a learned baseline (cold start, < `baseline.min_samples` healthy windows) only bit-exact
   repeats and loops are freeze evidence. The previous behaviour confirmed a freeze on the first
@@ -42,11 +47,18 @@ Alternatives measured (SIMULATION, 640×480, 12 frames per scene):
   the σ = 2 textured scene), so the hash path loses it even though its MSE stays far under the
   live floor; bit-exact repeats and loops are still caught. In practice repeated P-frames of a
   frozen encoder decode bit-exactly. Measured in `scripts/bench_static_scene.py` (jitter cases).
-- A camera that never rests while the baseline is learned (robot in motion) learns a high
-  floor; a later genuinely static period with low MSE could be flagged. The 10 % quantile and
-  the 300-window baseline make this unlikely for a camera that is sometimes still; a per-mode
-  baseline (F5) is the structural fix.
-- Cold-start freeze detection is bit-exact only for the first `min_samples` (20) windows.
+- A camera that never rests (robot in motion) never learns a floor and stays in the bit-exact-only
+  regime; that is the intended conservative side. The floor needs `min_samples` (20) still healthy
+  windows (40 s of rest at 2-s windows), not 20 windows of anything.
+- The floor is a property of the sensor at the gain and light it was learned under. If the noise
+  itself drops while the scene is still (AGC lowers the gain, the room gets brighter, σ 2 → 1 gives
+  180/360 freeze windows in the reviewer's run), the camera-relative rule can still fire. The
+  per-mode baseline (F5) is the structural fix; until then the absolute cap bounds the damage and a
+  false freeze is reversible by the orchestrator (no action is destructive).
+- Freeze detection by hash repeats is bit-exact only until a floor is learned, and a frozen stream
+  with decoder jitter ≥ ~0.3 counts is not detected at all in that regime (0/240 on the wall scene).
+- Loops longer than `probes.max_loop_period` (8) frames are not detected; `benchmarks.replay`
+  `loop4`/`loop8` entries are the pending measurement.
 - Evidence: `tests/unit/test_baseline_fusion.py` (`test_static_scene_hash_repeats_are_not_freeze`,
   `test_hash_repeats_need_a_learned_noise_floor`, `test_quiet_static_camera_never_confirms_freeze_through_the_tracker`,
   `test_baseline_quantile_is_the_quiet_tail`), `scripts/bench_static_scene.py` →

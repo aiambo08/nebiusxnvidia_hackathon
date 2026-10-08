@@ -35,12 +35,15 @@ def _scene(kind: str, rng: np.random.Generator) -> np.ndarray:
 
 def frames(kind: str, sigma: float, n: int, *, gain: float = 1.0, freeze_at: int | None = None,
            jitter: float = 0.0, loop: int = 0, drift: float = 0.0,
-           seed: int = 0) -> Iterator[np.ndarray]:
+           motion: tuple[int, int] = (0, 0), seed: int = 0) -> Iterator[np.ndarray]:
     """Static scene with Gaussian sensor noise `sigma` (counts at full resolution).
 
     freeze_at: from that frame on the pipeline repeats one frame (bit-exact, or with codec
     `jitter` noise added per frame); loop: repeat the last `loop` frames forever instead.
     drift: slow sinusoidal lighting change (fraction of brightness) over the run.
+    motion: (on_frames, off_frames) — a person-sized dark blob crosses the scene for `on_frames`,
+    then the scene rests for `off_frames` (0 = forever); the cycle repeats. Models a baseline
+    learned while someone is in front of the camera (reviewer case for ADR-004).
     """
     rng = np.random.default_rng(seed)
     base = _scene(kind, rng).astype(np.float32) * gain
@@ -57,7 +60,13 @@ def frames(kind: str, sigma: float, n: int, *, gain: float = 1.0, freeze_at: int
             yield tail[(i - freeze_at) % loop]
             continue
         g = 1.0 + drift * np.sin(2 * np.pi * i / n) if drift else 1.0
-        img = np.clip(np.rint(base * g + rng.normal(0, sigma, base.shape)), 0, 255).astype(np.uint8)
+        scene = base * g
+        on, off = motion
+        if on and (not off or (i % (on + off)) < on):
+            scene = scene.copy()
+            x = int((i % on) / on * (W + 160)) - 80
+            cv2.rectangle(scene, (x, 60), (x + 80, H - 20), (30, 30, 30), -1)
+        img = np.clip(np.rint(scene + rng.normal(0, sigma, base.shape)), 0, 255).astype(np.uint8)
         if loop:
             tail.append(img)
             tail = tail[-loop:]
@@ -74,6 +83,12 @@ CASES = [
     ("textured sigma 2 (reviewer FP case)", dict(kind="textured", sigma=2.0), False),
     ("textured sigma 3", dict(kind="textured", sigma=3.0), False),
     ("textured sigma 2, dim (gain 0.3)", dict(kind="textured", sigma=2.0, gain=0.3), False),
+    ("wall sigma 0.7, person walks by 30 s then rest (reviewer case)",
+     dict(kind="wall", sigma=0.7, motion=(150, 0)), False),
+    ("wall sigma 2, 5 min of motion then rest", dict(kind="wall", sigma=2.0, motion=(1500, 0)),
+     False),
+    ("wall sigma 2, alternating 30 s motion / 30 s rest",
+     dict(kind="wall", sigma=2.0, motion=(150, 150)), False),
     ("textured sigma 2, slow light drift 15%", dict(kind="textured", sigma=2.0, drift=0.15),
      False),
     ("textured sigma 2, frozen bit-exact", dict(kind="textured", sigma=2.0, freeze_at=300), True),
@@ -109,8 +124,10 @@ def main() -> None:
         res = replay(frames(n=n, **kw), fps, cfg)
         fz = sum("freeze" in w.faults for w in res.windows)
         conf = res.confirmed_faults
-        detected = (res.confirmed_window is not None and "freeze" in conf
-                    and res.confirmed_window * cfg["window"]["seconds"] >= kw["freeze_at"] / fps)
+        freeze_at = kw.get("freeze_at")
+        detected = (freeze_at is not None and res.confirmed_window is not None
+                    and "freeze" in conf
+                    and res.confirmed_window * cfg["window"]["seconds"] >= freeze_at / fps)
         others = sorted(set(conf) - {"freeze"})
         if expect is None:
             verdict = "INFO: detected" if detected else "INFO: not detected (documented)"
@@ -123,8 +140,8 @@ def main() -> None:
             if others:
                 verdict += " (freeze); finding: " + ", ".join(others)
                 findings.append((name, others))
-        delay = (round(res.confirmed_window * cfg["window"]["seconds"] - kw["freeze_at"] / fps, 1)
-                 if expect is not False and res.confirmed_window is not None else "-")
+        delay = (round(res.confirmed_window * cfg["window"]["seconds"] - freeze_at / fps, 1)
+                 if freeze_at is not None and res.confirmed_window is not None else "-")
         rows.append((name, minutes, len(res.windows), fz, ", ".join(conf) or "-", delay, verdict))
         print(f"{name}: windows={len(res.windows)} freeze_windows={fz} confirmed={conf} "
               f"delay={delay} {verdict} ({time.perf_counter() - t0:.0f}s)")
