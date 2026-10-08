@@ -26,6 +26,18 @@ def parse_uri(uri: str | int) -> str | int:
 NETWORK_SCHEMES = ("rtsp://", "rtsps://", "http://", "https://")
 
 
+def redact_uri(uri: str | int) -> str:
+    """Hide credentials embedded in a stream URL (``rtsp://user:pass@host/...``) for logs."""
+    text = str(uri)
+    if "://" not in text:
+        return text
+    scheme, rest = text.split("://", 1)
+    authority, sep, path = rest.partition("/")
+    if "@" in authority:
+        authority = "***@" + authority.rsplit("@", 1)[1]
+    return f"{scheme}://{authority}{sep}{path}"
+
+
 class OpenCVSource(CameraSource):
     """Webcam index, video file or rtsp:// / http:// URL through ``cv2.VideoCapture``.
 
@@ -96,6 +108,9 @@ class OpenCVSource(CameraSource):
                     f"{self.kind} source opened but delivered no decodable frame "
                     f"in {self.warmup_timeout_s:.1f}s ({self.warmup_frames} frames discarded)"
                 )
+
+    def __repr__(self) -> str:
+        return f"OpenCVSource(kind={self.kind!r}, uri={redact_uri(self.uri)!r})"
 
     @property
     def is_open(self) -> bool:

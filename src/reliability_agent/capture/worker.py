@@ -86,7 +86,10 @@ class TransportMeter:
 class CaptureWorker:
     """Reads a source in a background thread into a bounded ring buffer.
 
-    Never blocks the caller. On failure, reconnects with exponential backoff and jitter.
+    Never blocks the caller: ``buffer``, ``meter`` and ``health()`` are safe to poll from the main
+    thread while the worker is reconnecting. On failure it reconnects with exponential backoff
+    and jitter. The loop body is :meth:`_step`, so tests can drive it deterministically with a
+    fake clock instead of real threads.
     """
 
     def __init__(
@@ -137,7 +140,30 @@ class CaptureWorker:
     def stale(self) -> bool:
         return self.meter.frame_age_s() > self.frame_timeout_s
 
+    def health(self) -> dict:
+        """JSON-serialisable ingestion health for the API/dashboard. Never includes the URI."""
+        age = self.meter.frame_age_s()
+        return {
+            "alive": self.alive,
+            "connected": self.meter.connected,
+            "stale": self.stale(),
+            "source_kind": self.source.kind,
+            "frame_age_s": None if age == float("inf") else round(age, 3),
+            "connect_attempt": self._attempt,
+            "warmup_frames": int(getattr(self.source, "warmup_frames", 0)),
+            "buffer": {
+                "size": len(self.buffer),
+                "maxlen": self.buffer.maxlen,
+                "overwritten": self.buffer.overwritten,
+            },
+            "transport": self.meter.snapshot().model_dump(),
+        }
+
     # -- loop
+    def _wait(self, seconds: float) -> None:
+        """Sleep on the capture thread only; interrupted by ``stop()``. Tests fake the clock."""
+        self._stop.wait(seconds)
+
     def _account_source_decode_errors(self) -> None:
         """Frames the source skipped internally (undecodable RTSP frames) are decode errors."""
         total = int(getattr(self.source, "decode_errors", 0))
@@ -148,45 +174,50 @@ class CaptureWorker:
     def _connect(self) -> bool:
         try:
             self.source.open()
-            self.meter.connected = True
-            self._attempt = 0
-            return True
         except SourceError as exc:
             self.meter.connected = False
             delay = self.backoff.delay(self._attempt)
             self._attempt += 1
             log.warning("connect failed (%s); retry in %.2fs", exc, delay)
-            self._stop.wait(delay)
+            self._wait(delay)
             return False
+        self.meter.connected = True
+        self._attempt = 0
+        return True
+
+    def _disconnect(self, reason: str) -> None:
+        log.warning("capture disconnect: %s", reason)
+        self.source.close()
+        self.meter.connected = False
+        self.meter.reconnects += 1
+
+    def _step(self, min_dt: float = 0.0) -> None:
+        """One iteration of the capture loop; never raises."""
+        if not self.source.is_open and not self._connect():
+            return
+        if self._restart.is_set():
+            self._restart.clear()
+            self._disconnect("restart requested")
+            return
+        t0 = time.monotonic()
+        try:
+            frame = self.source.read()
+        except SourceError as exc:
+            self._disconnect(f"read failed ({exc})")
+            return
+        self._account_source_decode_errors()
+        if frame is None:
+            self.meter.decode_errors += 1
+            if self.stale():
+                self._disconnect(f"watchdog: no frames for {self.frame_timeout_s:.1f}s")
+            self._wait(0.01)
+            return
+        self.buffer.push(frame)
+        self.meter.on_frame(frame)
+        if min_dt:
+            self._wait(max(0.0, min_dt - (time.monotonic() - t0)))
 
     def _run(self) -> None:
         min_dt = 1.0 / self.max_fps if self.max_fps else 0.0
         while not self._stop.is_set():
-            if not self.source.is_open and not self._connect():
-                continue
-            if self._restart.is_set():
-                self._restart.clear()
-                self.source.close()
-                self.meter.connected = False
-                self.meter.reconnects += 1
-                continue
-            t0 = time.monotonic()
-            try:
-                frame = self.source.read()
-            except SourceError:
-                self.meter.connected = False
-                continue
-            self._account_source_decode_errors()
-            if frame is None:
-                self.meter.decode_errors += 1
-                if self.stale():
-                    log.warning("watchdog: no frames for %.1fs, reconnecting", self.frame_timeout_s)
-                    self.source.close()
-                    self.meter.connected = False
-                    self.meter.reconnects += 1
-                self._stop.wait(0.01)
-                continue
-            self.buffer.push(frame)
-            self.meter.on_frame(frame)
-            if min_dt:
-                self._stop.wait(max(0.0, min_dt - (time.monotonic() - t0)))
+            self._step(min_dt)

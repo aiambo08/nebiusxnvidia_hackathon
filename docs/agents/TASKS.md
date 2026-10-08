@@ -22,7 +22,9 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F1][safety] Simulated action apply/rollback ×2 — unit test green
 
 ## F2–F8
-- [ ] [F2][ingestion] Coverage ≥ 80% lines / 75% branches on `capture/`
+- [x] [F2][ingestion] Coverage ≥ 80% lines / 75% branches on `capture/` — CI `scripts/check_coverage.py` (96.1% / 90.8% sandbox)
+- [x] [F2][ingestion] Disconnect < 5 s, non-blocking reconnect, telemetry resume < 15 s — `tests/unit/test_capture_resilience.py`
+- [ ] [F2][human] Contract suite on the integrated webcam (`RA_TEST_WEBCAM=0`) and on the phone RTSP (`RA_TEST_RTSP`) — awaiting Aibo's hardware run (F1/F2 shared box)
 - [ ] [F3][vision] Per-cell occlusion against baseline cells
 - [ ] [F3][vision] Day/night baselines + reference bank for geometry
 - [ ] [F4][evaluation] `scripts/run_benchmark.py` producing a markdown report from event files
