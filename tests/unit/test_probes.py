@@ -3,8 +3,10 @@ import numpy as np
 import pytest
 
 from reliability_agent.capture import SyntheticSource
+from reliability_agent.capture.base import Frame
 from reliability_agent.capture.worker import TransportMeter
 from reliability_agent.config import load_config
+from reliability_agent.contracts.models import TransportMetrics
 from reliability_agent.probes.base import to_gray
 from reliability_agent.probes.geometry import GeometryProbe
 from reliability_agent.probes.occlusion import cell_stats, occlusion_probe
@@ -120,3 +122,44 @@ def test_runner_produces_valid_window():
     assert tw.task.success_rate == 1.0
     assert tw.visual.blur_effect_p50 is not None
     assert tw.geometry.translation_px is not None and tw.geometry.translation_px < 3
+
+
+def _wall_scene(rng, n=30, sigma=0.7):
+    """Smooth indoor scene with a quiet sensor (sigma ~0.7 counts), as a laptop webcam at rest."""
+    base = np.zeros((480, 640, 3), np.uint8)
+    base[:] = 120
+    cv2.rectangle(base, (100, 100), (300, 300), (200, 180, 160), -1)
+    cv2.putText(base, "wall", (350, 250), cv2.FONT_HERSHEY_SIMPLEX, 3, (40, 40, 40), 6)
+    return [np.clip(base.astype(np.float32) + rng.normal(0, sigma, base.shape), 0, 255)
+            .astype(np.uint8) for _ in range(n)]
+
+
+def _classify_frames(cfg, frames):
+    from reliability_agent.incidents.fusion import classify_window
+
+    runner, agg = ProbeRunner(cfg), WindowAggregator("cam", 1.0)
+    for i, img in enumerate(frames):
+        agg.add(runner.analyse(Frame(image=img, seq=i, t_mono=i / 5, t_source=None)))
+    tw = agg.emit(TransportMetrics(capture_fps=5.0, frame_age_ms_p95=40.0, connected=True))
+    return classify_window(tw, None, cfg["faults"])[0], tw
+
+
+def test_live_dark_scene_pixels_do_not_classify_as_freeze(cfg):
+    from benchmarks.injectors.faults import apply_spatial
+    from reliability_agent.contracts.models import FaultType
+
+    rng = np.random.default_rng(0)
+    frames = [apply_spatial(f, "dark", 0.95) for f in _wall_scene(rng)]
+    faults, tw = _classify_frames(cfg, frames)
+    assert tw.visual.repeated_hash_ratio >= 0.95  # the trap this test guards against
+    assert FaultType.BLACKOUT in faults
+    assert FaultType.FREEZE not in faults, (faults, tw.visual)
+
+
+def test_frozen_lit_scene_pixels_classify_as_freeze(cfg):
+    from reliability_agent.contracts.models import FaultType
+
+    rng = np.random.default_rng(0)
+    frames = [_wall_scene(rng, n=1)[0]] * 30
+    faults, _ = _classify_frames(cfg, frames)
+    assert FaultType.FREEZE in faults

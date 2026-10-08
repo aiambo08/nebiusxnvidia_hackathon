@@ -18,7 +18,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F3][vision] Explain live probe p95 (110 ms at 640×480) vs isolated bench (20.5 ms at 720p) — see `docs/evidence/f1/README.md`
 - [ ] [F1][ingestion] Local RTSP from the phone (IP Webcam app) through the same source contract — 1-min capture PASSED (REAL HARDWARE, `docs/evidence/f1/README.md`); contract test failed on undecodable H.264 frames: bounded read retries (PR #6) were not enough for the startup burst, `open()` now warms up network sources until the first decodable frame; rerun `RA_TEST_RTSP=<url> pytest tests/integration/test_source_contract.py` (awaiting Aibo)
 - [x] [F1][evaluation] Inject blur/dark/freeze on a recorded clip — `docs/evidence/f1/README.md`, manifests `benchmarks/manifests/f1-s001-*.yaml`
-- [ ] [F3][vision] Freeze rule fires on dark/blurred real frames and ranks first — fix specificity (ADR + benchmark), see `docs/evidence/f1/README.md`
+- [x] [F3][vision] Freeze rule fires on dark/blurred real frames and ranks first — fixed by causal suppression (ADR-003, `docs/evidence/f3/README.md`); owner to confirm on the real clip replay
+- [ ] [F3][vision] Absolute `temporal_mse_floor` (0.5) is close to a healthy quiet sensor (0.42) — measure the 20-min static-scene gate before relying on it (ADR-003 follow-up)
 - [ ] [F1][safety] Simulated action apply/rollback ×2 — unit test green
 
 ## F2–F8

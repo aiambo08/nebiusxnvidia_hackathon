@@ -149,3 +149,38 @@ def test_static_scene_hash_repeats_are_not_freeze(cfg):
     w2 = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
                                  temporal_mse_p50=0.1))
     assert FaultType.FREEZE in classify_window(w2, None, cfg["faults"])[0]
+
+
+def test_dark_live_scene_is_blackout_not_freeze(cfg):
+    # Darkening crushes sensor noise: pixels repeat (even bit-exactly) although the camera is
+    # live. Blackout explains the missing motion, so freeze must not be claimed on top of it.
+    w = make_window(visual=dict(brightness_p50=8.0, black_pixel_ratio=0.97,
+                                repeated_hash_ratio=1.0, exact_repeat_ratio=0.6,
+                                temporal_mse_p50=0.001))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert set(faults) == {FaultType.BLACKOUT}, faults
+
+
+def test_strong_blur_hash_repeats_are_not_freeze(cfg):
+    # Strong blur removes high-frequency noise, so hashes repeat and the pixel MSE falls under the
+    # noise floor on a live camera. Focus drift explains it; only bit-exact repeats mean a freeze.
+    w = make_window(visual=dict(blur_effect_p50=0.7, edge_density_p50=0.01,
+                                repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                temporal_mse_p50=0.1))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert FaultType.FOCUS_DRIFT in faults
+    assert FaultType.FREEZE not in faults, faults
+    w2 = make_window(visual=dict(blur_effect_p50=0.7, edge_density_p50=0.01,
+                                 repeated_hash_ratio=1.0, exact_repeat_ratio=1.0,
+                                 temporal_mse_p50=0.0))
+    assert FaultType.FREEZE in classify_window(w2, None, cfg["faults"])[0]
+
+
+def test_frozen_dark_pipeline_is_attributed_to_blackout(cfg):
+    # Documented limitation: a frozen frame that is also black is reported as blackout only; the
+    # freeze becomes measurable once exposure is restored (ADR-003).
+    w = make_window(visual=dict(brightness_p50=3.0, black_pixel_ratio=0.99,
+                                repeated_hash_ratio=1.0, exact_repeat_ratio=1.0,
+                                temporal_mse_p50=0.0))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert set(faults) == {FaultType.BLACKOUT}

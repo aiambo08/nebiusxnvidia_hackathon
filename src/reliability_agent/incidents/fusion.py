@@ -47,17 +47,6 @@ def classify_window(
         hit(F.LOW_FPS, "transport.capture_fps", t.capture_fps)
 
     # content
-    fz = r["freeze"]
-    # Hash repeats alone are NOT a freeze: a static scene also repeats its perceptual hash.
-    # They count only when pixel differences are below the sensor-noise floor.
-    near_zero_motion = (v.temporal_mse_p50 is not None
-                        and v.temporal_mse_p50 <= fz["temporal_mse_floor"])
-    if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
-        (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"] and near_zero_motion
-    ) or (v.loop_period or 0) > 0:
-        hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
-            note="content frozen while transport connected")
-
     dark = (v.brightness_p50 is not None and v.brightness_p50 <= r["blackout"]["brightness_p50_max"]
             ) or (v.black_pixel_ratio or 0) >= r["blackout"]["black_pixel_ratio_min"]
     if dark:
@@ -82,6 +71,23 @@ def classify_window(
             and edge_drop >= fr["edge_density_drop_min"]
         ):
             hit(F.FOCUS_DRIFT, "visual.blur_effect_p50", be)
+
+    # Freeze is judged last: it needs a scene that can carry sensor noise. Blackout crushes the
+    # noise (pixels repeat, even bit-exactly, on a live camera) and strong blur removes the
+    # high-frequency detail that makes perceptual hashes differ, so those faults explain the
+    # missing motion (ADR-003). Hash repeats alone are never a freeze: a static scene repeats its
+    # perceptual hash too; they count only when pixel differences are below the noise floor.
+    fz = r["freeze"]
+    if not dark:
+        near_zero_motion = (v.temporal_mse_p50 is not None
+                            and v.temporal_mse_p50 <= fz["temporal_mse_floor"])
+        blurred = F.FOCUS_DRIFT in faults
+        if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
+            not blurred and (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"]
+            and near_zero_motion
+        ) or (v.loop_period or 0) > 0:
+            hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
+                note="content frozen while transport connected")
 
     fv = r["fov_shift"]
     if (g.quality == "ok" and g.homography_inlier_ratio is not None
