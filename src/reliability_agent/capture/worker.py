@@ -25,7 +25,8 @@ class BackoffPolicy:
     def delay(self, attempt: int, rng: random.Random | None = None) -> float:
         rng = rng or random.Random()  # noqa: S311 - not crypto
         base = min(self.max_s, self.initial_s * (2 ** max(0, attempt)))
-        return max(0.0, base * (1 + rng.uniform(-self.jitter, self.jitter)))
+        # jitter never pushes the delay past max_s, so the recovery bound is max_s + warm-up
+        return min(self.max_s, max(0.0, base * (1 + rng.uniform(-self.jitter, self.jitter))))
 
 
 class TransportMeter:

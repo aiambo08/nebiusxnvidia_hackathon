@@ -123,7 +123,7 @@ def test_default_config_bounds_recovery_under_15s(cfg):
     """Worst case: the stream returns right after a failed attempt at maximum backoff, then the
     source still has to warm up. The configured values must leave that sum below the gate."""
     rc = cfg["camera"]["reconnect"]
-    worst_backoff = rc["max_backoff_s"] * (1 + rc["jitter"])
+    worst_backoff = rc["max_backoff_s"]  # jitter is clamped at max_backoff_s
     warmup = OpenCVSource("rtsp://cam/live").warmup_timeout_s
     assert worst_backoff + warmup < 15.0
 
@@ -452,6 +452,10 @@ def test_base_source_defaults(clock):
          "http://cam/video?user=***&password=***&fps=10"),
         ("rtsp://u:p@cam:554/live?token=abc", "rtsp://***@cam:554/live?token=***"),
         ("http://cam/video?x=1", "http://cam/video?x=1"),
+        ("rtsp://u:p@host?token=abc", "rtsp://***@host?token=***"),
+        ("rtsp://host:554?passwd=x&access_token=y", "rtsp://host:554?passwd=***&access_token=***"),
+        ("http://cam/video?Pass%77ord=x", "http://cam/video?Pass%77ord=***"),
+        ("http://cam/video#password=x", "http://cam/video#***"),
         ("clip.avi", "clip.avi"),
         (0, "0"),
     ],
@@ -471,3 +475,14 @@ def test_opencv_source_repr_and_settings_never_leak_credentials():
         src.apply_settings({"exposure": 1.0})
     src.close()  # closing a never-opened source is a no-op
     assert not src.is_open
+
+
+def test_redact_uri_never_raises_on_malformed_input():
+    assert redact_uri("rtsp://[bad/live?password=x") == "<unparseable uri>"
+    assert "password" not in repr(OpenCVSource("rtsp://[bad/live?password=x"))
+
+
+def test_backoff_jitter_never_exceeds_max_delay():
+    b = BackoffPolicy(initial_s=0.5, max_s=8.0, jitter=0.2)
+    assert all(b.delay(attempt) <= 8.0 for attempt in range(12) for _ in range(200))
+    assert any(b.delay(10) > 7.0 for _ in range(50))

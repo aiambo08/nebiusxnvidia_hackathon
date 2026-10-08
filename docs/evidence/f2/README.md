@@ -14,7 +14,7 @@ drives it with a fake monotonic clock (`worker.now` patched, `_wait` advances th
 | Disconnect detected < 5 s | `test_simulated_rtsp_disconnect_detected_under_5s` | `stream_down` raised by `incidents.fusion.classify_window` once `frame_age_ms_p95` ≥ 3000 ms (≈3.0 s after the last frame); watchdog closes and reconnects at 5 s |
 | Reconnection does not block the main process | `test_reconnection_never_blocks_the_main_thread` (real thread) | `open()` hangs 0.4 s and fails repeatedly on the capture thread; ≥ 20 main-thread polls of `buffer`, `meter.snapshot()` and `health()` in 1 s, worst poll < 50 ms |
 | Telemetry resumes < 15 s | `test_telemetry_resumes_under_15s_after_stream_returns[0.5/4/12/30/95 s outages]` | first frame after return always < 15 s on the simulated clock |
-| Worst-case bound from config | `test_default_config_bounds_recovery_under_15s` | 8 s max backoff × (1 + 0.2 jitter) + 5 s network warm-up = 14.6 s < 15 s |
+| Worst-case bound from config | `test_default_config_bounds_recovery_under_15s` | 8 s max backoff (jitter clamped at `max_backoff_s`) + 5 s network warm-up = 13 s < 15 s |
 | Transport vs content | `test_frozen_but_connected_stream_is_transport_healthy` | frozen frames keep `connected=True`, classified as `freeze`, never `stream_down` |
 | Ring buffer bounded | `tests/unit/test_capture.py::test_ring_buffer_is_bounded`, `test_ring_buffer_drain_and_maxlen` | overwrite counter, drain, maxlen |
 
@@ -53,10 +53,10 @@ Second pass at `57b65ec`: **MERGE**, 6/7 conditions PROVEN (the contract-suite b
 the owner's hardware). Reviewer adversarial runs: read-error storm 1,012,079 → 2 opens/s; empty first
 read after a 30 s outage now recovers; exceptions other than `SourceError` and a raising `close()` no
 longer kill the thread; 0 errors polling `snapshot()`/`health()` concurrently; `stop()` returns in
-0.3 ms during an 8 s backoff. Non-blocking findings deferred to a follow-up PR (code only, configs
-unchanged): clamp the jittered backoff delay at `max_backoff_s` (worst-case resume 14.6 s → 13 s);
-rewrite `redact_uri` with `urllib.parse` (query without a path, `passwd`/`access_token`, fragments);
-a source that delivers one frame per session reconnects every ~5.5 s without escalating backoff.
+0.3 ms during an 8 s backoff. Non-blocking findings fixed in the follow-up PR (code only, configs unchanged): the jittered
+backoff delay is clamped at `max_backoff_s` (worst-case resume 14.6 s → 13 s,
+`test_backoff_jitter_never_exceeds_max_delay`); `redact_uri` uses `urllib.parse` (query without a
+path, `passwd`/`access_token`, percent-encoded keys, fragments). Still open by design: a source that delivers one frame per session reconnects every ~5.5 s without escalating backoff.
 
 Semantics note: `health()["stale"]` is the **watchdog** view — it is `False` during the grace period
 right after a (re)connect even if no frame has arrived yet. Fault detection must use
@@ -76,3 +76,8 @@ real staleness.
 - Contract suite on the integrated webcam: `$env:RA_TEST_WEBCAM = "0"; uv run pytest -q tests/integration/test_source_contract.py`
 - Contract suite on the phone over RTSP: `$env:RA_TEST_RTSP = "rtsp://<phone>:8080/h264_ulaw.sdp"; uv run pytest -q tests/integration/test_source_contract.py`
   (last attempt on 2026-10-08 failed before `open()` because the phone was unreachable; see `docs/evidence/f1/README.md`).
+
+Reviewer confirmation pass on this follow-up (SIMULATION, 694-outage sweep): worst resume 12.97 s with maximum
+jitter, 13.00 s with random jitter, delay never above 8.0 s; every earlier `redact_uri` leak is masked.
+Known gap: credentials embedded in the *path* (`rtsp://host/user=admin&password=x&...sdp`, seen on cheap IP
+cameras) are not masked — the URI is never logged or exported, so the exposure is limited to `repr()`.
