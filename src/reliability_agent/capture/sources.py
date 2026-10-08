@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import time
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 import cv2
 import numpy as np
@@ -27,27 +28,27 @@ NETWORK_SCHEMES = ("rtsp://", "rtsps://", "http://", "https://")
 
 
 def redact_uri(uri: str | int) -> str:
-    """Hide credentials embedded in a stream URL for logs: ``rtsp://user:pass@host/...`` and
-    query parameters such as ``?user=..&password=..`` or ``?token=..``."""
+    """Hide credentials embedded in a stream URL for logs: ``user:pass@`` in the authority,
+    secret-looking query parameters (``?user=..&password=..``, ``token=``) and any fragment."""
     text = str(uri)
     if "://" not in text:
         return text
-    scheme, rest = text.split("://", 1)
-    authority, sep, path = rest.partition("/")
-    if "@" in authority:
-        authority = "***@" + authority.rsplit("@", 1)[1]
-    path, qmark, query = path.partition("?")
-    if qmark:
+    parts = urlsplit(text)
+    netloc = parts.netloc
+    if "@" in netloc:
+        netloc = "***@" + netloc.rsplit("@", 1)[1]
+    query = parts.query
+    if query:
         query = "&".join(
-            f"{k}=***" if k.lower() in _SECRET_PARAMS else kv
-            for kv in query.split("&")
-            for k in [kv.partition("=")[0]]
+            f"{k}=***" if unquote(k).lower() in _SECRET_PARAMS else (f"{k}={v}" if v else k)
+            for k, v in (kv.partition("=")[::2] for kv in query.split("&"))
         )
-    return f"{scheme}://{authority}{sep}{path}{qmark}{query}"
+    fragment = "***" if parts.fragment else ""
+    return urlunsplit((parts.scheme, netloc, parts.path, query, fragment))
 
 
-_SECRET_PARAMS = frozenset({"user", "username", "pwd", "pass", "password", "token", "key",
-                            "apikey", "api_key", "auth", "secret"})
+_SECRET_PARAMS = frozenset({"user", "username", "pwd", "pass", "passwd", "password", "token",
+                            "access_token", "key", "apikey", "api_key", "auth", "secret"})
 
 
 class OpenCVSource(CameraSource):
