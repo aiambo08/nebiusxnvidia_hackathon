@@ -3,7 +3,7 @@ import pytest
 
 from reliability_agent.baselines.robust import RobustBaseline
 from reliability_agent.contracts.models import FaultType, IncidentState
-from reliability_agent.incidents.fusion import IncidentTracker, classify_window
+from reliability_agent.incidents.fusion import IncidentTracker, classify_window, rank_faults
 from tests.conftest import make_window
 
 FAULT_WINDOWS = {
@@ -149,3 +149,61 @@ def test_static_scene_hash_repeats_are_not_freeze(cfg):
     w2 = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
                                  temporal_mse_p50=0.1))
     assert FaultType.FREEZE in classify_window(w2, None, cfg["faults"])[0]
+
+
+def test_frozen_overexposed_window_ranks_freeze_first(cfg):
+    w = make_window(visual=dict(
+        white_pixel_ratio=0.6,
+        repeated_hash_ratio=1.0,
+        exact_repeat_ratio=1.0,
+        temporal_mse_p50=0.0,
+    ))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert set(faults) == {FaultType.FREEZE, FaultType.OVEREXPOSURE}
+    assert rank_faults(faults)[0] is FaultType.FREEZE
+
+
+def test_rank_faults_orders_by_score_then_priority():
+    F = FaultType
+    scores = {F.OVEREXPOSURE: 1.0, F.LENS_OCCLUSION: 1.0, F.FREEZE: 1.0, F.FOV_SHIFT: 0.4,
+              F.STREAM_DOWN: 1.0}
+    assert rank_faults(scores) == [F.STREAM_DOWN, F.FREEZE, F.OVEREXPOSURE, F.LENS_OCCLUSION,
+                                   F.FOV_SHIFT]
+    # equal score and priority keep the evaluation order (the e2e overexposure scenario needs it)
+    assert rank_faults({F.LENS_OCCLUSION: 1.0, F.OVEREXPOSURE: 1.0}) == [F.LENS_OCCLUSION,
+                                                                          F.OVEREXPOSURE]
+
+
+def test_dark_live_scene_is_blackout_not_freeze(cfg):
+    # Darkening crushes sensor noise: pixels repeat (even bit-exactly) although the camera is
+    # live. Blackout explains the missing motion, so freeze must not be claimed on top of it.
+    w = make_window(visual=dict(brightness_p50=8.0, black_pixel_ratio=0.97,
+                                repeated_hash_ratio=1.0, exact_repeat_ratio=0.6,
+                                temporal_mse_p50=0.001))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert set(faults) == {FaultType.BLACKOUT}, faults
+
+
+def test_strong_blur_hash_repeats_are_not_freeze(cfg):
+    # Strong blur removes high-frequency noise, so hashes repeat and the pixel MSE falls under the
+    # noise floor on a live camera. Focus drift explains it; only bit-exact repeats mean a freeze.
+    w = make_window(visual=dict(blur_effect_p50=0.7, edge_density_p50=0.01,
+                                repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                temporal_mse_p50=0.1))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert FaultType.FOCUS_DRIFT in faults
+    assert FaultType.FREEZE not in faults, faults
+    w2 = make_window(visual=dict(blur_effect_p50=0.7, edge_density_p50=0.01,
+                                 repeated_hash_ratio=1.0, exact_repeat_ratio=1.0,
+                                 temporal_mse_p50=0.0))
+    assert FaultType.FREEZE in classify_window(w2, None, cfg["faults"])[0]
+
+
+def test_frozen_dark_pipeline_is_attributed_to_blackout(cfg):
+    # Documented limitation: a frozen frame that is also black is reported as blackout only; the
+    # freeze becomes measurable once exposure is restored (ADR-003).
+    w = make_window(visual=dict(brightness_p50=3.0, black_pixel_ratio=0.99,
+                                repeated_hash_ratio=1.0, exact_repeat_ratio=1.0,
+                                temporal_mse_p50=0.0))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert set(faults) == {FaultType.BLACKOUT}

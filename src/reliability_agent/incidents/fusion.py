@@ -22,6 +22,18 @@ from reliability_agent.incidents.state_machine import IncidentStateMachine
 F = FaultType
 
 
+# Ranking priority among faults with equal scores: the rule planner walks ``candidate_faults`` in
+# order, so a frozen pipeline must outrank a co-occurring exposure fault even though freeze is now
+# evaluated last (ADR-003). Transport faults come first because nothing else is measurable then.
+_RANK_PRIORITY = {FaultType.STREAM_DOWN: 0, FaultType.LOW_FPS: 1, FaultType.FREEZE: 2}
+
+
+def rank_faults(faults: dict[FaultType, float]) -> list[FaultType]:
+    """Order candidate faults by score, then by actionability priority; the stable sort keeps the
+    evaluation order (exposure before occlusion before blur) for the rest."""
+    return sorted(faults, key=lambda f: (-faults[f], _RANK_PRIORITY.get(f, 9)))
+
+
 def classify_window(
     tw: TelemetryWindow, baseline: RobustBaseline | None, rules: dict[str, Any]
 ) -> tuple[dict[FaultType, float], list[Evidence]]:
@@ -47,17 +59,6 @@ def classify_window(
         hit(F.LOW_FPS, "transport.capture_fps", t.capture_fps)
 
     # content
-    fz = r["freeze"]
-    # Hash repeats alone are NOT a freeze: a static scene also repeats its perceptual hash.
-    # They count only when pixel differences are below the sensor-noise floor.
-    near_zero_motion = (v.temporal_mse_p50 is not None
-                        and v.temporal_mse_p50 <= fz["temporal_mse_floor"])
-    if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
-        (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"] and near_zero_motion
-    ) or (v.loop_period or 0) > 0:
-        hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
-            note="content frozen while transport connected")
-
     dark = (v.brightness_p50 is not None and v.brightness_p50 <= r["blackout"]["brightness_p50_max"]
             ) or (v.black_pixel_ratio or 0) >= r["blackout"]["black_pixel_ratio_min"]
     if dark:
@@ -82,6 +83,23 @@ def classify_window(
             and edge_drop >= fr["edge_density_drop_min"]
         ):
             hit(F.FOCUS_DRIFT, "visual.blur_effect_p50", be)
+
+    # Freeze is judged last: it needs a scene that can carry sensor noise. Blackout crushes the
+    # noise (pixels repeat, even bit-exactly, on a live camera) and strong blur removes the
+    # high-frequency detail that makes perceptual hashes differ, so those faults explain the
+    # missing motion (ADR-003). Hash repeats alone are never a freeze: a static scene repeats its
+    # perceptual hash too; they count only when pixel differences are below the noise floor.
+    fz = r["freeze"]
+    if not dark:
+        near_zero_motion = (v.temporal_mse_p50 is not None
+                            and v.temporal_mse_p50 <= fz["temporal_mse_floor"])
+        blurred = F.FOCUS_DRIFT in faults
+        if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
+            not blurred and (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"]
+            and near_zero_motion
+        ) or (v.loop_period or 0) > 0:
+            hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
+                note="content frozen while transport connected")
 
     fv = r["fov_shift"]
     if (g.quality == "ok" and g.homography_inlier_ratio is not None
@@ -147,7 +165,7 @@ class IncidentTracker:
                     self.fsm.to(IncidentState.CONFIRMED, f"persisted {self._bad} windows")
                     incident = Incident(
                         camera_id=self.camera_id,
-                        candidate_faults=sorted(faults, key=lambda f: -faults[f]),
+                        candidate_faults=rank_faults(faults),
                         fault_scores={str(k): round(v, 3) for k, v in self._scores.items()},
                         evidence=self._evidence,
                         baseline_ref=self.baseline.version,

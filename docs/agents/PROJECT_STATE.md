@@ -1,6 +1,6 @@
 # Project state
 
-Last update: 2026-10-08 · Current phase: **F2** (F0/F1 boxes awaiting owner's hardware) · Days to deadline: 22
+Last update: 2026-10-08 · Current phase: **F3** (F1/F2 hardware box awaiting owner) · Days to deadline: 22
 
 ## Snapshot
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
@@ -16,8 +16,10 @@ Last update: 2026-10-08 · Current phase: **F2** (F0/F1 boxes awaiting owner's h
   windows, heap +0.4%, 0 reconnects (`docs/evidence/f1/`). Risk: live probe p95 110 ms vs 20.5 ms isolated.
 - F1 replay tooling: record a clean clip, inject seeded blur/dark/freeze, replay it through
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
-  dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip. Risk: spurious `freeze`
-  ranked first on dark and blur (F3).
+  dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.
+- F3 started: spurious `freeze` on dark/blurred live scenes fixed by causal suppression (ADR-003,
+  `docs/evidence/f3/`); owner to confirm on the real clip replay. Open: the absolute MSE floor is
+  close to a quiet healthy sensor; recall/precision, static-scene and latency gates not measured.
 
 ## Budget (update weekly from the Token Factory console)
 | Date | Ledger estimate (USD) | Console balance (USD) |
