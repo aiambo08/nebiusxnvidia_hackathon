@@ -49,6 +49,20 @@ frames, buffer occupancy, `TransportMetrics`). It never includes the stream URI;
 `repr` redacts embedded credentials (`rtsp://***@host/...`, `test_redact_uri_hides_credentials`).
 `scripts/spike_capture.py` writes it to `spikes/capture-health.json` next to the markdown report.
 
+Second pass at `57b65ec`: **MERGE**, 6/7 conditions PROVEN (the contract-suite box stays open for
+the owner's hardware). Reviewer adversarial runs: read-error storm 1,012,079 → 2 opens/s; empty first
+read after a 30 s outage now recovers; exceptions other than `SourceError` and a raising `close()` no
+longer kill the thread; 0 errors polling `snapshot()`/`health()` concurrently; `stop()` returns in
+0.3 ms during an 8 s backoff. Non-blocking findings deferred to a follow-up PR (code only, configs
+unchanged): clamp the jittered backoff delay at `max_backoff_s` (worst-case resume 14.6 s → 13 s);
+rewrite `redact_uri` with `urllib.parse` (query without a path, `passwd`/`access_token`, fragments);
+a source that delivers one frame per session reconnects every ~5.5 s without escalating backoff.
+
+Semantics note: `health()["stale"]` is the **watchdog** view — it is `False` during the grace period
+right after a (re)connect even if no frame has arrived yet. Fault detection must use
+`health()["transport"]["frame_age_ms_p95"]` (what `classify_window` consumes), which does report the
+real staleness.
+
 ## Residual risks (reviewer + author)
 - All resilience evidence is SIMULATION. Real RTSP recovery adds the FFmpeg handshake (up to ~30 s
   seen on the owner's phone when the host is unreachable) and a possibly hanging `read()`; neither
