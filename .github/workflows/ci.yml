@@ -28,7 +28,7 @@ jobs:
       - run: ruff check .
       - name: pytest (no network, no credits)
         run: pytest --cov --cov-report=term-missing:skip-covered
-      - name: capture package coverage (Gate F2: >= 80% lines, >= 75% branches)
+      - name: "capture package coverage (Gate F2: >= 80% lines, >= 75% branches)"
         run: >
           pytest tests/unit/test_capture.py tests/unit/test_capture_resilience.py
           tests/unit/test_opencv_source.py tests/integration/test_source_contract.py
