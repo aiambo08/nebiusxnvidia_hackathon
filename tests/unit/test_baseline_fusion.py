@@ -165,8 +165,13 @@ def test_frozen_overexposed_window_ranks_freeze_first(cfg):
 
 def test_rank_faults_orders_by_score_then_priority():
     F = FaultType
-    ranked = rank_faults({F.OVEREXPOSURE: 1.0, F.FREEZE: 1.0, F.FOV_SHIFT: 0.4, F.STREAM_DOWN: 1.0})
-    assert ranked == [F.STREAM_DOWN, F.FREEZE, F.OVEREXPOSURE, F.FOV_SHIFT]
+    scores = {F.OVEREXPOSURE: 1.0, F.LENS_OCCLUSION: 1.0, F.FREEZE: 1.0, F.FOV_SHIFT: 0.4,
+              F.STREAM_DOWN: 1.0}
+    assert rank_faults(scores) == [F.STREAM_DOWN, F.FREEZE, F.OVEREXPOSURE, F.LENS_OCCLUSION,
+                                   F.FOV_SHIFT]
+    # equal score and priority keep the evaluation order (the e2e overexposure scenario needs it)
+    assert rank_faults({F.LENS_OCCLUSION: 1.0, F.OVEREXPOSURE: 1.0}) == [F.LENS_OCCLUSION,
+                                                                          F.OVEREXPOSURE]
 
 
 def test_dark_live_scene_is_blackout_not_freeze(cfg):

@@ -29,8 +29,9 @@ _RANK_PRIORITY = {FaultType.STREAM_DOWN: 0, FaultType.LOW_FPS: 1, FaultType.FREE
 
 
 def rank_faults(faults: dict[FaultType, float]) -> list[FaultType]:
-    """Order candidate faults by score, then by actionability priority, then by name."""
-    return sorted(faults, key=lambda f: (-faults[f], _RANK_PRIORITY.get(f, 9), str(f)))
+    """Order candidate faults by score, then by actionability priority; the stable sort keeps the
+    evaluation order (exposure before occlusion before blur) for the rest."""
+    return sorted(faults, key=lambda f: (-faults[f], _RANK_PRIORITY.get(f, 9)))
 
 
 def classify_window(
