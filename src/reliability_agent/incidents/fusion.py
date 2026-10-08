@@ -19,6 +19,9 @@ from reliability_agent.contracts.models import (
 )
 from reliability_agent.incidents.state_machine import IncidentStateMachine
 
+STILL_NOISE_METRIC = "visual.still_temporal_mse_p50"  # learned by IncidentTracker only
+
+
 F = FaultType
 
 
@@ -88,18 +91,29 @@ def classify_window(
     # noise (pixels repeat, even bit-exactly, on a live camera) and strong blur removes the
     # high-frequency detail that makes perceptual hashes differ, so those faults explain the
     # missing motion (ADR-003). Hash repeats alone are never a freeze: a static scene repeats its
-    # perceptual hash too; they count only when pixel differences are below the noise floor.
+    # perceptual hash too, and its temporal MSE *is* the sensor noise, which for a quiet sensor
+    # sits below any absolute floor. Repeats therefore count only when the pixel differences have
+    # collapsed relative to the quietest healthy windows this camera has shown (ADR-004); until a
+    # noise floor is learned only bit-exact repeats and loops are freeze evidence.
     fz = r["freeze"]
     if not dark:
-        near_zero_motion = (v.temporal_mse_p50 is not None
-                            and v.temporal_mse_p50 <= fz["temporal_mse_floor"])
+        # the floor is learned only from windows that were themselves still (see
+        # IncidentTracker.step); a baseline learned under motion gives no floor (cold start)
+        noise_floor = (baseline.quantile(STILL_NOISE_METRIC, fz["noise_floor_quantile"])
+                       if baseline else None)
+        noise_collapsed = (v.temporal_mse_p50 is not None and noise_floor is not None
+                           and v.temporal_mse_p50 <= fz["temporal_mse_floor"]
+                           and v.temporal_mse_p50 <= fz["noise_collapse_ratio"] * noise_floor)
         blurred = F.FOCUS_DRIFT in faults
         if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
             not blurred and (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"]
-            and near_zero_motion
+            and noise_collapsed
         ) or (v.loop_period or 0) > 0:
             hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
                 note="content frozen while transport connected")
+            if noise_collapsed:
+                ev.append(Evidence(metric="visual.temporal_mse_p50", value=v.temporal_mse_p50,
+                                   baseline=noise_floor, note="sensor noise collapsed"))
 
     fv = r["fov_shift"]
     if (g.quality == "ok" and g.homography_inlier_ratio is not None
@@ -139,6 +153,17 @@ class IncidentTracker:
         for f in faults:
             self._suppressed[f] = now_s + self.cooldown_s
 
+    def _sample(self, tw: TelemetryWindow) -> dict[str, float]:
+        """Flat metrics plus the still-window noise floor sample: the temporal MSE of a healthy
+        window whose frames repeated by hash, i.e. the sensor noise of this camera on a still
+        scene. Windows with motion carry scene change, not noise, and must not raise the floor."""
+        sample = tw.flat()
+        v = tw.visual
+        if (v.temporal_mse_p50 is not None and (v.repeated_hash_ratio or 0)
+                >= self.rules["freeze"]["repeated_hash_ratio_min"]):
+            sample[STILL_NOISE_METRIC] = float(v.temporal_mse_p50)
+        return sample
+
     def step(self, tw: TelemetryWindow, now_s: float = 0.0) -> TrackerStep:
         faults, ev = classify_window(tw, self.baseline if self.baseline.ready else None,
                                      self.rules)
@@ -153,7 +178,7 @@ class IncidentTracker:
                 self._bad, self._good = 1, 0
                 self._scores, self._evidence = dict(faults), list(ev)
             else:
-                learned = self.baseline.update(tw.flat(), frozen=self.fsm.baseline_frozen)
+                learned = self.baseline.update(self._sample(tw), frozen=self.fsm.baseline_frozen)
         elif state is IncidentState.SUSPECT:
             if faults:
                 self._bad += 1
