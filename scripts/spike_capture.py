@@ -1,10 +1,12 @@
 """Gate F1 spike: continuous capture soak with telemetry validity and memory growth.
 
     python scripts/spike_capture.py --uri 0 --minutes 30
-Writes spikes/capture-report.md (commit it as evidence).
+Writes spikes/capture-report.md (commit it as evidence) and spikes/capture-health.json
+(the worker's ``health()`` export; it never contains the stream URI).
 """
 
 import argparse
+import json
 import time
 import tracemalloc
 
@@ -57,6 +59,7 @@ def main() -> int:
             pass
         if windows % 10 == 0:
             mem.append((time.monotonic() - t_start, tracemalloc.get_traced_memory()[0]))
+    health = worker.health()
     worker.stop()
     warm = [m for t, m in mem if t > 60] or [m for _, m in mem]
     growth = (warm[-1] - warm[0]) / max(1, warm[0]) if len(warm) > 1 else 0.0
@@ -79,6 +82,10 @@ def main() -> int:
     report.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
     ok = valid >= 0.95 * windows and growth <= 0.10
+    health.update({"windows": windows, "valid_windows": valid, "heap_growth": round(growth, 4),
+                   "probe_ms_p95": None if np.isnan(p95) else round(p95, 1), "gate_pass": ok})
+    (report.parent / "capture-health.json").write_text(json.dumps(health, indent=2) + "\n",
+                                                        encoding="utf-8")
     return 0 if ok else 1
 
 

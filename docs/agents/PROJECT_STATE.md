@@ -1,12 +1,15 @@
 # Project state
 
-Last update: 2026-10-05 · Current phase: **F0** · Days to deadline: 25
+Last update: 2026-10-08 · Current phase: **F2** (F0/F1 boxes awaiting owner's hardware) · Days to deadline: 22
 
 ## Snapshot
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
   baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
   event store, orchestrator, CLI, read-only API, injectors, CI.
-- 228 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
+- 276 tests green (unit, integration, adversarial, e2e simulation), ruff clean.
+- F2 resilience proven on a simulated clock (`tests/unit/test_capture_resilience.py`): stream_down in
+  3 s, non-blocking reconnect, telemetry back < 15 s; capture coverage gate enforced in CI
+  (`scripts/check_coverage.py`, 96%/91%). `CaptureWorker.health()` JSON export. `docs/evidence/f2/`.
 - Live Token Factory verified (REAL TOKEN FACTORY, 2026-10-05): model IDs confirmed, json_schema works,
   thinking must be disabled; fast tier 20/20 valid at ~0.0001 USD/diagnosis (ADR-002).
 - Real webcam verified (REAL HARDWARE, native Windows, integrated 640×480 webcam): 30-min soak 100% valid
@@ -26,6 +29,7 @@ Last update: 2026-10-05 · Current phase: **F0** · Days to deadline: 25
 - Token Factory console balance to be confirmed by Aibo.
 
 ## Next 3 actions
-1. Aibo: rerun the RTSP contract test with the phone (IP Webcam, Android) on the warm-up fix to close F1's last box; the 1-min RTSP capture passed twice (96.2% valid windows, 2 decode errors on the retry build).
+1. Aibo (when the phone is available): `RA_TEST_RTSP` and `RA_TEST_WEBCAM=0` contract runs to close the shared F1/F2 box; the 1-min RTSP capture passed twice (96.2% valid windows). Last attempt (2026-10-08) failed before `open()`: phone unreachable.
+1b. Devin: F3 visual monitors — freeze specificity on dark/blurred real frames (ADR + benchmark), per-cell occlusion, live probe p95.
 2. Ingestion: probe UVC exposure/autofocus on the integrated webcam (decides UVC vs pipeline action).
 3. Nebius (F6): golden set including the cases where the reasoning tier disagrees with the local top fault.

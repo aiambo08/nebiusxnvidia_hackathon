@@ -15,7 +15,7 @@ recalibrated with real camera data.
 |---|---|---|---|---|
 | F0 | Compliance & scope freeze | 1 | Architecture + Nebius | in progress |
 | F1 | Feasibility spikes | 1 | All | in progress |
-| F2 | Ingestion & observability | 1 | Ingestion | scaffolded |
+| F2 | Ingestion & observability | 1 | Ingestion | in progress |
 | F3 | Visual monitors | 2 | Vision | scaffolded |
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | scaffolded |
@@ -67,13 +67,16 @@ design needs hardware we do not own → change model/adapter/scope before contin
 **Block:** if capture, structured response or rollback fails, do not start the full product.
 
 ## F2 — Ingestion & observability
-- [ ] Webcam, file and local RTSP pass the same contract suite (`tests/integration/test_source_contract.py`)
-- [ ] Simulated RTSP disconnect detected in < 5 s
-- [ ] Reconnection does not block the main process
-- [ ] Telemetry resumes < 15 s after the stream returns
+- [ ] Webcam, file and local RTSP pass the same contract suite (`tests/integration/test_source_contract.py`) — synthetic + file in CI; webcam (`RA_TEST_WEBCAM=0`) and RTSP (`RA_TEST_RTSP`, phone) await the owner's hardware run (`docs/evidence/f2/README.md`)
+- [x] Simulated RTSP disconnect detected in < 5 s (`tests/unit/test_capture_resilience.py::test_simulated_rtsp_disconnect_detected_under_5s`: `stream_down` at 3 s via `faults.stream_down.frame_age_ms_min`, watchdog reconnect at 5 s; SIMULATION, fake clock)
+- [x] Reconnection does not block the main process (`test_reconnection_never_blocks_the_main_thread`: a hanging `open()` on the capture thread, main-thread polls < 50 ms)
+- [x] Telemetry resumes < 15 s after the stream returns (SIMULATION, fake clock: `test_telemetry_resumes_under_15s_after_stream_returns` for outages of 0.5–95 s, `test_first_read_none_after_reconnect_gets_a_grace_period`; `test_default_config_bounds_recovery_under_15s`: max backoff 8 s × 1.2 jitter + 5 s warm-up = 14.6 s; reviewer sweep of 693 outages: worst case 14.53 s, only ~0.5 s headroom — real RTSP handshake time still to be measured on the owner's phone)
 - [x] Ring buffer is bounded (unit test)
-- [x] Frozen-but-connected stream reported separately for transport vs content (unit test)
-- [ ] Ingestion package coverage ≥ 80% lines / ≥ 75% branches
+- [x] Frozen-but-connected stream reported separately for transport vs content (unit test; `test_frozen_but_connected_stream_is_transport_healthy`)
+- [x] Ingestion package coverage ≥ 80% lines / ≥ 75% branches (CI step `scripts/check_coverage.py`; 95.6% / 91.2% at 57b65ec, `docs/evidence/f2/README.md`)
+
+**Block:** no visual detectors on an unstable capture (silent frame loss, ambiguous timestamps or a
+blocking reconnect must be fixed first).
 
 ## F3 — Visual monitors
 On ≥ 10 runs per fault:
