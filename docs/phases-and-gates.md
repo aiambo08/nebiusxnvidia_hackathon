@@ -56,7 +56,7 @@ design needs hardware we do not own → change model/adapter/scope before contin
 
 ## F1 — Feasibility spikes
 - [x] 30 min webcam capture, no crash, memory growth ≤ 10% after warm-up (`scripts/spike_capture.py`; 0.4%, `docs/evidence/f1/README.md`)
-- [x] ≥ 95% of 1-s intervals produce valid telemetry (1629/1629, `docs/evidence/f1/README.md`)
+- [x] ≥ 95% of 1-s intervals produce valid telemetry (webcam 30 min 1629/1629; phone RTSP 10 min 533/536, `docs/evidence/f1/README.md`)
 - [x] File + local RTSP read through the same `CameraSource` interface (REAL HARDWARE 2026-10-08: phone RTSP passes `tests/integration/test_source_contract.py`, `docs/evidence/f1/README.md`)
 - [x] Blur, darkness, freeze injected reproducibly and detected (`benchmarks/injectors`) — `docs/evidence/f1/` (risk: spurious `freeze` ranked first, F3)
 - [x] ≥ 19/20 Nemotron responses valid against schema with ≤ 1 repair retry (20/20, `docs/evidence/f0/nemotron-fast-thinking-off.jsonl`)

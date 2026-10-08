@@ -30,7 +30,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F2][ingestion] Coverage ≥ 80% lines / 75% branches on `capture/` — CI `scripts/check_coverage.py` (96.1% / 90.8% sandbox)
 - [x] [F2][ingestion] Disconnect < 5 s, non-blocking reconnect, telemetry resume < 15 s — `tests/unit/test_capture_resilience.py`
 - [x] [F2][human] Contract suite on the integrated webcam (`RA_TEST_WEBCAM=0`) and on the phone RTSP (`RA_TEST_RTSP`) — `2 passed` in one run (REAL HARDWARE, 2026-10-08)
-- [ ] [F1][human] 10-min RTSP soak (`scripts/spike_capture.py --uri <rtsp> --minutes 10`): the 1-min run gave 94.4 % valid windows, probably the start-up handshake/warm-up; confirm without changing the gate or the script
+- [x] [F1][human] 10-min RTSP soak (`scripts/spike_capture.py --uri <rtsp> --minutes 10`): 533/536 valid windows (99.4 %), heap +1.6 %, 0 reconnects, REAL HARDWARE 2026-10-08 (`docs/evidence/f1/README.md`)
 - [ ] [F3][vision] Per-cell occlusion against baseline cells
 - [ ] [F3][vision] Day/night baselines + reference bank for geometry
 - [ ] [F4][evaluation] `scripts/run_benchmark.py` producing a markdown report from event files

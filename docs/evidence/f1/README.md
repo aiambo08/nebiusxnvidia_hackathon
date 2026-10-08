@@ -136,8 +136,20 @@ reconnects: 0, dropped frames: 0, decode errors: 4, ring buffer overwritten: 164
 Not a pass at 1 min. `spike_capture.py` counts every 1-s window from the moment the worker starts
 opening the source, so the RTSP handshake and the H.264 warm-up (up to `warmup_timeout_s` = 5 s)
 fall inside the measured minute; a window with no frame yet is invalid, and each one weighs 1.85 %
-of a 1-min run. Hypothesis, not yet verified: the 3 invalid windows are start-up windows. The F1
-validity box is defined on the 30-min webcam soak (1629/1629) and is unaffected; a 10-min RTSP soak
-is pending to confirm the start-up hypothesis (validity should then be ≥ 99 %). Neither the gate
-threshold nor the script is changed. The probe p95 (240 ms vs 109 ms the day before on the same
+of a 1-min run. The F1 validity box is defined on the 30-min webcam soak (1629/1629) and is
+unaffected. Neither the gate threshold nor the script is changed.
+
+10-min RTSP soak, same laptop and phone, same day (`uv run python scripts/spike_capture.py --uri
+$env:RA_TEST_RTSP --minutes 10`):
+```
+source: rtsp | duration: 10.0 min
+windows: 536, valid telemetry: 533 (99.4%) — gate >= 95%
+python heap growth after warm-up: 1.6% — gate <= 10%
+probe latency p95: 248.1 ms/frame (analytic 5 FPS)
+reconnects: 0, dropped frames: 0, decode errors: 5, ring buffer overwritten: 17886
+```
+`capture-health.json`: `gate_pass: true`, `warmup_frames: 5`, `capture_fps: 30.083`,
+`frame_age_ms_p95: 31.0`, `connect_attempt: 0`. PASS on REAL HARDWARE. The invalid windows stay at 3
+for a 10× longer run, which is consistent with start-up windows (handshake + warm-up) rather than a
+mid-stream fault; the script does not log per-window timestamps, so this is an inference. The probe p95 (240–248 ms vs 109 ms the day before on the same
 laptop) is tracked against the F3 latency box (≤ 40 ms/frame at 720p).
