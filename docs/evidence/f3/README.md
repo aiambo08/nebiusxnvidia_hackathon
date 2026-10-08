@@ -42,7 +42,7 @@ Independent review of PR #10 found that a healthy, lit, static textured scene wi
 tripped `freeze` in 358/400 windows on `main`: after the 4×4 downscale its temporal MSE (≈ 0.41) sits
 under the absolute `temporal_mse_floor` (0.5) while dHash repeats. The hash-repeat path now needs the
 window's MSE to collapse to ≤ 0.25× the camera's own healthy noise floor (10 % quantile of the
-temporal MSE of healthy *still* windows, `visual.still_temporal_mse_p50`); without such windows
+temporal MSE of healthy windows under the absolute cap, `visual.noise_temporal_mse_p50`); without such windows
 (cold start, or a baseline learned while people move through the scene) only bit-exact repeats and
 loops count. A
 bit-exact period on frames that differ only by noise (a replayed buffer) is now a loop.
@@ -54,10 +54,13 @@ path through `benchmarks.replay.replay`) → `static-scene.md`:
   alternating 30 s motion / 30 s rest): **0 freeze windows, 0 freeze confirmations** in 12 000
   windows. Only the wall and dim scenes exercise the fix (the textured scenes never repeat a hash
   and pass on `main` too).
+- Small objects (10 px, 20 px) moving 5 min and then resting on the wall: 0 freeze windows
+  (second-review case; the noise sample is now the window's MSE under the absolute cap).
 - Frozen bit-exact (textured and wall), frozen + decoder jitter 0.1, loop of 4 frames: `freeze`
   confirmed 2–4 s after the fault.
-- Documented limit: decoder jitter ≥ ~0.3 counts on a frozen stream flips dHash bits, so the hash
-  path loses it (0.2 → 22/180 freeze windows, still confirmed; 0.5 → not detected). Bit-exact repeats
+- Documented limit: decoder jitter ≥ ~0.25 counts on a frozen stream flips dHash bits, so the hash
+  path loses it (textured σ 2: 0.15 → 118/180 freeze windows, 0.2 → 22/180, both confirmed;
+  0.25 and 0.5 → not detected). Bit-exact repeats
   and loops are unaffected; repeated P-frames of a frozen encoder decode bit-exactly in practice.
 - Residual risk (ADR-004): the floor is learned at one gain/light; if AGC lowers the noise while the
   scene is still, the relative rule can fire (reviewer: σ 2 → 1 gives 180/360 windows). F5 per-mode
@@ -68,6 +71,6 @@ path through `benchmarks.replay.replay`) → `static-scene.md`:
 The 20-min box remains open on REAL HARDWARE (owner's webcam at rest).
 
 ## Open F3 boxes
-Recall/precision per detector (≥ 10 runs per fault), the 20-min static-scene freeze false-positive
-run, the 20 walk-by trials for `fov_shift`, and the probe-set p95 ≤ 40 ms/frame at 720p are not
-measured yet.
+Recall/precision per detector (≥ 10 runs per fault), the 20 walk-by trials for `fov_shift`, and the
+probe-set p95 ≤ 40 ms/frame at 720p are not measured yet. The 20-min static-scene freeze
+false-positive box is measured in SIMULATION only (above); REAL HARDWARE is pending.

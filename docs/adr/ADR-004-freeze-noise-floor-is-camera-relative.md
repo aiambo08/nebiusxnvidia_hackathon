@@ -28,9 +28,9 @@ Alternatives measured (SIMULATION, 640×480, 12 frames per scene):
 - In `classify_window` the hash-repeat path counts as freeze only when the window's
   `temporal_mse_p50` is both under the absolute cap `temporal_mse_floor` **and** under
   `noise_collapse_ratio` (0.25) × the camera's healthy noise floor, defined as the
-  `noise_floor_quantile` (0.1) of `visual.still_temporal_mse_p50` in the baseline — the temporal
-  MSE of healthy windows that were themselves still (`repeated_hash_ratio ≥ repeated_hash_ratio_min`),
-  tagged by `IncidentTracker._sample`. Windows with motion carry scene change, not sensor noise, and
+  `noise_floor_quantile` (0.1) of `visual.noise_temporal_mse_p50` in the baseline — the temporal
+  MSE of healthy windows whose MSE is itself under the absolute cap `temporal_mse_floor`, tagged by
+  `IncidentTracker._sample`. Windows with motion carry scene change, not sensor noise, and
   do not contribute: a baseline learned while someone walks through the scene has no floor yet and
   behaves as cold start (independent review of the first version: 30 s of motion at start-up left a
   floor of ~5 and the resting wall scene tripped `freeze` in 328/360 windows). The evidence list
@@ -42,24 +42,46 @@ Alternatives measured (SIMULATION, 640×480, 12 frames per scene):
   `configs/default.yaml`.
 
 ## Consequences
-- A frozen stream whose decoder adds per-frame noise of ≥ ~0.3 counts flips enough dHash bits
+- A frozen stream whose decoder adds per-frame noise of ≥ ~0.25 counts flips enough dHash bits
   that `repeated_hash_ratio` drops under 0.95 (1.0 at 0.2 counts, 0.75 at 0.5, 0.25 at 1.0 on
   the σ = 2 textured scene), so the hash path loses it even though its MSE stays far under the
   live floor; bit-exact repeats and loops are still caught. In practice repeated P-frames of a
   frozen encoder decode bit-exactly. Measured in `scripts/bench_static_scene.py` (jitter cases).
 - A camera that never rests (robot in motion) never learns a floor and stays in the bit-exact-only
-  regime; that is the intended conservative side. The floor needs `min_samples` (20) still healthy
-  windows (40 s of rest at 2-s windows), not 20 windows of anything.
+  regime; that is the intended conservative side. The floor needs `min_samples` (20) healthy windows
+  under the cap (40 s of rest at 2-s windows), not 20 windows of anything.
 - The floor is a property of the sensor at the gain and light it was learned under. If the noise
   itself drops while the scene is still (AGC lowers the gain, the room gets brighter, σ 2 → 1 gives
   180/360 freeze windows in the reviewer's run), the camera-relative rule can still fire. The
   per-mode baseline (F5) is the structural fix; until then the absolute cap bounds the damage and a
   false freeze is reversible by the orchestrator (no action is destructive).
 - Freeze detection by hash repeats is bit-exact only until a floor is learned, and a frozen stream
-  with decoder jitter ≥ ~0.3 counts is not detected at all in that regime (0/240 on the wall scene).
+  with decoder jitter ≥ ~0.2 counts is not detected at all in that regime (0/240 on the wall scene).
 - Loops longer than `probes.max_loop_period` (8) frames are not detected; `benchmarks.replay`
   `loop4`/`loop8` entries are the pending measurement.
 - Evidence: `tests/unit/test_baseline_fusion.py` (`test_static_scene_hash_repeats_are_not_freeze`,
   `test_hash_repeats_need_a_learned_noise_floor`, `test_quiet_static_camera_never_confirms_freeze_through_the_tracker`,
   `test_baseline_quantile_is_the_quiet_tail`), `scripts/bench_static_scene.py` →
   `docs/evidence/f3/static-scene.md` (20-min healthy static scenes vs frozen variants).
+
+## Revision (second independent review, 2026-10-08)
+The first revision tagged a window as a noise sample when its dHash repeated
+(`repeated_hash_ratio ≥ repeated_hash_ratio_min`). The second review found two failures, both in
+SIMULATION:
+- A small moving object (10–20 px) leaves the dHash unchanged but raises the MSE (0.7–1.5); five
+  minutes of it learned a floor of 0.75–1.45 and the resting wall then tripped `freeze` in
+  117–118/420 windows, never recovering.
+- A healthy textured scene never repeats a hash (mean ≈ 0.43), so it never learned a floor and a
+  frozen stream with codec jitter 0.15–0.25 was missed for good (0/240, against 37–118/240 before).
+The sample criterion is now the window's own MSE under `temporal_mse_floor`: whatever the hash
+does, an MSE above the cap is scene change and an MSE under it is noise. The floor can therefore
+never exceed the cap. No threshold or config key changes. A textured scene noisier than the cap
+(σ ≥ 3) learns no floor and keeps the bit-exact-only behaviour. A frozen stream that starts while
+the floor is still cold (e.g. right after minutes of motion) is learned as noise and only
+bit-exact repeats or loops catch it; this cold-start limit is unchanged.
+
+Measured after the change (`scripts/bench_static_scene.py`, 20-min healthy runs, SIMULATION;
+`docs/evidence/f3/static-scene.md`): 0 freeze windows in every healthy case, including the 10 px
+and 20 px objects that move 5 min and then rest. Textured σ 2 frozen with jitter 0.15 → 118/180
+freeze windows, 0.2 → 22/180 (both confirmed after 4 s), 0.25 → not detected (37/240 on the
+pre-revision commit, so a partial loss remains at 0.25 and is documented).

@@ -4,7 +4,7 @@ import pytest
 from reliability_agent.baselines.robust import RobustBaseline
 from reliability_agent.contracts.models import FaultType, IncidentState
 from reliability_agent.incidents.fusion import (
-    STILL_NOISE_METRIC,
+    NOISE_FLOOR_METRIC,
     IncidentTracker,
     classify_window,
     rank_faults,
@@ -148,7 +148,7 @@ def test_cooldown_suppresses_refire(cfg):
 def _noise_floor_baseline(mse_values):
     b = RobustBaseline(min_samples=5)
     for m in mse_values:
-        b.update({STILL_NOISE_METRIC: m})
+        b.update({NOISE_FLOOR_METRIC: m})
     return b
 
 
@@ -192,9 +192,9 @@ def test_hash_repeats_need_a_learned_noise_floor(cfg):
 
 def test_baseline_quantile_is_the_quiet_tail():
     b = _noise_floor_baseline([float(x) for x in range(1, 31)])
-    assert b.quantile(STILL_NOISE_METRIC, 0.1) == pytest.approx(3.9)
-    assert b.quantile(STILL_NOISE_METRIC, 0.5) == b.median(STILL_NOISE_METRIC)
-    assert RobustBaseline().quantile(STILL_NOISE_METRIC, 0.1) is None
+    assert b.quantile(NOISE_FLOOR_METRIC, 0.1) == pytest.approx(3.9)
+    assert b.quantile(NOISE_FLOOR_METRIC, 0.5) == b.median(NOISE_FLOOR_METRIC)
+    assert RobustBaseline().quantile(NOISE_FLOOR_METRIC, 0.1) is None
 
 
 def test_quiet_static_camera_never_confirms_freeze_through_the_tracker(cfg):
@@ -286,12 +286,12 @@ def test_noise_floor_is_learned_from_still_windows_only(cfg):
     for _ in range(60):  # 2 min of motion: baseline ready, but no still window learned yet
         assert t.step(_motion_window(rng)).incident is None
     assert t.baseline.ready
-    assert t.baseline.quantile(STILL_NOISE_METRIC, 0.1) is None
+    assert t.baseline.quantile(NOISE_FLOOR_METRIC, 0.1) is None
     for _ in range(400):  # scene rests at its normal noise: never a freeze
         step = t.step(_still_window(rng))
         assert step.incident is None, step
     assert t.fsm.state is IncidentState.HEALTHY
-    floor = t.baseline.quantile(STILL_NOISE_METRIC, 0.1)
+    floor = t.baseline.quantile(NOISE_FLOOR_METRIC, 0.1)
     assert floor is not None and 0.3 < floor < 0.45
     # the noise then really collapses (frozen frames differing only by codec dither)
     incident = None
@@ -311,9 +311,38 @@ def test_alternating_motion_and_rest_never_confirms_freeze(cfg):
     assert t.fsm.state is IncidentState.HEALTHY
 
 
-def test_tracker_sample_tags_still_windows(cfg):
+def test_tracker_sample_tags_noise_windows(cfg):
     t = _tracker(cfg)
     rng = np.random.default_rng(3)
-    assert STILL_NOISE_METRIC not in t._sample(_motion_window(rng))
+    assert NOISE_FLOOR_METRIC not in t._sample(_motion_window(rng))
     s = t._sample(_still_window(rng))
-    assert s[STILL_NOISE_METRIC] == s["visual.temporal_mse_p50"]
+    assert s[NOISE_FLOOR_METRIC] == s["visual.temporal_mse_p50"]
+
+
+def test_small_moving_object_does_not_raise_the_noise_floor(cfg):
+    """Reviewer case: a 10-20 px object keeps the dHash but raises the MSE (0.7-1.5). Those
+    windows are scene change, not noise; once the object stops the scene must stay healthy."""
+    t = _tracker(cfg)
+    rng = np.random.default_rng(5)
+    for _ in range(150):  # 5 min of a small object moving: hash repeats, MSE above the cap
+        assert t.step(_still_window(rng, 0.7, 1.5)).incident is None
+    assert t.baseline.quantile(NOISE_FLOOR_METRIC, 0.1) is None
+    for _ in range(300):  # object stops, smooth wall at rest (sigma 0.7: MSE ~0.011)
+        assert t.step(_still_window(rng, 0.008, 0.015)).incident is None
+    assert t.fsm.state is IncidentState.HEALTHY
+
+
+def test_textured_scene_learns_a_floor_and_still_catches_a_jittered_freeze(cfg):
+    """Reviewer regression: textured healthy windows never repeat a hash, but their MSE is
+    sensor noise and must teach the floor, so a frozen stream with codec jitter is caught."""
+    t = _tracker(cfg)
+    rng = np.random.default_rng(9)
+    for _ in range(60):
+        w = make_window(visual=dict(repeated_hash_ratio=0.43, exact_repeat_ratio=0.0,
+                                    temporal_mse_p50=float(rng.uniform(0.35, 0.48))))
+        assert t.step(w).incident is None
+    assert t.baseline.quantile(NOISE_FLOOR_METRIC, 0.1) is not None
+    incident = None
+    for _ in range(10):  # frozen + jitter 0.2: hash repeats, MSE ~0.04
+        incident = t.step(_still_window(rng, 0.03, 0.05)).incident or incident
+    assert incident is not None and FaultType.FREEZE in incident.candidate_faults
