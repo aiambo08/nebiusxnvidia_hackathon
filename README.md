@@ -120,7 +120,7 @@ src/reliability_agent/   capture · probes · tasks · baselines · incidents ·
                          policy · actions · verification · storage · orchestrator · cli
 apps/api/                read-only FastAPI over the event log (dashboard backend)
 benchmarks/              seeded fault injectors, run manifests, degraded-clip builder
-scripts/                 F0/F1 spikes: list_models, spike_nemotron, spike_capture, bench_probes
+scripts/                 spikes/benchmarks: list_models, spike_nemotron, spike_capture, spike_static_scene, bench_probes, bench_static_scene
 configs/default.yaml     every threshold, cap and model ID (no secrets)
 docs/                    phase gates, compliance matrix, ADRs, safety, evaluation, budget
 docs/es/                 full technical execution report (Spanish)

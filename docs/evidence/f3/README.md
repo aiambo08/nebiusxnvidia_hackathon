@@ -95,8 +95,21 @@ flicker still trips the 160×120 MSE-floor loop branch (pre-existing, `docs/agen
 live **smooth** scene over H.264 decodes bit-exact, so the bit-exact rule can fire on a healthy
 compressed camera pointed at a plain wall. REAL HARDWARE must decide: the owner's webcam and phone at
 rest (textured room and plain wall) with `exact_repeat_ratio`, `noise_ratio_p50` and `temporal_sigma_p50`
-logged, before the 20-min box is ticked (`docs/agents/TASKS.md`). Structural answer for compressed
-sources: transport-level freeze evidence (RTP timestamps / frame counters), later phase.
+logged, before the 20-min box is ticked (`docs/agents/TASKS.md`). Tool for that run:
+`python scripts/spike_static_scene.py --uri <uri> --minutes 20 --label <tag>` drives the production
+path (`CaptureWorker` -> probes -> windows -> baseline -> `IncidentTracker`) on a live source and
+writes `spikes/static-scene-<tag>.md` (summary, quantiles of the three fields, verdict) and
+`spikes/static-scene-<tag>.json` (per-window series + worker `health()`); neither contains the URI,
+and a label with a URL or IP is rejected. Verdict with the same criterion as the table above: FAIL
+(exit 1) on any `freeze` window, INCONCLUSIVE (exit 3) when the source did not deliver a steady
+picture (first frame after more than 10 s, frames in < 95 % of the judged windows, or
+`stream_down`/`low_fps` in > 5 % of them), PASS otherwise. Windows before the first frame (RTSP
+handshake + H.264 warm-up) are reported apart and never judged; another detector
+confirming on the healthy scene is reported as a finding, as in the table. FFmpeg may print the
+camera address on stderr when a connection fails, so stderr is not evidence to paste. Dry run:
+`--synthetic --minutes 0.5` (SIMULATION, 0 freeze windows, `tests/unit/test_spike_static_scene.py`).
+Structural answer for compressed sources: transport-level freeze evidence (RTP timestamps / frame
+counters), later phase.
 
 ## Open F3 boxes
 Recall/precision per detector (≥ 10 runs per fault), the 20 walk-by trials for `fov_shift`, and the
