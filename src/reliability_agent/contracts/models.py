@@ -101,6 +101,7 @@ class VisualMetrics(_Strict):
     repeated_hash_ratio: float | None = None
     exact_repeat_ratio: float | None = None
     noise_ratio_p50: float | None = None  # temporal / spatial sensor noise (ADR-005)
+    temporal_sigma_p50: float | None = None  # temporal noise in counts, full resolution
     loop_period: int | None = None
     occluded_cell_ratio: float | None = None
 

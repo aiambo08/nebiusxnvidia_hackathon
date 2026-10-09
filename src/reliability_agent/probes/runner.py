@@ -106,6 +106,7 @@ class WindowAggregator:
             repeated_hash_ratio=_p(r["repeated_hash_ratio"], 50),
             exact_repeat_ratio=_p(r["exact_repeat_ratio"], 50),
             noise_ratio_p50=_p(r["noise_ratio"], 50),
+            temporal_sigma_p50=_p(r["temporal_sigma"], 50),
             loop_period=max(set(loop), key=loop.count) if loop else None,
             occluded_cell_ratio=_p(r["occluded_cell_ratio"], 50),
         )

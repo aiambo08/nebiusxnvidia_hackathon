@@ -35,9 +35,11 @@ unchanged) but loses the temporal one (ratio ≈ 0; with decoder jitter j the ra
 Motion adds temporal energy, so it can only raise the ratio: no healthy event can make a window
 look frozen, and nothing is remembered that could contaminate the next window.
 
-`classify_window` keeps ADR-003's structure. The hash-repeat path of `freeze` now requires
-`visual.noise_ratio_p50 <= faults.freeze.noise_ratio_max` (0.3) instead of a collapse against a
-learned floor; the config keys `noise_floor_quantile` and `noise_collapse_ratio` and the tracker's
+`classify_window` keeps ADR-003's structure. The hash-repeat path of `freeze` now requires the
+temporal noise to have collapsed in both senses, `visual.noise_ratio_p50 <=
+faults.freeze.noise_ratio_max` (0.3) **and** `visual.temporal_sigma_p50 <=
+faults.freeze.temporal_sigma_max` (0.5 counts, i.e. under half a quantisation step: most pixels
+do not change at all), instead of a collapse against a learned floor; the config keys `noise_floor_quantile` and `noise_collapse_ratio` and the tracker's
 `visual.noise_temporal_mse_p50` sample are removed. Bit-exact repeats and loops are unchanged.
 Both estimates run at full resolution (the 160×120 analysis image is quantisation-limited, as
 ADR-004 measured); `scripts/bench_probes.py` at 720p: p50 14.4 ms, p95 23.0 ms (gate ≤ 40 ms;
@@ -58,7 +60,18 @@ contrast):
 | frozen + jitter 0.25 on σ 0.7 / σ 2 | 0.27 / 0.11 |
 | frozen + jitter 0.5 on σ 2 / σ 0.7 | 0.27 / **0.60 (limit, not detected)** |
 
-The cap is a physical ratio (decoder jitter over sensor noise), not a per-camera calibration;
+Adversarial populations (same harness, not Gaussian white noise):
+
+| population | ratio | σ_t (counts) | verdict |
+|---|---|---|---|
+| live, spatially correlated noise (ISP blur before quantisation) | 5.3 | ≥ 1 | alive |
+| live, Poisson (brightness-dependent) noise | 1.0 | ≥ 1 | alive |
+| live, 2 % periodic flicker | 1.7 | ≥ 1 | alive |
+| live, pixel-scale static texture (fabric / grain / fixed-pattern σ 6) + sensor σ 1 | **0.17** | 1.0 | alive only thanks to `temporal_sigma_max` |
+| live, H.264-like skip blocks copying 50 / 80 / 95 % of still 16×16 blocks | 0.72 / 0.44 / 0.23 | falls with the skip share | **not separable at ≥ 80 %** (see risks) |
+
+The two caps are physical quantities (decoder jitter over sensor noise; half a count), not
+per-camera calibrations;
 ADR-004's prototype on the bench scenes (gain and 8-bit effects) spread live values over
 0.75–1.85, still well above it.
 
@@ -73,9 +86,16 @@ ADR-004's prototype on the bench scenes (gain and 8-bit effects) spread live val
   of 0.6 and is not distinguishable from a live sensor by any per-frame noise measure (`xfail`
   in `tests/unit/test_noise_ratio.py`); such a stream also no longer repeats its dHash, so the
   hash path would not see it anyway (ADR-004 limit, unchanged).
-- Residual risks, to be measured on REAL HARDWARE: H.264 at low bitrate can zero the temporal
-  noise of still blocks (skip macroblocks) on a *live* camera, which would read as a low ratio
-  (the absolute cap and the hash-repeat requirement still apply, and the 10-min phone RTSP soak
-  showed no `freeze`); a heavily denoised ISP output lowers σ_s and may push the ratio towards
-  `unknown`, which is fail-safe (no verdict from the ratio).
-- Contract change: `VisualMetrics.noise_ratio_p50` added (Architecture role).
+- Inherent limit, to be measured on REAL HARDWARE: a *live* camera whose still regions carry no
+  fresh pixel noise — low-bitrate H.264 skip macroblocks over ≥ 80 % of the frame, or a strong
+  temporal denoiser in the ISP — is pixel-identical to a frozen stream (both caps collapse,
+  hashes repeat). No per-frame or per-window pixel measure can separate them; transport-level
+  evidence (frame counters, RTP timestamps) is the structural answer and belongs to a later
+  phase. The 10-min phone RTSP soak confirmed no `freeze` under the ADR-004 rules; the owner's
+  webcam and phone must be re-checked under this rule (static scene, `noise_ratio_p50` and
+  `temporal_sigma_p50` logged) before the F3 hardware box is ticked.
+- Pixel-scale static texture (fabric, grain, fixed-pattern noise) fools the spatial estimator
+  (ratio 0.17 live); the absolute `temporal_sigma_max` keeps such a live scene alive as long as
+  the sensor noise is above half a count (SIMULATION: σ 1 → σ_t 1.0). A live, strongly denoised
+  sensor on fine texture remains a false-positive risk of the same inherent kind.
+- Contract change: `VisualMetrics.noise_ratio_p50` and `temporal_sigma_p50` added (Architecture role).

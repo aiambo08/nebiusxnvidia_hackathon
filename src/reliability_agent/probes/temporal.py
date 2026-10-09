@@ -35,26 +35,33 @@ _IMMERKAER_SCALE = float(np.sqrt(np.pi / 2) / 6.0)
 MIN_SPATIAL_SIGMA = 0.05  # below this the frame carries no measurable noise (dark, blurred)
 
 
-def noise_ratio(gray: np.ndarray, prev: np.ndarray) -> float:
-    """Temporal-to-spatial noise ratio of a frame pair, NaN when the frame carries no measurable
-    noise. Both estimates use the flattest half of the frame (gradient magnitude at or below its
-    median) so texture and edges do not count as noise. The temporal sigma is the RMS of the
-    frame difference divided by sqrt(2) (two independent noise draws); the spatial sigma is
-    Immerkaer's Laplacian estimator. Live: ~1 (0.7-1.9 with codec and gain effects). Frozen: ~0.
-    Motion raises the ratio, so it can only make a window look more alive, never frozen."""
+def noise_sigmas(gray: np.ndarray, prev: np.ndarray) -> tuple[float, float]:
+    """(temporal sigma, spatial sigma) of a frame pair in 8-bit counts at full resolution, both
+    on the flattest half of the frame (gradient magnitude at or below its median) so texture
+    and edges do not count as noise. Temporal: RMS of the frame difference divided by sqrt(2)
+    (two independent noise draws). Spatial: Immerkaer's Laplacian estimator."""
     g = gray.astype(np.float32)
     gx = cv2.Sobel(g, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(g, cv2.CV_32F, 0, 1, ksize=3)
     mag = cv2.magnitude(gx, gy)[1:-1, 1:-1]
     flat = mag <= float(np.median(mag))
     if not flat.any():
-        return float("nan")
+        return float("nan"), float("nan")
     lap = cv2.filter2D(g, cv2.CV_32F, _IMMERKAER)[1:-1, 1:-1]
     sigma_s = _IMMERKAER_SCALE * float(np.mean(np.abs(lap[flat])))
-    if sigma_s < MIN_SPATIAL_SIGMA:
-        return float("nan")
     d = (g - prev.astype(np.float32))[1:-1, 1:-1]
     sigma_t = float(np.sqrt(np.mean(d[flat] ** 2) / 2.0))
+    return sigma_t, sigma_s
+
+
+def noise_ratio(gray: np.ndarray, prev: np.ndarray) -> float:
+    """Temporal-to-spatial noise ratio of a frame pair, NaN when the frame carries no measurable
+    noise. Live: ~1 (fresh noise every frame). Frozen: ~0 (the noise is baked into the repeated
+    frame; with decoder jitter j the ratio is ~ j / sigma). Motion raises it, so motion can only
+    make a window look more alive, never frozen (ADR-005)."""
+    sigma_t, sigma_s = noise_sigmas(gray, prev)
+    if not np.isfinite(sigma_s) or sigma_s < MIN_SPATIAL_SIGMA:
+        return float("nan")
     return sigma_t / sigma_s
 
 
@@ -80,9 +87,11 @@ class FreezeTracker:
             mse = float(np.mean(diff.astype(np.float32) ** 2))
             self._mse.append(mse)
             self._exact.append(mse == 0.0)
-        ratio = float("nan")
+        ratio = sigma_t = float("nan")
         if self._prev_full is not None and self._prev_full.shape == gray.shape:
-            ratio = noise_ratio(gray, self._prev_full)
+            sigma_t, sigma_s = noise_sigmas(gray, self._prev_full)
+            if np.isfinite(sigma_s) and sigma_s >= MIN_SPATIAL_SIGMA:
+                ratio = sigma_t / sigma_s
         self._prev = small
         self._prev_full = gray.copy()
         self._frames.append(small)
@@ -98,6 +107,7 @@ class FreezeTracker:
                 "exact_repeat_ratio": float(np.mean(self._exact)) if self._exact else 0.0,
                 "loop_period": float(self._loop_period()),
                 "noise_ratio": ratio,
+                "temporal_sigma": sigma_t,
             },
         )
         if len(self._exact) < 2:

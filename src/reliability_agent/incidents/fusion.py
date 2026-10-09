@@ -88,14 +88,16 @@ def classify_window(
     # noise (pixels repeat, even bit-exactly, on a live camera) and strong blur removes the
     # high-frequency detail that makes perceptual hashes differ, so those faults explain the
     # missing motion (ADR-003). Hash repeats alone are never a freeze: a static scene repeats its
-    # perceptual hash too. They count only when the frame's own temporal noise has collapsed
-    # relative to the noise baked into the frame (ADR-005), a per-window measurement with no
-    # learned history that motion could contaminate. Without a measurable ratio only bit-exact
-    # repeats and loops are freeze evidence.
+    # perceptual hash too. They count only when the frame's own temporal noise has collapsed:
+    # under half a count in absolute terms (pixels mostly repeat) and relative to the noise baked
+    # into the frame (ADR-005), a per-window measurement with no learned history that motion
+    # could contaminate. Without a measurable ratio only bit-exact repeats and loops count.
     fz = r["freeze"]
     if not dark:
         noise_collapsed = (v.noise_ratio_p50 is not None
-                           and v.noise_ratio_p50 <= fz["noise_ratio_max"])
+                           and v.noise_ratio_p50 <= fz["noise_ratio_max"]
+                           and v.temporal_sigma_p50 is not None
+                           and v.temporal_sigma_p50 <= fz["temporal_sigma_max"])
         blurred = F.FOCUS_DRIFT in faults
         if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
             not blurred and (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"]

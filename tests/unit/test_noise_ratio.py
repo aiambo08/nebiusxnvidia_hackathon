@@ -6,7 +6,12 @@ import cv2
 import numpy as np
 import pytest
 
-from reliability_agent.probes.temporal import MIN_SPATIAL_SIGMA, FreezeTracker, noise_ratio
+from reliability_agent.probes.temporal import (
+    MIN_SPATIAL_SIGMA,
+    FreezeTracker,
+    noise_ratio,
+    noise_sigmas,
+)
 
 H, W = 480, 640
 
@@ -120,3 +125,25 @@ def test_tracker_reports_noise_ratio_and_warms_up():
     frozen = t.update(frames[-1])
     assert frozen.values["noise_ratio"] == 0.0
     assert frozen.values["temporal_mse"] == 0.0
+
+
+def test_fine_grain_texture_fools_the_ratio_but_not_the_temporal_sigma(cfg):
+    """Pixel-scale static texture (fabric, grain, fixed-pattern noise, sigma 6) with live sensor
+    noise sigma 1: the ratio drops under the cap, the temporal sigma does not, so the fusion
+    rule (both must collapse) keeps the window alive. Frozen, both collapse."""
+    rng = np.random.default_rng(7)
+    grain = np.clip(_scene("wall", rng) + rng.normal(0, 6.0, (H, W)), 0, 255)
+    frames = list(_live(grain.astype(np.float32), 1.0, rng, n=6))
+    pairs = [noise_sigmas(b, a) for a, b in zip(frames, frames[1:], strict=False)]
+    assert max(st / ss for st, ss in pairs) < cfg["faults"]["freeze"]["noise_ratio_max"]
+    assert min(st for st, _ in pairs) > cfg["faults"]["freeze"]["temporal_sigma_max"]
+    frozen_t, _ = noise_sigmas(frames[-1], frames[-1])
+    assert frozen_t == 0.0 <= cfg["faults"]["freeze"]["temporal_sigma_max"]
+
+
+@pytest.mark.parametrize("sigma", [0.7, 1.0, 2.0, 3.0])
+def test_live_temporal_sigma_tracks_the_sensor_noise(sigma):
+    rng = np.random.default_rng(8)
+    frames = list(_live(_scene("gradient", rng), sigma, rng, n=6))
+    sig_t = [noise_sigmas(b, a)[0] for a, b in zip(frames, frames[1:], strict=False)]
+    assert all(abs(s - sigma) < 0.15 * sigma + 0.1 for s in sig_t), sig_t
