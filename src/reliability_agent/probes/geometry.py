@@ -81,8 +81,12 @@ class GeometryProbe:
         motion, _ = cv2.estimateAffinePartial2D(
             src, dst, method=cv2.RANSAC, ransacReprojThreshold=self.reproj_px
         )
-        if motion is None:  # rigid fit failed: fall back to the homography's own estimate
-            motion = H
+        if motion is None:  # never fall back to the homography's motion: on a wall it is the noise
+            return ProbeResult(
+                "geometry", quality="failed", unknown_reason="rigid motion fit failed",
+                values={"match_count": float(len(matches)),
+                        "homography_inlier_ratio": float(mask.sum()) / len(matches)},
+            )
         inliers = float(mask.sum()) / len(matches)
         return ProbeResult(
             "geometry",

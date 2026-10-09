@@ -30,7 +30,8 @@ Two fits over the same cross-checked matches, each used for what it is good at:
 1. `homography_inlier_ratio` stays the inlier share of the 8-DOF homography — the measurement
    quality gate the rule was calibrated on; its meaning and threshold are unchanged.
 2. `translation_px` and `rotation_deg` come from the 4-DOF similarity, which cannot bend to
-   noise keypoints. If the rigid fit fails, the homography's own estimate is used.
+   noise keypoints. If the rigid fit fails the measurement is reported as `quality="failed"`
+   (never the homography's motion, which on a smooth wall is exactly the noise estimate).
 
 No threshold, contract field or rule in `classify_window` changes.
 
@@ -42,8 +43,10 @@ No threshold, contract field or rule in `classify_window` changes.
   3° on a smooth wall (the similarity underestimates it by ~10 %), are no longer confirmed;
   the former was only confirmed through the homography's noise fit and neither is a camera
   move at the scale the gate targets.
+- A 15° yaw on a smooth wall is not detected (homography inliers ≈ 0.18) — neither before nor
+  after this change; the scene has too few true features for any model.
 - `translation_px` is the displacement of the image origin, so an in-plane rotation about the
   centre also contributes to it (pre-existing; documented).
-- Probe cost is unchanged (`bench_probes.py` 720p p95 ≈ 21–23 ms on an idle machine); the
+- Probe cost is unchanged (`bench_probes.py` 720p p95 20.4 ms on an idle machine, 20.6 ms on `main`); the
   extra rigid fit costs ≈ 0.08 ms per measured frame.
 - Still open for the gate: the 20 real person-walk-by trials (REAL HARDWARE).

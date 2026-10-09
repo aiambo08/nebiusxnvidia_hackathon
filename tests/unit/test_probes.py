@@ -158,6 +158,18 @@ def test_geometry_keeps_large_camera_turns_measurable(scene, turn):
     assert v["translation_px"] >= 25, v
 
 
+def test_geometry_reports_failed_instead_of_the_homography_motion(scene, monkeypatch):
+    """If the rigid fit fails the probe must not fall back to the homography's translation,
+    which on a smooth wall is exactly the noise estimate (reviewer, ADR-006)."""
+    _, g = scene
+    gp = GeometryProbe()
+    gp.set_reference(g)
+    monkeypatch.setattr(cv2, "estimateAffinePartial2D", lambda *a, **k: (None, None))
+    r = gp.measure(g)
+    assert r.quality == "failed" and "translation_px" not in r.values
+    assert r.values["homography_inlier_ratio"] > 0.8
+
+
 def test_marker_task_degrades_with_faults(scene):
     _, g = scene
     task = MarkerTask({7})
