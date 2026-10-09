@@ -100,9 +100,10 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
   wall (independent review; `main` caught 0.15–0.2 on texture through the hash path). Since
   exact repeats are judged on the probe input frame (`downscale(max_side=640)` in `runner.py`: native pixels at 640×480, 2× INTER_AREA at 720p/1080p) (follow-up PR), any decoder jitter
   breaks equality (jitter 0.1: windows with `exact_repeat_ratio` ≥ 0.9 fall from 1.00 to
-  0.08 at 640×480 and 0.04–0.33 at 720p in the reviewer's harness; the benchmark's
-  "frozen + jitter 0.1" cases went from confirmed in 4 s to INFO), so the miss now starts at
-  any non-zero jitter. `scripts/bench_static_scene.py` reports those
+  0.08 at 640×480 and 0.04–0.33 at 720p in the reviewer's harness; in
+  `docs/evidence/f3/static-scene.md` the "frozen + jitter 0.1" cases went from confirmed in 4 s
+  with 111–116/180 windows to 13/180 unconfirmed on the wall and 17/180 confirmed only after
+  60 s on texture), so detection is not reliable at any non-zero jitter. `scripts/bench_static_scene.py` reports those
   cases as INFO. Catching it needs transport evidence, not pixels.
 - **Pre-existing risk, now measured (REAL HARDWARE to decide):** a live *smooth* scene over
   H.264 decodes bit-exact (table above), so the bit-exact rule itself can fire on a healthy
