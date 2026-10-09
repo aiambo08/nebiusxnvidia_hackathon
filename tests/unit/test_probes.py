@@ -178,3 +178,59 @@ def test_bit_exact_loop_of_a_static_noisy_scene_is_a_freeze(cfg):
     faults, tw = _classify_frames(cfg, looped)
     assert tw.visual.loop_period == 4
     assert FaultType.FREEZE in faults
+
+
+def _wall(rng, level, sigma, shape=(480, 640)):
+    return np.clip(np.rint(level + rng.normal(0, sigma, shape)), 0, 255).astype(np.uint8)
+
+
+@pytest.mark.parametrize("level,sigma", [(40, 0.3), (120, 0.3), (200, 0.4)])
+def test_live_low_noise_wall_is_not_bit_exact_at_full_resolution(level, sigma):
+    """Reviewer FP (ADR-005, 5th pass): sigma <= 0.4 averaged into the 160x120 image rounds to
+    the same value every frame; the full-resolution frame never repeats."""
+    rng = np.random.default_rng(1)
+    ft = FreezeTracker(window=10)
+    for _ in range(30):
+        r = ft.update(_wall(rng, level, sigma))
+    assert r.values["exact_repeat_ratio"] == 0.0
+    assert r.values["loop_period"] == 0
+
+
+def test_live_wall_behind_temporal_denoiser_is_not_bit_exact():
+    rng = np.random.default_rng(2)
+    ft = FreezeTracker(window=10)
+    acc = _wall(rng, 120, 0.7).astype(np.float32)
+    for _ in range(40):
+        acc = 0.9 * acc + 0.1 * _wall(rng, 120, 0.7)
+        r = ft.update(np.rint(acc).astype(np.uint8))
+    assert r.values["exact_repeat_ratio"] < 0.5
+
+
+def test_periodic_flicker_on_a_live_sensor_is_not_a_loop():
+    rng = np.random.default_rng(3)
+    ft = FreezeTracker(window=10, max_loop_period=8)
+    for i in range(40):
+        r = ft.update(_wall(rng, 120 + (4 if i % 4 < 2 else -4), 0.7))
+    assert r.values["loop_period"] == 0
+
+
+@pytest.mark.parametrize("jitter", [0.0, 0.1])
+def test_replayed_buffer_is_a_loop_with_or_without_decoder_jitter(jitter):
+    rng = np.random.default_rng(4)
+    base = [_wall(rng, 120, 2.0) for _ in range(4)]
+    ft = FreezeTracker(window=10, max_loop_period=8)
+    for i in range(24):
+        f = base[i % 4]
+        if jitter:
+            f = np.clip(np.rint(f + rng.normal(0, jitter, f.shape)), 0, 255).astype(np.uint8)
+        r = ft.update(f)
+    assert r.values["loop_period"] == 4
+
+
+def test_frozen_full_resolution_frame_is_bit_exact():
+    rng = np.random.default_rng(5)
+    f = _wall(rng, 120, 2.0)
+    ft = FreezeTracker(window=10)
+    for _ in range(12):
+        r = ft.update(f)
+    assert r.values["exact_repeat_ratio"] == 1.0

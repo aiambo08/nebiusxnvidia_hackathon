@@ -106,13 +106,19 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
   plain wall, with `exact_repeat_ratio`, `noise_ratio_p50` and `temporal_sigma_p50` logged.
   The structural answer for compressed sources is transport-level freeze evidence (RTP
   timestamps / decoder frame counters), recorded in `docs/agents/TASKS.md` for a later phase.
-- **Pre-existing bit-exact false positives, unchanged from `main` (independent review, 5th
-  pass, SIMULATION):** `exact_repeat_ratio` is computed on the 160×120 INTER_AREA analysis
-  image, where 16 raw pixels average into one, so a live smooth wall with sensor σ ≤ 0.4 rounds
-  to the same image every frame (σ 0.3: 120/120 windows; σ 0.4: 22/120), as does a raw sensor
-  σ 0.7 behind an 8-bit temporal denoiser α ≥ 0.8 (129–240/240) and libx264 at CRF 35
-  (82–217/240); a ±4-count flicker with a 4-frame period trips the loop rule (300/420). Fix for
-  a separate PR: bit-exact repeats on the full-resolution frame (≈ 300k pixels never all
-  coincide at σ 0.3), and `FreezeTracker.loop_mse_max` moved into config (`docs/agents/TASKS.md`).
+- **Pre-existing bit-exact false positives (independent review, 5th pass, SIMULATION) — fixed
+  in the follow-up PR:** `exact_repeat_ratio` used to be computed on the 160×120 INTER_AREA
+  analysis image, where 16 raw pixels average into one, so a live smooth wall with sensor
+  σ ≤ 0.4 rounded to the same image every frame (σ 0.3: 120/120 windows; σ 0.4: 22/120), as did a
+  raw σ 0.7 sensor behind an 8-bit temporal denoiser α ≥ 0.8 (129–240/240), and a ±4-count
+  flicker with a 4-frame period tripped the loop rule (300/420). Since the follow-up,
+  `FreezeTracker` judges bit-exact repeats and the loop period on the full-resolution frame
+  (≈ 300k pixels never all coincide while the sensor is alive; the 160×120 image only screens
+  that consecutive frames differ), and `loop_mse_max` lives in `configs/default.yaml`
+  (`probes.loop_mse_max`, 0.5, value unchanged). Those raw-sensor cases now give
+  `exact_repeat_ratio` 0 and `loop_period` 0 (`tests/unit/test_probes.py`). What the fix cannot
+  reach is the compressed case above: libx264 decodes a live smooth wall bit-exact at full
+  resolution at every CRF tried (23/28/35), and a textured scene from CRF 28 up — the H.264
+  encoder itself repeats the pixels, so only transport evidence can tell it from a freeze.
 - Contract change: `VisualMetrics.noise_ratio_p50` and `temporal_sigma_p50` added (Architecture
   role); they are telemetry and incident evidence, and feed no rule.
