@@ -237,39 +237,43 @@ def _still_window(rng, noise_ratio=1.0, mse=(0.005, 0.02), sensor_sigma=0.7):
         temporal_sigma_p50=None if noise_ratio is None else sensor_sigma * noise_ratio))
 
 
-def test_static_scene_hash_repeats_are_not_freeze(cfg):
-    """A live static scene repeats its hash but keeps fresh temporal noise: not a freeze. The
-    same hashes with the temporal noise collapsed against the frame's spatial noise are."""
+def _frozen_window(rng=None):
+    """A frozen pipeline: the same buffer is delivered again and again, bit-exact."""
+    return make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.95,
+                                   temporal_mse_p50=0.0, noise_ratio_p50=0.0,
+                                   temporal_sigma_p50=0.0))
+
+
+def test_static_scene_hash_repeats_are_never_freeze(cfg):
+    """A live static scene repeats its perceptual hash. Fresh temporal noise (raw sensor), a
+    collapsed ratio (H.264 skip blocks, ISP denoiser: ratio 0.00-0.04 in SIMULATION, see
+    test_noise_ratio) or no measurable noise at all: none of it is a freeze (ADR-005)."""
     rng = np.random.default_rng(0)
-    for ratio in (0.75, 1.0, 1.85):
+    for ratio in (0.75, 1.0, 1.85, 0.17, 0.05, 0.0, None):
         faults, _ = classify_window(_still_window(rng, ratio), None, cfg["faults"])
         assert FaultType.FREEZE not in faults, ratio
-    faults, ev = classify_window(_still_window(rng, 0.05), None, cfg["faults"])
+
+
+def test_bit_exact_repeats_and_loops_are_freeze(cfg):
+    faults, ev = classify_window(_frozen_window(), None, cfg["faults"])
     assert list(faults) == [FaultType.FREEZE]
     assert any(e.metric == "visual.noise_ratio_p50" for e in ev)
-
-
-def test_hash_repeats_need_a_measurable_noise_ratio(cfg):
-    """No measurable spatial noise (dark or blurred frame) means no verdict from the ratio:
-    only bit-exact repeats and loops remain freeze evidence."""
-    rng = np.random.default_rng(0)
-    faults, _ = classify_window(_still_window(rng, None), None, cfg["faults"])
-    assert FaultType.FREEZE not in faults
-    w = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.95,
-                                temporal_mse_p50=0.0, noise_ratio_p50=None,
-                                temporal_sigma_p50=None))
-    faults, _ = classify_window(w, None, cfg["faults"])
-    assert FaultType.FREEZE in faults
-
-
-def test_noise_ratio_threshold_comes_from_config(cfg):
-    rng = np.random.default_rng(0)
-    rules = {k: dict(v) for k, v in cfg["faults"].items()}
-    rules["freeze"]["noise_ratio_max"] = 0.6
-    faults, _ = classify_window(_still_window(rng, 0.5), None, rules)
+    w = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                temporal_mse_p50=0.3, loop_period=4.0))
+    faults, ev = classify_window(w, None, cfg["faults"])
     assert list(faults) == [FaultType.FREEZE]
-    faults, _ = classify_window(_still_window(rng, 0.5), None, cfg["faults"])
+    assert any(e.metric == "visual.loop_period" for e in ev)
+
+
+def test_exact_repeat_threshold_comes_from_config(cfg):
+    rules = {k: dict(v) for k, v in cfg["faults"].items()}
+    w = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.8,
+                                temporal_mse_p50=0.0))
+    faults, _ = classify_window(w, None, cfg["faults"])
     assert FaultType.FREEZE not in faults
+    rules["freeze"]["exact_repeat_ratio_min"] = 0.7
+    faults, _ = classify_window(w, None, rules)
+    assert list(faults) == [FaultType.FREEZE]
 
 
 def test_quiet_static_camera_never_confirms_freeze_through_the_tracker(cfg):
@@ -281,6 +285,22 @@ def test_quiet_static_camera_never_confirms_freeze_through_the_tracker(cfg):
         assert step.incident is None
     assert t.fsm.state is IncidentState.HEALTHY
     assert t.baseline.ready
+
+
+def test_compressed_static_camera_never_confirms_freeze_through_the_tracker(cfg):
+    """The demo path: a live static scene over H.264 (phone RTSP). The encoder removes the
+    temporal noise in flat areas, so the hashes repeat and the ratio sits near 0, yet most
+    frames are not bit-exact (SIMULATION with libx264 CRF 23: exact repeats 0.01)."""
+    t = _tracker(cfg)
+    rng = np.random.default_rng(6)
+    for _ in range(400):
+        w = make_window(visual=dict(repeated_hash_ratio=1.0,
+                                    exact_repeat_ratio=float(rng.uniform(0.0, 0.6)),
+                                    temporal_mse_p50=float(rng.uniform(0.0, 0.01)),
+                                    noise_ratio_p50=float(rng.uniform(0.0, 0.05)),
+                                    temporal_sigma_p50=float(rng.uniform(0.0, 0.05))))
+        assert t.step(w).incident is None
+    assert t.fsm.state is IncidentState.HEALTHY
 
 
 def _motion_window(rng, mse=(0.045, 0.5)):
@@ -324,10 +344,7 @@ def test_frozen_stream_is_confirmed_after_motion_and_live_windows_clear_the_rule
     rng = np.random.default_rng(4)
     for _ in range(300):
         t.step(_motion_window(rng))
-    frozen = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
-                                     temporal_mse_p50=0.002, noise_ratio_p50=0.1,
-                                     temporal_sigma_p50=0.07))
-    incidents = [t.step(frozen).incident for _ in range(5)]
+    incidents = [t.step(_frozen_window()).incident for _ in range(5)]
     assert any(i is not None and FaultType.FREEZE in i.candidate_faults for i in incidents)
     assert t.fsm.state is IncidentState.CONFIRMED
     for _ in range(5):
@@ -335,9 +352,8 @@ def test_frozen_stream_is_confirmed_after_motion_and_live_windows_clear_the_rule
         assert FaultType.FREEZE not in faults
 
 
-def test_gain_drop_lowers_both_noises_and_is_not_freeze(cfg):
-    """AGC or dimmer light shrinks the sensor noise: the temporal MSE drops by 10x, but so does
-    the spatial noise, so the ratio and the verdict do not move."""
+def test_gain_drop_is_not_freeze(cfg):
+    """AGC or dimmer light shrinks the sensor noise 10x: nothing to learn, nothing to trip."""
     t = _tracker(cfg)
     rng = np.random.default_rng(5)
     for _ in range(100):
@@ -347,21 +363,16 @@ def test_gain_drop_lowers_both_noises_and_is_not_freeze(cfg):
     assert t.fsm.state is IncidentState.HEALTHY
 
 
-def test_fine_grain_texture_with_live_noise_is_not_freeze(cfg):
-    """A live camera on fabric or grain: the pixel-scale static texture inflates the spatial
-    sigma (ratio 0.17 in SIMULATION), but the temporal noise is a full count, so pixels do
-    change and the window is alive. Only when both collapse is it a freeze."""
-    grain = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
-                                    temporal_mse_p50=0.1, noise_ratio_p50=0.17,
-                                    temporal_sigma_p50=1.0))
-    faults, _ = classify_window(grain, None, cfg["faults"])
-    assert FaultType.FREEZE not in faults
+def test_fine_grain_or_denoised_texture_is_not_freeze(cfg):
+    """Fabric or grain under a live camera inflates the spatial sigma (ratio 0.17), an ISP
+    temporal denoiser pushes the temporal sigma under half a count (0.07-0.4): reviewer cases
+    that an absolute cap on the temporal noise turned into false freezes. Neither is bit-exact,
+    so neither is a freeze now."""
     t = _tracker(cfg)
-    for _ in range(100):
-        assert t.step(grain).incident is None
+    for ratio, sigma_t in ((0.17, 1.0), (0.19, 0.07), (0.1, 0.4), (0.02, 0.1)):
+        w = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
+                                    temporal_mse_p50=0.1, noise_ratio_p50=ratio,
+                                    temporal_sigma_p50=sigma_t))
+        for _ in range(100):
+            assert t.step(w).incident is None
     assert t.fsm.state is IncidentState.HEALTHY
-    frozen_grain = make_window(visual=dict(repeated_hash_ratio=1.0, exact_repeat_ratio=0.0,
-                                           temporal_mse_p50=0.0, noise_ratio_p50=0.02,
-                                           temporal_sigma_p50=0.1))
-    faults, _ = classify_window(frozen_grain, None, cfg["faults"])
-    assert list(faults) == [FaultType.FREEZE]

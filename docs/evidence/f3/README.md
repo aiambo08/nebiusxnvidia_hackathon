@@ -37,38 +37,62 @@ no `configs/` diff. Findings folded into the PR: freeze ranking priority (`rank_
 quantified in ADR-003. Finding **not** caused by this PR and now the first open F3 item: a healthy lit textured
 static scene with σ=2 noise already trips the absolute `temporal_mse_floor` on `main` (358/400 windows).
 
-## Freeze noise floor relative to the camera (ADR-004) — SIMULATION
+## Freeze noise floor relative to the camera (ADR-004, superseded) — SIMULATION
 Independent review of PR #10 found that a healthy, lit, static textured scene with σ=2 webcam noise
 tripped `freeze` in 358/400 windows on `main`: after the 4×4 downscale its temporal MSE (≈ 0.41) sits
-under the absolute `temporal_mse_floor` (0.5) while dHash repeats. The hash-repeat path now needs the
-window's MSE to collapse to ≤ 0.25× the camera's own healthy noise floor (10 % quantile of the
-temporal MSE of healthy windows under the absolute cap, `visual.noise_temporal_mse_p50`); without such windows
-(cold start, or a baseline learned while people move through the scene) only bit-exact repeats and
-loops count. A
-bit-exact period on frames that differ only by noise (a replayed buffer) is now a loop.
+under the absolute `temporal_mse_floor` (0.5) while dHash repeats. PRs #11 and #14 replaced the
+absolute floor by a floor learned from the camera's own healthy windows. Three independent review
+passes showed the learned floor is contaminated by any motion that precedes rest and never recovers
+(the baseline freezes while the incident is active): 30 s walk-by at start-up (328/360 false freeze
+windows), 5–20 px objects (dHash does not see them, MSE does), and on the σ 0.7 wall 5 px / 8 px /
+20 px at +15 counts / 40 px at +8 counts (118–120 of 420 windows each, the last a regression). The
+PRs were merged by the owner; the design is withdrawn by ADR-005 below. The ADR-004 record keeps
+the quantisation findings (dark scenes crush the noise below one count) and the alternatives table.
 
-`python scripts/bench_static_scene.py` (20 min per healthy scene, 3 min per frozen scene, full local
-path through `benchmarks.replay.replay`) → `static-scene.md`:
-- 10 healthy scenes × 20 min (smooth wall σ 0.7/2, textured σ 1/2/3, dim gain 0.3, slow 15 %
-  light drift, and the reviewer's cases: 30 s walk-by then rest, 5 min of motion then rest,
-  alternating 30 s motion / 30 s rest): **0 freeze windows, 0 freeze confirmations** in 12 000
-  windows. Only the wall and dim scenes exercise the fix (the textured scenes never repeat a hash
-  and pass on `main` too).
-- Small objects (10 px, 20 px) moving 5 min and then resting on the wall: 0 freeze windows
-  (second-review case; the noise sample is now the window's MSE under the absolute cap).
-- Frozen bit-exact (textured and wall), frozen + decoder jitter 0.1, loop of 4 frames: `freeze`
-  confirmed 2–4 s after the fault.
-- Documented limit: decoder jitter ≥ ~0.25 counts on a frozen stream flips dHash bits, so the hash
-  path loses it (textured σ 2: 0.15 → 118/180 freeze windows, 0.2 → 22/180, both confirmed;
-  0.25 and 0.5 → not detected). Bit-exact repeats
-  and loops are unaffected; repeated P-frames of a frozen encoder decode bit-exactly in practice.
-- Residual risk (ADR-004): the floor is learned at one gain/light; if AGC lowers the noise while the
-  scene is still, the relative rule can fire (reviewer: σ 2 → 1 gives 180/360 windows). F5 per-mode
-  baselines are the structural fix.
-- Finding, not caused by this PR: the smooth-wall scenes confirm `fov_shift` (noise-driven ORB
-  keypoints after `equalizeHist`), tracked as the next F3 item in `docs/agents/TASKS.md`.
+## Freeze noise measured per frame, no learned history and no pixel trigger (ADR-005) — SIMULATION
+`probes/temporal.py::noise_sigmas` measures on every frame pair, at full resolution and on the
+flattest half of the frame (Sobel magnitude ≤ median): the **temporal sigma** (RMS frame difference
+/ √2) and the **spatial sigma** (Immerkaer's Laplacian estimator). Both are exported as telemetry
+(`visual.noise_ratio_p50`, `visual.temporal_sigma_p50`) and attached to freeze incidents as evidence.
+They are **not** a trigger: `freeze` is claimed only on bit-exact repeats
+(`faults.freeze.exact_repeat_ratio_min`, 0.9, unchanged) or a frame loop; perceptual-hash repeats
+no longer count at all. `repeated_hash_ratio_min`, `temporal_mse_floor`, `noise_floor_quantile` and
+`noise_collapse_ratio` are removed from `configs/default.yaml` (nothing reads them).
 
-The 20-min box remains open on REAL HARDWARE (owner's webcam at rest).
+Why the collapse is not a trigger (4th independent review pass + reproduction with libx264,
+`tests/unit/test_noise_ratio.py::test_live_static_scene_over_h264_is_pixel_identical_to_a_frozen_one`):
+
+| live static scene through libx264 (640×480, veryfast) | hash repeat | exact repeat | ratio p50 | σ_t p50 |
+|---|---:|---:|---:|---:|
+| textured, σ 2, CRF 23 | 1.00 | 0.01 | 0.04 | 0.03 |
+| textured, σ 2, CRF 28 | 1.00 | 0.62 | 0.00 | 0.00 |
+| smooth wall, σ 0.7 / 2, CRF 23 / 28 | 1.00 | **1.00** | NaN | 0.00 |
+
+A healthy compressed camera at rest is pixel-identical to a frozen one (skip macroblocks); the draft
+rule (ratio ≤ 0.3 and σ_t ≤ 0.5) produced 73/240 false `freeze` windows on the textured CRF 28 clip
+(0/240 on `main`), and 27–240/240 with an ISP temporal denoiser or a quiet sensor on fine texture.
+
+Population table of the telemetry (`tests/unit/test_noise_ratio.py`, four scene types, σ 0.7–3, gain 0.3),
+the reference for reading the two fields on REAL HARDWARE:
+
+| population | ratio | σ_t (counts) |
+|---|---|---|
+| live raw static, any σ / texture / gain | 0.99–1.01 | = sensor σ |
+| live + motion 40 px at +8 / 20 px at +15 / 5 px / 8 px / person | ≥ 1.09 / 1.14 / 1.28 / 1.70 / 8.7 | ≥ sensor σ |
+| live, spatially correlated noise / Poisson / 2 % flicker | 5.3 / 1.0 / 1.7 | ≥ 1 |
+| live, pixel-scale static grain σ 6 + sensor σ 1 | 0.17 | 1.0 |
+| live, H.264 static scene (CRF 23–28) | 0.00–0.04 | 0.00–0.03 |
+| frozen bit-exact / + jitter 0.1 / 0.25 / 0.5 | 0.00 / 0.00 / 0.11–0.27 / 0.27–0.60 | 0 / = jitter |
+
+<!-- BENCH -->
+
+Documented miss: a frozen frame re-emitted with decoder jitter (≥ 0.1 counts) is neither bit-exact nor
+claimable through hashes; the benchmark lists those cases as INFO. Pre-existing risk, now measured: a
+live **smooth** scene over H.264 decodes bit-exact, so the bit-exact rule can fire on a healthy
+compressed camera pointed at a plain wall. REAL HARDWARE must decide: the owner's webcam and phone at
+rest (textured room and plain wall) with `exact_repeat_ratio`, `noise_ratio_p50` and `temporal_sigma_p50`
+logged, before the 20-min box is ticked (`docs/agents/TASKS.md`). Structural answer for compressed
+sources: transport-level freeze evidence (RTP timestamps / frame counters), later phase.
 
 ## Open F3 boxes
 Recall/precision per detector (≥ 10 runs per fault), the 20 walk-by trials for `fov_shift`, and the

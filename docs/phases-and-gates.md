@@ -82,7 +82,7 @@ blocking reconnect must be fixed first).
 On ≥ 10 runs per fault:
 - [ ] Recall ≥ 0.90 for blackout, freeze, strong blur, strong occlusion
 - [ ] Precision ≥ 0.85 per detector
-- [ ] 0 freeze false positives on a 20-min static scene with healthy capture (ADR-003 fixed the dark/blur freeze false positives in SIMULATION; the 20-min run is still to be measured)
+- [ ] 0 freeze false positives on a 20-min static scene with healthy capture (SIMULATION passes with ADR-003 + ADR-005, `docs/evidence/f3/static-scene.md`, incl. walk-by, small/low-contrast objects, AGC, light drift and H.264/denoised live scenes; REAL HARDWARE run on the owner's webcam and phone — textured room and plain wall — still to be measured)
 - [ ] 0 "camera moved" false positives across ≥ 20 person-walk-by trials
 - [ ] Probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS
 - [x] Each probe returns score, evidence, measurement quality and `unknown` reason

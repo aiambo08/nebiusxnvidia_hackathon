@@ -65,7 +65,7 @@ A dry run on a SIMULATION 640×480 clip did not show the spurious `freeze`.
 On the real clip, `dark` and `gaussian_blur` also confirm `freeze`, and `freeze` is ranked first.
 All three faults are detected, so the F1 item holds. But a planner that trusts the top candidate
 could pick `restart_capture` instead of the right action. Hypothesis, not yet verified: darkening or
-blurring removes sensor noise, so consecutive frames fall under `freeze.temporal_mse_floor` and repeat
+blurring removes sensor noise, so consecutive frames fell under the then `freeze.temporal_mse_floor` (removed by ADR-005) and repeat
 their perceptual hash. F3 must fix the rule's specificity, with an ADR and a benchmark report.
 Thresholds are not changed here.
 

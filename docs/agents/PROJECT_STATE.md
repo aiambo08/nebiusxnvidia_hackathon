@@ -19,10 +19,21 @@ Last update: 2026-10-08 · Current phase: **F3** (F1/F2: every box evidenced, in
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.
 - F3 started: spurious `freeze` on dark/blurred live scenes fixed by causal suppression (ADR-003,
   `docs/evidence/f3/`); owner to confirm on the real clip replay. The absolute MSE floor that
-  flagged a healthy σ=2 static scene is replaced by a camera-relative noise floor (ADR-004,
-  `scripts/bench_static_scene.py` → `docs/evidence/f3/static-scene.md`: 20-min SIMULATION static
-  scenes with 0 freeze false positives, frozen/looped streams still confirmed). Open: the 20-min
-  box on REAL HARDWARE, recall/precision per detector, walk-by FOV trials, probe p95 at 720p.
+  flagged a healthy σ=2 static scene was first replaced by a learned camera-relative noise floor
+  (ADR-004, PRs #11/#14), which independent review showed is contaminated by any motion before
+  rest (walk-by, 5–40 px low-contrast objects) and never recovers. ADR-005 drops the learned
+  history: `FreezeTracker` measures per frame the temporal-vs-spatial noise ratio and the
+  temporal sigma and exports them as telemetry (`visual.noise_ratio_p50`, `temporal_sigma_p50`).
+  They are not a trigger: the 4th review pass and a libx264 reproduction showed a live static
+  scene over H.264 has no temporal noise either (smooth wall: bit-exact), so perceptual-hash
+  repeats were dropped as freeze evidence and `freeze` = bit-exact repeats or loops (ADR-003
+  rule, `exact_repeat_ratio_min` 0.9 unchanged; `repeated_hash_ratio_min`, `temporal_mse_floor`,
+  `noise_floor_quantile`, `noise_collapse_ratio` removed). `scripts/bench_static_scene.py` →
+  `docs/evidence/f3/static-scene.md`: 20-min SIMULATION static scenes incl. the reviewer's cases
+  with 0 freeze false positives; bit-exact and looped streams confirmed, jittered freezes are a
+  documented miss. Open: the 20-min box on REAL HARDWARE (phone on a plain wall may decode
+  bit-exact while alive), transport-level freeze evidence for compressed sources (later phase),
+  recall/precision per detector, walk-by FOV trials, live probe p95 at 720p.
 
 ## Budget (update weekly from the Token Factory console)
 | Date | Ledger estimate (USD) | Console balance (USD) |

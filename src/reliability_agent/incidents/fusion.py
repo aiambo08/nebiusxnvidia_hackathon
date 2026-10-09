@@ -87,27 +87,22 @@ def classify_window(
     # Freeze is judged last: it needs a scene that can carry sensor noise. Blackout crushes the
     # noise (pixels repeat, even bit-exactly, on a live camera) and strong blur removes the
     # high-frequency detail that makes perceptual hashes differ, so those faults explain the
-    # missing motion (ADR-003). Hash repeats alone are never a freeze: a static scene repeats its
-    # perceptual hash too. They count only when the frame's own temporal noise has collapsed:
-    # under half a count in absolute terms (pixels mostly repeat) and relative to the noise baked
-    # into the frame (ADR-005), a per-window measurement with no learned history that motion
-    # could contaminate. Without a measurable ratio only bit-exact repeats and loops count.
+    # missing motion (ADR-003). Perceptual-hash repeats are never freeze evidence, with or
+    # without a temporal-noise collapse: a live static scene behind an H.264 encoder or an ISP
+    # denoiser decodes with the same hashes and no fresh noise at all (ADR-005). Only bit-exact
+    # repeats and loops count; the per-window noise figures ride along as diagnostic evidence.
     fz = r["freeze"]
-    if not dark:
-        noise_collapsed = (v.noise_ratio_p50 is not None
-                           and v.noise_ratio_p50 <= fz["noise_ratio_max"]
-                           and v.temporal_sigma_p50 is not None
-                           and v.temporal_sigma_p50 <= fz["temporal_sigma_max"])
-        blurred = F.FOCUS_DRIFT in faults
-        if (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (
-            not blurred and (v.repeated_hash_ratio or 0) >= fz["repeated_hash_ratio_min"]
-            and noise_collapsed
-        ) or (v.loop_period or 0) > 0:
-            hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
-                note="content frozen while transport connected")
-            if noise_collapsed:
-                ev.append(Evidence(metric="visual.noise_ratio_p50", value=v.noise_ratio_p50,
-                                   note="temporal noise collapsed vs spatial noise"))
+    if not dark and (
+        (v.exact_repeat_ratio or 0) >= fz["exact_repeat_ratio_min"] or (v.loop_period or 0) > 0
+    ):
+        hit(F.FREEZE, "visual.exact_repeat_ratio", v.exact_repeat_ratio,
+            note="content frozen while transport connected")
+        if v.loop_period:
+            ev.append(Evidence(metric="visual.loop_period", value=v.loop_period,
+                               note="frame sequence repeats with this period"))
+        if v.noise_ratio_p50 is not None:
+            ev.append(Evidence(metric="visual.noise_ratio_p50", value=v.noise_ratio_p50,
+                               note="temporal / spatial noise of the repeated frames"))
 
     fv = r["fov_shift"]
     if (g.quality == "ok" and g.homography_inlier_ratio is not None

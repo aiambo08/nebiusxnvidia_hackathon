@@ -35,10 +35,7 @@ faults:
   focus_drift:    { blur_effect_min: 0.55, blur_z_min: 4.0, edge_density_drop_min: 0.5 }
   freeze:
     exact_repeat_ratio_min: 0.9
-    repeated_hash_ratio_min: 0.95
-    temporal_mse_floor: 0.5        # absolute cap on "no motion" (ADR-003)
-    noise_ratio_max: 0.3           # hash repeats are a freeze only when temporal/spatial noise <= this (ADR-005)
-    temporal_sigma_max: 0.5        # ... and the temporal noise is under half a count (pixels mostly repeat)
+    # Perceptual-hash repeats and temporal-noise collapse are telemetry, not triggers (ADR-005)
   lens_occlusion: { occluded_cell_ratio_min: 0.30 }
   fov_shift:      { translation_px_min: 25, rotation_deg_min: 3.0, inlier_ratio_min: 0.35 }
   low_fps:        { fps_ratio_max: 0.5 }

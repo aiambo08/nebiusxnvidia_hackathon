@@ -114,11 +114,11 @@ CASES = [
     ("textured sigma 2, slow light drift 15%", dict(kind="textured", sigma=2.0, drift=0.15),
      False),
     ("textured sigma 2, frozen bit-exact", dict(kind="textured", sigma=2.0, freeze_at=300), True),
+    # informative only (None): a frozen frame re-emitted with decoder jitter is not bit-exact,
+    # and perceptual-hash repeats are not freeze evidence since ADR-005 (a live static scene
+    # behind an H.264 encoder repeats them too), so these are documented misses
     ("textured sigma 2, frozen + codec jitter 0.1",
-     dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.1), True),
-    # informative only (None): the noise ratio stays far under the cap (jitter / sigma), but
-    # per-frame decoder noise flips dHash bits once it reaches ~0.3 counts (hash repeat 1.0 ->
-    # 0.75 at 0.5 counts), so the hash path loses a frozen stream whose decoder is that noisy
+     dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.1), None),
     ("textured sigma 2, frozen + codec jitter 0.15",
      dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.15), None),
     ("textured sigma 2, frozen + codec jitter 0.2",
@@ -129,7 +129,7 @@ CASES = [
      dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.5), None),
     ("wall sigma 0.7, frozen bit-exact", dict(kind="wall", sigma=0.7, freeze_at=300), True),
     ("wall sigma 0.7, frozen + codec jitter 0.1",
-     dict(kind="wall", sigma=0.7, freeze_at=300, jitter=0.1), True),
+     dict(kind="wall", sigma=0.7, freeze_at=300, jitter=0.1), None),
     ("wall sigma 0.7, frozen + codec jitter 0.25",
      dict(kind="wall", sigma=0.7, freeze_at=300, jitter=0.25), None),
     ("textured sigma 2, loop of 4 frames", dict(kind="textured", sigma=2.0, freeze_at=300,
