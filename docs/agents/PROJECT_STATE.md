@@ -41,8 +41,8 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
   path, per-window freeze telemetry, reports without the URI, `tests/unit/test_spike_static_scene.py`),
   and `run_live` no longer judges the same `Frame.seq` twice on a source slower than
   `analytic_fps` (`tests/unit/test_runtime.py`), and `fov_shift` no longer fires on a smooth wall at rest:
-  `GeometryProbe` fits a rigid similarity instead of a homography that bent to noise keypoints
-  (SIMULATION, thresholds unchanged, `tests/unit/test_probes.py`; the 20 walk-by trials stay open),
+  `GeometryProbe` takes translation/rotation from a rigid similarity fit while the homography keeps
+  the inlier gate (ADR-006; SIMULATION, thresholds unchanged, `tests/unit/test_probes.py`; the 20 walk-by trials stay open),
   transport-level freeze evidence for compressed sources (later phase),
   recall/precision per detector, walk-by FOV trials, live probe p95 at 720p.
 

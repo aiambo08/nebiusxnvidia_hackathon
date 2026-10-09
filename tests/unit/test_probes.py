@@ -131,6 +131,33 @@ def test_geometry_reports_a_real_shift_and_rotation_of_a_noisy_wall():
     assert abs(gp.measure(cv2.equalizeHist(shifted)).values["translation_px"] - 40) < 5
 
 
+def _camera_turn(g: np.ndarray, yaw_deg: float = 0.0, tilt_deg: float = 0.0,
+                 hfov_deg: float = 60.0) -> np.ndarray:
+    """Physical pan/tilt of the camera: H = K R K^-1 for a pinhole with the given HFOV."""
+    h, w = g.shape
+    f = (w / 2) / np.tan(np.radians(hfov_deg) / 2)
+    k = np.array([[f, 0, w / 2], [0, f, h / 2], [0, 0, 1]])
+    y, t = np.radians(yaw_deg), np.radians(tilt_deg)
+    ry = np.array([[np.cos(y), 0, np.sin(y)], [0, 1, 0], [-np.sin(y), 0, np.cos(y)]])
+    rx = np.array([[1, 0, 0], [0, np.cos(t), -np.sin(t)], [0, np.sin(t), np.cos(t)]])
+    hm = k @ (rx @ ry) @ np.linalg.inv(k)
+    return cv2.warpPerspective(g, hm, (w, h), borderMode=cv2.BORDER_REFLECT)
+
+
+@pytest.mark.parametrize("turn", [dict(yaw_deg=10), dict(yaw_deg=15), dict(tilt_deg=15)])
+def test_geometry_keeps_large_camera_turns_measurable(scene, turn):
+    """Reviewer case (ADR-006): a 10–15° yaw/tilt is a perspective change; the rigid model alone
+    drops the inlier share under `inlier_ratio_min` 0.35, so the homography must keep supplying
+    it while the similarity reports the translation."""
+    _, g = scene
+    g = cv2.equalizeHist(g)
+    gp = GeometryProbe()
+    gp.set_reference(g)
+    v = gp.measure(cv2.equalizeHist(_camera_turn(g, **turn))).values
+    assert v["homography_inlier_ratio"] >= 0.35, v
+    assert v["translation_px"] >= 25, v
+
+
 def test_marker_task_degrades_with_faults(scene):
     _, g = scene
     task = MarkerTask({7})
