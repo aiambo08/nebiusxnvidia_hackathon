@@ -1,4 +1,16 @@
-"""Field-of-view drift via ORB features + RANSAC homography against a reference bank."""
+"""Field-of-view drift via ORB features against a reference bank (ADR-006).
+
+Two RANSAC fits over the same cross-checked matches:
+- an 8-DOF homography supplies `homography_inlier_ratio`, the measurement-quality gate the
+  `fov_shift` rule was calibrated on (a 10–15° yaw/tilt of a real camera is a perspective
+  change that a rigid model fits poorly: similarity inliers fall to 0.2–0.3);
+- a 4-DOF similarity (`cv2.estimateAffinePartial2D`) supplies `translation_px` and
+  `rotation_deg`: on a smooth scene `equalizeHist` turns sensor noise into hundreds of spurious
+  keypoints and the homography bends to them (SIMULATION, wall σ 0.7–4 at rest: translation
+  p95 27–48 px, max 94 px, rotation up to 3°, i.e. a false `fov_shift`), while the rigid model
+  cannot (p95 2.4–4.6 px, ≤ 1°) and still reports real shifts, rotations and slow pans.
+`translation_px` is the displacement of the image origin (`H[:, 2]`), so an in-plane rotation
+about the centre also contributes to it."""
 
 from __future__ import annotations
 
@@ -66,13 +78,22 @@ class GeometryProbe:
                 "geometry", quality="failed", unknown_reason="homography failed",
                 values={"match_count": float(len(matches)), "homography_inlier_ratio": 0.0},
             )
+        motion, _ = cv2.estimateAffinePartial2D(
+            src, dst, method=cv2.RANSAC, ransacReprojThreshold=self.reproj_px
+        )
+        if motion is None:  # never fall back to the homography's motion: on a wall it is the noise
+            return ProbeResult(
+                "geometry", quality="failed", unknown_reason="rigid motion fit failed",
+                values={"match_count": float(len(matches)),
+                        "homography_inlier_ratio": float(mask.sum()) / len(matches)},
+            )
         inliers = float(mask.sum()) / len(matches)
         return ProbeResult(
             "geometry",
             values={
                 "match_count": float(len(matches)),
                 "homography_inlier_ratio": inliers,
-                "translation_px": float(math.hypot(H[0, 2], H[1, 2])),
-                "rotation_deg": float(math.degrees(math.atan2(H[1, 0], H[0, 0]))),
+                "translation_px": float(math.hypot(motion[0, 2], motion[1, 2])),
+                "rotation_deg": float(math.degrees(math.atan2(motion[1, 0], motion[0, 0]))),
             },
         )

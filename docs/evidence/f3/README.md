@@ -111,6 +111,22 @@ camera address on stderr when a connection fails, so stderr is not evidence to p
 Structural answer for compressed sources: transport-level freeze evidence (RTP timestamps / frame
 counters), later phase.
 
+## `fov_shift` false positive on a smooth wall at rest (ADR-006) — SIMULATION
+Finding of the 20-min static-scene run: every smooth `wall` scene and every walk-by case confirmed
+`fov_shift` with the camera at rest. `equalizeHist` amplifies sensor noise into ~210 spurious ORB
+keypoints and the 8-DOF homography fitted through them still finds ≈ 60 % inliers while its
+translation bends to the noise (σ 0.7–4: p95 27–48 px, max 94 px, rotation up to 3°; 14–33 of
+180 windows met the rule, confirmations at σ 2 and 4). `GeometryProbe` now takes `translation_px`
+and `rotation_deg` from a 4-DOF similarity (`cv2.estimateAffinePartial2D`, same RANSAC
+threshold) — same scenes p95 2.4–4.6 px, rotation ≤ 1°, 0 `fov_shift` windows at rest and in the
+walk-by / small-object cases — while `homography_inlier_ratio` stays the homography's inlier
+share, because the independent review showed a rigid-only probe loses real 10–15° physical
+yaw/tilt turns on a textured scene (inliers 0.20–0.34 < 0.35). 25–40 px shifts, 4–5° rotations,
+0.2–1 px/frame pans and 10–15° yaw/tilt stay confirmed; a pure keystone without translation and
+an in-plane rotation of exactly 3° on a smooth wall are not (documented in the ADR). Thresholds
+and contract unchanged; `static-scene.md` regenerated without `fov_shift` findings; probe cost
+unchanged. Tests: `tests/unit/test_probes.py::test_geometry_*`.
+
 ## Open F3 boxes
 Recall/precision per detector (≥ 10 runs per fault), the 20 walk-by trials for `fov_shift`, and the
 probe-set p95 ≤ 40 ms/frame at 720p are not measured yet. The 20-min static-scene freeze
