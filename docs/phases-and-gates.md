@@ -16,7 +16,7 @@ recalibrated with real camera data.
 | F0 | Compliance & scope freeze | 1 | Architecture + Nebius | in progress |
 | F1 | Feasibility spikes | 1 | All | in progress |
 | F2 | Ingestion & observability | 1 | Ingestion | in progress |
-| F3 | Visual monitors | 2 | Vision | scaffolded |
+| F3 | Visual monitors | 2 | Vision | in progress |
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | scaffolded |
 | F6 | Nemotron integration | 3 | Nebius | scaffolded |
@@ -80,8 +80,8 @@ blocking reconnect must be fixed first).
 
 ## F3 — Visual monitors
 On ≥ 10 runs per fault:
-- [ ] Recall ≥ 0.90 for blackout, freeze, strong blur, strong occlusion
-- [ ] Precision ≥ 0.85 per detector
+- [ ] Recall ≥ 0.90 for blackout, freeze, strong blur, strong occlusion (SIMULATION passes: 1.00 / 1.00 / 0.96 / 1.00 on 24–36 seeded runs per fault, `scripts/bench_detectors.py` → `docs/evidence/f3/detectors.md`; REAL HARDWARE clips pending, F4)
+- [ ] Precision ≥ 0.85 per detector (SIMULATION passes: 1.00 for blackout, freeze, focus_drift, overexposure; 0.96 for lens_occlusion — one extreme-blur run attributed to occlusion; 0 confirmations on 24 negative-control runs, same report)
 - [ ] 0 freeze false positives on a 20-min static scene with healthy capture (SIMULATION passes with ADR-003 + ADR-005, `docs/evidence/f3/static-scene.md`, incl. walk-by, small/low-contrast objects, low-noise walls and temporal denoiser via bit-exact repeats on the ≤ 640 px probe input frame, AGC and light drift; H.264 and denoised live scenes are covered by `tests/unit/test_noise_ratio.py` and `tests/unit/test_baseline_fusion.py`, not by the benchmark; REAL HARDWARE run on the owner's webcam and phone — textured room and plain wall — still to be measured)
 - [ ] 0 "camera moved" false positives across ≥ 20 person-walk-by trials
 - [ ] Probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS

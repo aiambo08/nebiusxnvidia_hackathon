@@ -17,6 +17,11 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
 - F1 replay tooling: record a clean clip, inject seeded blur/dark/freeze, replay it through
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.
+- F3 recall/precision box (SIMULATION, `scripts/bench_detectors.py` → `docs/evidence/f3/detectors.md`):
+  156 seeded runs, blackout/freeze/occlusion recall 1.00, strong blur 0.96, precision 1.00 except
+  lens_occlusion 0.96, 0 confirmations on 24 negative controls. Two fusion mis-attributions found
+  and fixed (saturation ⇒ no `lens_occlusion`/`focus_drift` claim, ADR-003 principle); one
+  documented miss (extreme defocus read as occlusion). REAL HARDWARE recall/precision is F4.
 - F3 started: spurious `freeze` on dark/blurred live scenes fixed by causal suppression (ADR-003,
   `docs/evidence/f3/`); owner to confirm on the real clip replay. The absolute MSE floor that
   flagged a healthy σ=2 static scene was first replaced by a learned camera-relative noise floor

@@ -26,6 +26,8 @@ EXPECTED: dict[str, FaultType] = {
     "freeze": FaultType.FREEZE,
     "overexpose": FaultType.OVEREXPOSURE,
     "occlude_opaque": FaultType.LENS_OCCLUSION,
+    "loop4": FaultType.FREEZE,  # short replayed loops are a freeze variant (bit-exact period rule)
+    "loop8": FaultType.FREEZE,
 }
 
 
@@ -98,7 +100,9 @@ def inject(frames: Iterable[np.ndarray], kind: str | None, start: int, end: int,
 def score(res: ReplayResult, kind: str | None, fault_start_s: float, clip_fps: float,
           cfg: dict) -> dict:
     """Pass = expected fault confirmed after onset and no confirmation before it (or at all for
-    the negative control)."""
+    a negative control: `kind=None` or an injector without an `EXPECTED` entry, e.g. a
+    legitimate lighting change)."""
+    expected = EXPECTED.get(kind) if kind else None
     win_s = cfg["window"]["seconds"]
     pre = [w for w in res.windows if w.t_end_s < fault_start_s]
     pre_suspect = sum(1 for w in pre if w.faults)
@@ -106,18 +110,18 @@ def score(res: ReplayResult, kind: str | None, fault_start_s: float, clip_fps: f
                    if res.confirmed_window is not None else None)
     out = {
         "kind": kind or "none",
-        "expected": str(EXPECTED[kind]) if kind else None,
+        "expected": str(expected) if expected else None,
         "windows": len(res.windows),
         "confirmed_faults": res.confirmed_faults,
         "confirmed_at_s": confirmed_t,
         "detection_delay_s": (round(confirmed_t - fault_start_s, 2)
-                              if confirmed_t is not None and kind else None),
+                              if confirmed_t is not None and expected else None),
         "pre_fault_suspect_windows": pre_suspect,
         "window_s": win_s,
     }
-    if kind is None:
+    if expected is None:
         out["passed"] = res.confirmed_window is None
     else:
         out["passed"] = (confirmed_t is not None and confirmed_t >= fault_start_s
-                         and str(EXPECTED[kind]) in res.confirmed_faults)
+                         and str(expected) in res.confirmed_faults)
     return out

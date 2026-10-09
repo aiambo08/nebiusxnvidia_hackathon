@@ -61,6 +61,19 @@ def test_blackout_is_not_reported_as_occlusion_or_blur(cfg):
     assert set(faults) == {FaultType.BLACKOUT}
 
 
+def test_saturation_is_not_reported_as_occlusion_or_blur(cfg):
+    """A clipped-white sensor makes every cell uniform and edge-less, and leaves no edges to judge
+    focus on (found by `scripts/bench_detectors.py`: every overexposure run also confirmed
+    lens_occlusion, and focus_drift once occlusion was suppressed)."""
+    w = make_window(visual=dict(brightness_p50=250.0, white_pixel_ratio=0.95,
+                                occluded_cell_ratio=1.0, blur_effect_p50=0.9))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert set(faults) == {FaultType.OVEREXPOSURE}
+    w = make_window(visual=dict(white_pixel_ratio=0.1, occluded_cell_ratio=0.6))
+    faults, _ = classify_window(w, None, cfg["faults"])
+    assert FaultType.LENS_OCCLUSION in faults
+
+
 def _tracker(cfg):
     f = cfg["fusion"]
     return IncidentTracker("cam", cfg["faults"], f["enter_windows"], f["exit_windows"],
