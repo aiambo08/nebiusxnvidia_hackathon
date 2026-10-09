@@ -11,8 +11,12 @@ fed by `CaptureWorker` from a real source. Logs per window the freeze telemetry 
 - spikes/static-scene-<label>.md   summary (commit it as evidence)
 - spikes/static-scene-<label>.json per-window series + worker `health()` (never the URI)
 
-Exit code 1 if `freeze` is confirmed: the scene is expected to be a *healthy* camera at rest.
-The label is a free tag for the report file name; a URL or IP address in it is rejected.
+Verdict (same criterion as `docs/evidence/f3/static-scene.md`): FAIL, exit 1, if any window
+reports `freeze`; INCONCLUSIVE, exit 3, if the source did not deliver frames for almost the whole
+run (valid windows < 95 % or `stream_down` / `low_fps` seen); PASS, exit 0, otherwise. The scene is
+expected to be a *healthy* camera at rest. The label is a free tag for the report file name; a URL
+or IP address in it is rejected. The reports never contain the URI, but FFmpeg may print
+`tcp://<ip>:<port>` on stderr when a connection fails: review stderr before pasting it anywhere.
 """
 
 from __future__ import annotations
@@ -32,6 +36,8 @@ from reliability_agent.config import REPO_ROOT, load_config
 from reliability_agent.incidents.fusion import IncidentTracker
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 
+VALID_MIN = 0.95  # share of windows with frames below which the run is INCONCLUSIVE
+TRANSPORT_FAULTS = {"stream_down", "low_fps"}
 METRICS = ("exact_repeat_ratio", "noise_ratio_p50", "temporal_sigma_p50", "temporal_mse_p50",
            "repeated_hash_ratio", "loop_period")
 
@@ -52,12 +58,33 @@ def summarise(windows: list[dict[str, Any]], freeze_min: float) -> dict[str, Any
         "exact_repeat_ge_min": sum(
             (w["exact_repeat_ratio"] or 0.0) >= freeze_min for w in windows),
         "loop_windows": sum((w["loop_period"] or 0) > 0 for w in windows),
+        "transport_fault_windows": sum(
+            bool(TRANSPORT_FAULTS & set(w["faults"])) for w in windows),
         "metrics": {},
     }
     for w in windows:
         if w["confirmed"]:
             out["confirmed"], out["confirmed_at_s"] = w["confirmed"], w["t_s"]
             break
+    if out["freeze_windows"]:
+        first = next(w["t_s"] for w in windows if "freeze" in w["faults"])
+        out["verdict"] = (f"FAIL: `freeze` in {out['freeze_windows']} window(s), first at "
+                          f"{first:.0f} s" + (f"; confirmed: {', '.join(out['confirmed'])} at "
+                                              f"{out['confirmed_at_s']:.0f} s"
+                                              if out["confirmed"] else ""))
+        out["exit_code"] = 1
+    elif (not windows or out["valid_windows"] < VALID_MIN * len(windows)
+          or out["transport_fault_windows"]):
+        out["verdict"] = (f"INCONCLUSIVE: {out['valid_windows']}/{len(windows)} windows with "
+                          f"frames, {out['transport_fault_windows']} with stream_down/low_fps; "
+                          "the source did not deliver a steady picture")
+        out["exit_code"] = 3
+    else:
+        out["verdict"] = "PASS: no `freeze` window on a camera at rest"
+        if out["confirmed"]:
+            out["verdict"] += (f"; finding: {', '.join(out['confirmed'])} confirmed at "
+                               f"{out['confirmed_at_s']:.0f} s (another detector)")
+        out["exit_code"] = 0
     for m in METRICS:
         vals = [float(w[m]) for w in windows if w.get(m) is not None]
         out["metrics"][m] = {"p50": _pct(vals, 50), "p95": _pct(vals, 95),
@@ -66,17 +93,10 @@ def summarise(windows: list[dict[str, Any]], freeze_min: float) -> dict[str, Any
 
 
 def render(label: str, kind: str, minutes: float, fps: float, shape: str,
-           summ: dict[str, Any], health: dict[str, Any], stalled_polls: int,
+           summ: dict[str, Any], health: dict[str, Any], stalled_polls: int, polls: int,
            freeze_min: float) -> str:
     tr = health.get("transport", {})
     m = summ["metrics"]
-    verdict = ("FAIL: `freeze` confirmed at "
-               f"{summ['confirmed_at_s']:.0f} s ({', '.join(summ['confirmed'])})"
-               if summ["confirmed"] and "freeze" in summ["confirmed"]
-               else "PASS: no `freeze` confirmed on a camera at rest")
-    if summ["confirmed"] and "freeze" not in summ["confirmed"]:
-        verdict += f"; finding: {', '.join(summ['confirmed'])} confirmed at " \
-                   f"{summ['confirmed_at_s']:.0f} s"
     lines = [
         f"# Static-scene spike `{label}` (Gate F3) — REAL HARDWARE" if kind != "synthetic"
         else f"# Static-scene spike `{label}` (Gate F3) — SIMULATION (dry run)",
@@ -87,10 +107,10 @@ def render(label: str, kind: str, minutes: float, fps: float, shape: str,
         f"{summ['other_fault_windows']}",
         f"- windows with exact_repeat_ratio >= {freeze_min:g}: {summ['exact_repeat_ge_min']}; "
         f"loop windows: {summ['loop_windows']}; stalled polls (same frame twice): "
-        f"{stalled_polls}",
+        f"{stalled_polls}/{polls}",
         f"- capture fps: {tr.get('capture_fps')}, decode errors: {tr.get('decode_errors')}, "
         f"reconnects: {tr.get('reconnect_count')}, dropped: {tr.get('dropped_frames')}",
-        f"- result: {verdict}",
+        f"- result: {summ['verdict']}",
         "",
         "| metric | p50 | p95 | max | n |",
         "|---|---|---|---|---|",
@@ -108,7 +128,7 @@ def main() -> int:
                     help="tag for the report file name (no IP/URL)")
     ap.add_argument("--synthetic", action="store_true", help="dry run without hardware")
     args = ap.parse_args()
-    if re.search(r"://|\d{1,3}(\.\d{1,3}){3}", args.label):
+    if re.search(r"://|\d{1,3}([.-]\d{1,3}){3}", args.label):
         ap.error("--label must not contain a URL or an IP address (reports are committed)")
     label = re.sub(r"[^A-Za-z0-9_-]+", "-", args.label).strip("-") or "scene"
     cfg = load_config()
@@ -127,7 +147,7 @@ def main() -> int:
     worker.start()
     windows: list[dict[str, Any]] = []
     shape = "?"
-    stalled = 0
+    stalled = polls = 0
     last_seq = -1
     calibrated = False
     t_start = time.monotonic()
@@ -139,6 +159,7 @@ def main() -> int:
             f = worker.buffer.latest()
             if f is None:
                 continue
+            polls += 1
             if f.seq == last_seq:
                 stalled += 1  # no new frame since the last poll: do not judge the same pixels twice
                 continue
@@ -149,13 +170,7 @@ def main() -> int:
                 calibrated = True
             agg.add(runner.analyse(f))
         now = time.monotonic() - t_start
-        try:
-            tw = agg.emit(worker.meter.snapshot(), runner._geom_quality)
-        except Exception:  # noqa: BLE001  (no frame yet: handshake / warm-up)
-            windows.append({"t_s": round(now, 1), "frames": 0, "state": tracker.fsm.state.value,
-                            "faults": [], "confirmed": None,
-                            **{m: None for m in METRICS}})
-            continue
+        tw = agg.emit(worker.meter.snapshot(), runner._geom_quality)  # frames_analyzed may be 0
         st = tracker.step(tw, now_s=now)
         row = {"t_s": round(now, 1), "frames": tw.frames_analyzed, "state": st.state.value,
                "faults": sorted(map(str, st.faults)),
@@ -170,16 +185,18 @@ def main() -> int:
     worker.stop()
     summ = summarise(windows, freeze_min)
     kind = "synthetic" if args.synthetic else src.kind
-    report = render(label, kind, args.minutes, fps, shape, summ, health, stalled, freeze_min)
+    report = render(label, kind, args.minutes, fps, shape, summ, health, stalled, polls,
+                    freeze_min)
     out_dir = REPO_ROOT / "spikes"
     out_dir.mkdir(exist_ok=True)
     (out_dir / f"static-scene-{label}.md").write_text(report, encoding="utf-8")
     (out_dir / f"static-scene-{label}.json").write_text(
         json.dumps({"label": label, "source_kind": kind, "frame": shape, "summary": summ,
-                    "health": health, "stalled_polls": stalled, "windows": windows},
+                    "health": health, "stalled_polls": stalled, "polls": polls,
+                    "windows": windows},
                    indent=2) + "\n", encoding="utf-8")
     print(report)
-    return 1 if summ["confirmed"] and "freeze" in summ["confirmed"] else 0
+    return int(summ["exit_code"])
 
 
 if __name__ == "__main__":

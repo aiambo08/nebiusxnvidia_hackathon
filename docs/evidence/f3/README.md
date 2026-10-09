@@ -100,7 +100,11 @@ logged, before the 20-min box is ticked (`docs/agents/TASKS.md`). Tool for that 
 path (`CaptureWorker` -> probes -> windows -> baseline -> `IncidentTracker`) on a live source and
 writes `spikes/static-scene-<tag>.md` (summary, quantiles of the three fields, verdict) and
 `spikes/static-scene-<tag>.json` (per-window series + worker `health()`); neither contains the URI,
-and a label with a URL or IP is rejected. Exit 1 if `freeze` is confirmed. Dry run:
+and a label with a URL or IP is rejected. Verdict with the same criterion as the table above: FAIL
+(exit 1) on any `freeze` window, INCONCLUSIVE (exit 3) when the source did not deliver frames for
+≥ 95 % of the windows or `stream_down`/`low_fps` appeared, PASS otherwise; another detector
+confirming on the healthy scene is reported as a finding, as in the table. FFmpeg may print the
+camera address on stderr when a connection fails, so stderr is not evidence to paste. Dry run:
 `--synthetic --minutes 0.5` (SIMULATION, 0 freeze windows, `tests/unit/test_spike_static_scene.py`).
 Structural answer for compressed sources: transport-level freeze evidence (RTP timestamps / frame
 counters), later phase.

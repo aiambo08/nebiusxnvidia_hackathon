@@ -31,19 +31,46 @@ def test_summarise_counts_freeze_windows_and_first_confirmation():
     assert s["metrics"]["exact_repeat_ratio"]["n"] == 6
     assert s["metrics"]["exact_repeat_ratio"]["max"] == 1.0
     assert s["metrics"]["noise_ratio_p50"]["p50"] == 1.0
+    assert s["exit_code"] == 1
+    assert s["verdict"].startswith("FAIL: `freeze` in 4 window(s), first at 3 s")
+
+
+def test_freeze_windows_after_another_confirmed_incident_still_fail():
+    """The tracker stays CONFIRMED without an orchestrator, so a later freeze never 'confirms';
+    the verdict counts freeze windows, like `static-scene.md` (reviewer finding)."""
+    rows = [_row(1.0, ["fov_shift"]), _row(2.0, ["fov_shift"]),
+            _row(3.0, ["fov_shift"], confirmed=["fov_shift"])]
+    rows += [_row(10.0 + i, ["freeze"], exact=1.0) for i in range(10)]
+    s = spike.summarise(rows, 0.9)
+    assert s["confirmed"] == ["fov_shift"] and s["freeze_windows"] == 10
+    assert s["exit_code"] == 1 and "FAIL" in s["verdict"] and "fov_shift" in s["verdict"]
+
+
+def test_no_picture_is_inconclusive_not_pass():
+    empty = [_row(float(t), frames=0, exact=None, loop=None) for t in range(1, 25)]
+    s = spike.summarise(empty, 0.9)
+    assert s["exit_code"] == 3 and s["verdict"].startswith("INCONCLUSIVE: 0/24")
+    cut = [_row(1.0), _row(2.0)] + [_row(float(t), ["stream_down"], frames=0, exact=None,
+                                         loop=None) for t in range(3, 25)]
+    s = spike.summarise(cut, 0.9)
+    assert s["exit_code"] == 3 and "22 with stream_down/low_fps" in s["verdict"]
+    assert spike.summarise([], 0.9)["exit_code"] == 3
+    one_hiccup = [_row(float(t)) for t in range(1, 40)] + [_row(40.0, frames=0, exact=None,
+                                                                loop=None)]
+    assert spike.summarise(one_hiccup, 0.9)["exit_code"] == 0
 
 
 def test_render_verdicts():
     healthy = spike.summarise([_row(1.0), _row(2.0)], 0.9)
-    txt = spike.render("wall", "rtsp", 20, 5, "640x480", healthy, {"transport": {}}, 0, 0.9)
-    assert "REAL HARDWARE" in txt and "PASS: no `freeze`" in txt
+    txt = spike.render("wall", "rtsp", 20, 5, "640x480", healthy, {"transport": {}}, 0, 10, 0.9)
+    assert "REAL HARDWARE" in txt and "PASS: no `freeze` window" in txt and "0/10" in txt
     frozen = spike.summarise([_row(3.0, ["freeze"], confirmed=["freeze"], exact=1.0)], 0.9)
-    txt = spike.render("wall", "rtsp", 20, 5, "640x480", frozen, {"transport": {}}, 0, 0.9)
-    assert "FAIL: `freeze` confirmed at 3 s" in txt
+    txt = spike.render("wall", "rtsp", 20, 5, "640x480", frozen, {"transport": {}}, 0, 5, 0.9)
+    assert "FAIL: `freeze` in 1 window(s), first at 3 s; confirmed: freeze at 3 s" in txt
     other = spike.summarise([_row(9.0, ["fov_shift"], confirmed=["fov_shift"])], 0.9)
-    txt = spike.render("wall", "rtsp", 20, 5, "640x480", other, {"transport": {}}, 0, 0.9)
+    txt = spike.render("wall", "rtsp", 20, 5, "640x480", other, {"transport": {}}, 0, 5, 0.9)
     assert txt.count("PASS") == 1 and "finding: fov_shift confirmed at 9 s" in txt
-    dry = spike.render("x", "synthetic", 1, 5, "640x480", healthy, {"transport": {}}, 0, 0.9)
+    dry = spike.render("x", "synthetic", 1, 5, "640x480", healthy, {"transport": {}}, 0, 5, 0.9)
     assert "SIMULATION" in dry
 
 
@@ -56,13 +83,15 @@ def test_dry_run_writes_reports_without_the_uri(tmp_path, monkeypatch):
     js = json.loads((md.with_suffix(".json")).read_text())
     assert "SIMULATION" in md.read_text()
     assert js["summary"]["windows"] >= 4 and js["summary"]["freeze_windows"] == 0
-    assert js["summary"]["confirmed"] is None
+    assert js["summary"]["confirmed"] is None and js["summary"]["exit_code"] == 0
+    assert js["polls"] >= js["summary"]["windows"] * 4 and js["stalled_polls"] == 0
     assert js["windows"][-1]["exact_repeat_ratio"] == 0.0
     assert js["windows"][-1]["noise_ratio_p50"] is not None
     assert "uri" not in json.dumps(js).lower()
 
 
-@pytest.mark.parametrize("label", ["rtsp://10.0.0.1:8080/x", "wall 192.168.1.20", "http://cam/video"])
+@pytest.mark.parametrize("label", ["rtsp://10.0.0.1:8080/x", "wall 192.168.1.20",
+                                   "http://cam/video", "wall-192-168-1-20"])
 def test_label_with_url_or_ip_is_rejected(label, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["spike", "--synthetic", "--minutes", "0.1", "--label", label])
     with pytest.raises(SystemExit) as e:
