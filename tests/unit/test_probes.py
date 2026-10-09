@@ -206,12 +206,35 @@ def test_live_wall_behind_temporal_denoiser_is_not_bit_exact():
     assert r.values["exact_repeat_ratio"] < 0.5
 
 
-def test_periodic_flicker_on_a_live_sensor_is_not_a_loop():
+def test_periodic_flicker_on_a_live_sensor_is_a_loop_only_through_the_mse_floor():
+    """A 4-level flicker (period 4, every step +-4 counts) on a live sigma 0.7 sensor: the
+    full-resolution frames are never bit-exact across the period, but the 160x120 period MSE
+    (noise variance / 16) sits under `loop_mse_max`, so the MSE floor still reports a loop.
+    Pre-existing on `main`, kept on purpose: lowering it would cost replayed-buffer recall
+    (ADR-005 consequences)."""
     rng = np.random.default_rng(3)
-    ft = FreezeTracker(window=10, max_loop_period=8)
+    exact_only = FreezeTracker(window=10, max_loop_period=8, loop_mse_max=0.0)
+    with_floor = FreezeTracker(window=10, max_loop_period=8)
     for i in range(40):
-        r = ft.update(_wall(rng, 120 + (4 if i % 4 < 2 else -4), 0.7))
-    assert r.values["loop_period"] == 0
+        f = _wall(rng, 120 + (0, 4, 8, 4)[i % 4], 0.7)
+        r_exact = exact_only.update(f)
+        r_floor = with_floor.update(f)
+    assert r_exact.values["loop_period"] == 0
+    assert r_floor.values["loop_period"] == 4
+
+
+@pytest.mark.parametrize("shape", [(480, 640), (720, 1280)])
+@pytest.mark.parametrize("jitter", [0.1, 0.45])
+def test_replayed_moving_buffer_with_decoder_jitter_is_still_a_loop(shape, jitter):
+    rng = np.random.default_rng(6)
+    base = [_wall(rng, 120, 2.0, shape) for _ in range(4)]
+    for k, f in enumerate(base):  # real motion between frames: a bright block that moves
+        f[100:160, 100 + 80 * k : 160 + 80 * k] = 220
+    ft = FreezeTracker(window=10, max_loop_period=8)
+    for i in range(24):
+        f = np.clip(np.rint(base[i % 4] + rng.normal(0, jitter, shape)), 0, 255).astype(np.uint8)
+        r = ft.update(f)
+    assert r.values["loop_period"] == 4
 
 
 @pytest.mark.parametrize("jitter", [0.0, 0.1])

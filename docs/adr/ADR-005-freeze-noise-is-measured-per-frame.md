@@ -95,9 +95,14 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
   buffer, encoder repeating a frame — a frozen frame behind libx264 CRF 28 decodes bit-exact and
   is confirmed): these are bit-exact. **Documented miss:** a frozen frame re-emitted with
   per-frame decoder noise is neither bit-exact nor, since this ADR, claimable through hash
-  repeats; the 160×120 analysis image still averages jitter 0.1 away (confirmed), the miss
-  starts at jitter ≥ 0.15 on texture and ≥ 0.2 on a wall (independent review; `main` caught
-  0.15–0.2 on texture through the hash path). `scripts/bench_static_scene.py` reports those
+  repeats. While exact repeats were judged on the 160×120 analysis image, jitter 0.1 still
+  averaged away and was confirmed, with the miss starting at ≥ 0.15 on texture and ≥ 0.2 on a
+  wall (independent review; `main` caught 0.15–0.2 on texture through the hash path). Since
+  exact repeats are judged on the full-resolution frame (follow-up PR), any decoder jitter
+  breaks equality (jitter 0.1: windows with `exact_repeat_ratio` ≥ 0.9 fall from 1.00 to
+  0.08 at 640×480 and 0.04–0.33 at 720p in the reviewer's harness; the benchmark's
+  "frozen + jitter 0.1" cases went from confirmed in 4 s to INFO), so the miss now starts at
+  any non-zero jitter. `scripts/bench_static_scene.py` reports those
   cases as INFO. Catching it needs transport evidence, not pixels.
 - **Pre-existing risk, now measured (REAL HARDWARE to decide):** a live *smooth* scene over
   H.264 decodes bit-exact (table above), so the bit-exact rule itself can fire on a healthy
@@ -106,19 +111,25 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
   plain wall, with `exact_repeat_ratio`, `noise_ratio_p50` and `temporal_sigma_p50` logged.
   The structural answer for compressed sources is transport-level freeze evidence (RTP
   timestamps / decoder frame counters), recorded in `docs/agents/TASKS.md` for a later phase.
-- **Pre-existing bit-exact false positives (independent review, 5th pass, SIMULATION) — fixed
-  in the follow-up PR:** `exact_repeat_ratio` used to be computed on the 160×120 INTER_AREA
-  analysis image, where 16 raw pixels average into one, so a live smooth wall with sensor
-  σ ≤ 0.4 rounded to the same image every frame (σ 0.3: 120/120 windows; σ 0.4: 22/120), as did a
-  raw σ 0.7 sensor behind an 8-bit temporal denoiser α ≥ 0.8 (129–240/240), and a ±4-count
-  flicker with a 4-frame period tripped the loop rule (300/420). Since the follow-up,
-  `FreezeTracker` judges bit-exact repeats and the loop period on the full-resolution frame
-  (≈ 300k pixels never all coincide while the sensor is alive; the 160×120 image only screens
-  that consecutive frames differ), and `loop_mse_max` lives in `configs/default.yaml`
-  (`probes.loop_mse_max`, 0.5, value unchanged). Those raw-sensor cases now give
-  `exact_repeat_ratio` 0 and `loop_period` 0 (`tests/unit/test_probes.py`). What the fix cannot
-  reach is the compressed case above: libx264 decodes a live smooth wall bit-exact at full
-  resolution at every CRF tried (23/28/35), and a textured scene from CRF 28 up — the H.264
-  encoder itself repeats the pixels, so only transport evidence can tell it from a freeze.
+- **Pre-existing bit-exact false positives (independent review, 5th pass, SIMULATION) — the
+  raw-sensor ones fixed in the follow-up PR:** `exact_repeat_ratio` used to be computed on the
+  160×120 INTER_AREA analysis image, where 16 raw pixels average into one, so a live smooth
+  wall with sensor σ ≤ 0.4 rounded to the same image every frame (σ 0.3: 120/120 windows; σ 0.4:
+  22/120), as did a raw σ 0.7 sensor behind an 8-bit temporal denoiser α ≥ 0.8 (129–240/240).
+  Since the follow-up, `FreezeTracker` judges bit-exact repeats, and the bit-exact *period* of a
+  loop, on the full-resolution frame (≈ 300k pixels never all coincide while the sensor is
+  alive); those cases now give `exact_repeat_ratio` 0 (`tests/unit/test_probes.py`). The
+  MSE-floor loop branch stays on the 160×120 image with `loop_mse_max` 0.5 (now
+  `probes.loop_mse_max` in config, same value and same meaning): judging it at full resolution
+  would have made it 16× stricter on noise and lost replayed-buffer loops with decoder jitter
+  (reviewer: p2/p4/p8 at 480 from 1.0/1.0/0.94 to 0.50/0.25/0.42; p8 at 720p texture 0.94 → 0.08).
+  Trade-offs accepted and measured: (a) a frozen frame with decoder jitter ≥ 0.1 is a miss (see
+  above); (b) a periodic multi-level flicker on a live sensor still trips the MSE-floor loop
+  branch (pre-existing on `main`, ±4 counts period 4 at σ 0.7: 300/420 windows; `tests/unit/
+  test_probes.py::test_periodic_flicker_on_a_live_sensor_is_a_loop_only_through_the_mse_floor`),
+  open in `docs/agents/TASKS.md`. What no pixel rule can reach is the compressed case above:
+  libx264 decodes a live smooth wall bit-exact at full resolution at every CRF tried (23/28/35),
+  and a textured scene from CRF 28 up — the encoder itself repeats the pixels, so only transport
+  evidence can tell it from a freeze.
 - Contract change: `VisualMetrics.noise_ratio_p50` and `temporal_sigma_p50` added (Architecture
   role); they are telemetry and incident evidence, and feed no rule.

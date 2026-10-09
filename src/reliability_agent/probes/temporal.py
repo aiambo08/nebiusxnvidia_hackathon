@@ -120,12 +120,12 @@ class FreezeTracker:
 
     def _loop_period(self) -> int:
         """Smallest p in [2, max] such that frame[t-i] ~= frame[t-i-p] for i < p while consecutive
-        frames differ: either pixel MSE below the loop floor with real motion between frames, or a
-        bit-exact period (a replayed buffer) on frames that merely differ by noise. Steps are
-        screened on the 160x120 analysis image; the period itself is judged on the full-resolution
-        frames, where sensor noise never averages away, so a live scene (static, or flickering
-        with a period) is never a loop while a replayed buffer, bit-exact or re-encoded with
-        decoder jitter, is."""
+        frames differ: either pixel MSE below the loop floor with real motion between frames (both
+        on the 160x120 analysis image, as before), or a bit-exact period on the full-resolution
+        frames (a replayed buffer whose frames merely differ by noise). A live static scene has
+        consecutive frames that are equal up to noise but never bit-exact across a period at full
+        resolution, so it is never reported as a loop; a bit-exact repeat of one frame is a freeze,
+        not a loop."""
         fr = list(self._frames)
         full = list(self._full)
 
@@ -136,14 +136,13 @@ class FreezeTracker:
             if len(fr) < 2 * p:
                 break
             tail = fr[-2 * p :]
+            period = [mse(tail[i], tail[i + p]) for i in range(p)]
             step = [mse(tail[i], tail[i + 1]) for i in range(p)]
-            if not all(d > 0.0 for d in step):
-                continue
-            tail_full = full[-2 * p :]
-            period = [mse(tail_full[i], tail_full[i + p]) for i in range(p)]
-            if all(d == 0.0 for d in period):
-                return p
             if all(d <= self.loop_mse_max for d in period) and all(d > self.loop_mse_max
                                                                    for d in step):
                 return p
+            if all(d > 0.0 for d in step):
+                tail_full = full[-2 * p :]
+                if all(np.array_equal(tail_full[i], tail_full[i + p]) for i in range(p)):
+                    return p
         return 0

@@ -33,8 +33,9 @@ Last update: 2026-10-08 · Current phase: **F3** (F1/F2: every box evidenced, in
   with 0 freeze false positives; bit-exact and looped streams confirmed, jittered freezes are a
   documented miss. Open: the 20-min box on REAL HARDWARE (phone on a plain wall may decode
   bit-exact while alive: libx264 repeats a live smooth wall bit-exact at full resolution at every
-  CRF, SIMULATION; the raw-sensor cases — σ ≤ 0.4 wall, strong temporal denoiser, periodic
-  flicker — are fixed since bit-exact repeats and loops are judged on the full-resolution frame),
+  CRF, SIMULATION; the raw-sensor cases — σ ≤ 0.4 wall, strong temporal denoiser — are fixed since bit-exact
+  repeats are judged on the full-resolution frame, at the cost of missing frozen + jitter 0.1;
+  periodic flicker still trips the 160×120 MSE-floor loop branch, pre-existing),
   transport-level freeze evidence for compressed sources (later phase),
   recall/precision per detector, walk-by FOV trials, live probe p95 at 720p.
 
