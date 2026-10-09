@@ -1,6 +1,6 @@
 # Project state
 
-Last update: 2026-10-08 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 22
+Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 21
 
 ## Snapshot
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
@@ -37,6 +37,8 @@ Last update: 2026-10-08 · Current phase: **F3** (F1/F2: every box evidenced, in
   repeats are judged on the probe input frame (≤ 640 px side) instead of the 160×120 image, at
   the cost of missing frozen + jitter 0.1 and replayed static buffer + jitter 0.1; 720p σ 0.1 / 1080p σ ≤ 0.2 and MJPEG q ≤ 50 still repeat;
   periodic flicker still trips the 160×120 MSE-floor loop branch, pre-existing),
+  tool ready for the owner's run: `scripts/spike_static_scene.py` (live source -> production
+  path, per-window freeze telemetry, reports without the URI, `tests/unit/test_spike_static_scene.py`),
   transport-level freeze evidence for compressed sources (later phase),
   recall/precision per detector, walk-by FOV trials, live probe p95 at 720p.
 
