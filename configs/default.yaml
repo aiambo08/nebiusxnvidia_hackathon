@@ -22,6 +22,7 @@ probes:
   blur_kernel: 11        # Crete-Roffet re-blur kernel
   freeze_window: 10      # frames considered for repeat/loop detection
   max_loop_period: 8
+  loop_mse_max: 0.5      # full-resolution MSE under which a periodic frame counts as replayed
   geometry:
     every_n_frames: 5
     orb_features: 500

@@ -75,6 +75,7 @@ class FreezeTracker:
         self._prev: np.ndarray | None = None
         self._prev_full: np.ndarray | None = None
         self._frames: deque[np.ndarray] = deque(maxlen=2 * max_loop_period)
+        self._full: deque[np.ndarray] = deque(maxlen=2 * max_loop_period)
         self._hashes: deque[int] = deque(maxlen=max(window, 2 * max_loop_period + 1))
         self._exact: deque[bool] = deque(maxlen=window)
         self._mse: deque[float] = deque(maxlen=window)
@@ -86,7 +87,8 @@ class FreezeTracker:
             diff = small.astype(np.int16) - self._prev.astype(np.int16)
             mse = float(np.mean(diff.astype(np.float32) ** 2))
             self._mse.append(mse)
-            self._exact.append(mse == 0.0)
+        if self._prev_full is not None and self._prev_full.shape == gray.shape:
+            self._exact.append(bool(np.array_equal(gray, self._prev_full)))
         ratio = sigma_t = float("nan")
         if self._prev_full is not None and self._prev_full.shape == gray.shape:
             sigma_t, sigma_s = noise_sigmas(gray, self._prev_full)
@@ -95,6 +97,7 @@ class FreezeTracker:
         self._prev = small
         self._prev_full = gray.copy()
         self._frames.append(small)
+        self._full.append(self._prev_full)
         self._hashes.append(h)
         hs = list(self._hashes)
         rep = [hamming(a, b) <= self.hash_tol for a, b in zip(hs, hs[1:], strict=False)]
@@ -117,12 +120,14 @@ class FreezeTracker:
 
     def _loop_period(self) -> int:
         """Smallest p in [2, max] such that frame[t-i] ~= frame[t-i-p] for i < p while consecutive
-        frames differ: either pixel MSE below the loop floor with real motion between frames, or a
-        bit-exact period (a replayed buffer) on frames that merely differ by noise. A live static
-        scene has consecutive frames that are equal up to noise but never bit-exact across a
-        period, so it is never reported as a loop; a bit-exact repeat of one frame is a freeze,
-        not a loop."""
+        frames differ: either pixel MSE below the loop floor with real motion between frames
+        (both on the 160x120 analysis image, as before), or a bit-exact period on the frames as
+        given to `update` (<= 640 px side, not the 160x120 image): a replayed buffer whose frames
+        merely differ by noise. A live static scene has consecutive frames that are equal up to
+        noise but never bit-exact across a period on the input frames, so it is never reported as
+        a loop; a bit-exact repeat of one frame is a freeze, not a loop."""
         fr = list(self._frames)
+        full = list(self._full)
 
         def mse(a: np.ndarray, b: np.ndarray) -> float:
             return float(np.mean((a.astype(np.float32) - b.astype(np.float32)) ** 2))
@@ -136,6 +141,8 @@ class FreezeTracker:
             if all(d <= self.loop_mse_max for d in period) and all(d > self.loop_mse_max
                                                                    for d in step):
                 return p
-            if all(d == 0.0 for d in period) and all(d > 0.0 for d in step):
-                return p
+            if all(d > 0.0 for d in step):
+                tail_full = full[-2 * p :]
+                if all(np.array_equal(tail_full[i], tail_full[i + p]) for i in range(p)):
+                    return p
         return 0

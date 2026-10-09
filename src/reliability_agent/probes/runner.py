@@ -36,7 +36,8 @@ class ProbeRunner:
         p = cfg["probes"]
         self.cfg = p
         self.grid = tuple(p["grid"])
-        self.freeze = FreezeTracker(p["freeze_window"], p["max_loop_period"])
+        self.freeze = FreezeTracker(p["freeze_window"], p["max_loop_period"],
+                                    loop_mse_max=p["loop_mse_max"])
         g = p["geometry"]
         self.geometry = GeometryProbe(g["orb_features"], g["min_matches"], g["ransac_reproj_px"])
         self.geometry_every = g["every_n_frames"]

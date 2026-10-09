@@ -21,13 +21,13 @@ Synthetic 640x480 scenes, 5 analytic FPS, full local path (`benchmarks.replay.re
 | wall sigma 0.7, 40 px object at +8 counts moves 5 min then rests (ADR-005 reviewer case) | 20 | 1200 | 0 | fov_shift | - | PASS (freeze); finding: fov_shift |
 | textured sigma 2, slow light drift 15% | 20 | 1200 | 0 | - | - | PASS |
 | textured sigma 2, frozen bit-exact | 3 | 180 | 118 | freeze | 4.0 | PASS |
-| textured sigma 2, frozen + codec jitter 0.1 | 3 | 180 | 111 | freeze | 4.0 | INFO: detected |
+| textured sigma 2, frozen + codec jitter 0.1 | 3 | 180 | 17 | freeze | 60.0 | INFO: detected |
 | textured sigma 2, frozen + codec jitter 0.15 | 3 | 180 | 0 | - | - | INFO: not detected (documented) |
 | textured sigma 2, frozen + codec jitter 0.2 | 3 | 180 | 0 | - | - | INFO: not detected (documented) |
 | textured sigma 2, frozen + codec jitter 0.25 | 3 | 180 | 0 | - | - | INFO: not detected (documented) |
 | textured sigma 2, frozen + codec jitter 0.5 | 3 | 180 | 0 | - | - | INFO: not detected (documented) |
 | wall sigma 0.7, frozen bit-exact | 3 | 180 | 118 | freeze | 4.0 | PASS |
-| wall sigma 0.7, frozen + codec jitter 0.1 | 3 | 180 | 116 | freeze | 4.0 | INFO: detected |
+| wall sigma 0.7, frozen + codec jitter 0.1 | 3 | 180 | 13 | - | - | INFO: not detected (documented) |
 | wall sigma 0.7, frozen + codec jitter 0.25 | 3 | 180 | 0 | fov_shift | 3.0 | INFO: not detected (documented) |
 | textured sigma 2, loop of 4 frames | 3 | 180 | 120 | freeze | 2.0 | PASS |
 
@@ -45,4 +45,4 @@ Synthetic 640x480 scenes, 5 analytic FPS, full local path (`benchmarks.replay.re
 - `wall sigma 0.7, 20 px object at +15 counts moves 5 min then rests (ADR-005 reviewer case)`: `fov_shift` — false positive of another detector, tracked in `docs/agents/TASKS.md`
 - `wall sigma 0.7, 40 px object at +8 counts moves 5 min then rests (ADR-005 reviewer case)`: `fov_shift` — false positive of another detector, tracked in `docs/agents/TASKS.md`
 
-generated: 2026-10-09 09:31:30
+generated: 2026-10-09 11:18:55

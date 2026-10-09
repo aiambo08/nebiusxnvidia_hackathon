@@ -178,3 +178,84 @@ def test_bit_exact_loop_of_a_static_noisy_scene_is_a_freeze(cfg):
     faults, tw = _classify_frames(cfg, looped)
     assert tw.visual.loop_period == 4
     assert FaultType.FREEZE in faults
+
+
+def _wall(rng, level, sigma, shape=(480, 640)):
+    return np.clip(np.rint(level + rng.normal(0, sigma, shape)), 0, 255).astype(np.uint8)
+
+
+@pytest.mark.parametrize("level,sigma", [(40, 0.3), (120, 0.3), (200, 0.4)])
+def test_live_low_noise_wall_is_not_bit_exact_on_the_input_frame(level, sigma):
+    """Reviewer FP (ADR-005, 5th pass): sigma <= 0.4 averaged into the 160x120 image rounds to
+    the same value every frame; the 640x480 input frame never repeats."""
+    rng = np.random.default_rng(1)
+    ft = FreezeTracker(window=10)
+    for _ in range(30):
+        r = ft.update(_wall(rng, level, sigma))
+    assert r.values["exact_repeat_ratio"] == 0.0
+    assert r.values["loop_period"] == 0
+
+
+def test_live_wall_behind_temporal_denoiser_is_not_bit_exact():
+    rng = np.random.default_rng(2)
+    ft = FreezeTracker(window=10)
+    acc = _wall(rng, 120, 0.7).astype(np.float32)
+    for _ in range(40):
+        acc = 0.9 * acc + 0.1 * _wall(rng, 120, 0.7)
+        r = ft.update(np.rint(acc).astype(np.uint8))
+    assert r.values["exact_repeat_ratio"] < 0.5
+
+
+def test_periodic_flicker_on_a_live_sensor_is_a_loop_only_through_the_mse_floor():
+    """A 4-level flicker (period 4, every step +-4 counts) on a live sigma 0.7 sensor: the
+    640x480 input frames are never bit-exact across the period, but the 160x120 period MSE
+    (noise variance / 16) sits under `loop_mse_max`, so the MSE floor still reports a loop.
+    Pre-existing on `main`, kept on purpose: lowering it would cost replayed-buffer recall
+    (ADR-005 consequences)."""
+    rng = np.random.default_rng(3)
+    exact_only = FreezeTracker(window=10, max_loop_period=8, loop_mse_max=0.0)
+    with_floor = FreezeTracker(window=10, max_loop_period=8)
+    for i in range(40):
+        f = _wall(rng, 120 + (0, 4, 8, 4)[i % 4], 0.7)
+        r_exact = exact_only.update(f)
+        r_floor = with_floor.update(f)
+    assert r_exact.values["loop_period"] == 0
+    assert r_floor.values["loop_period"] == 4
+
+
+@pytest.mark.parametrize("shape", [(480, 640), (720, 1280)])
+@pytest.mark.parametrize("jitter", [0.1, 0.45])
+def test_replayed_moving_buffer_with_decoder_jitter_is_still_a_loop(shape, jitter):
+    rng = np.random.default_rng(6)
+    base = [_wall(rng, 120, 2.0, shape) for _ in range(4)]
+    for k, f in enumerate(base):  # real motion between frames: a bright block that moves
+        f[100:160, 100 + 80 * k : 160 + 80 * k] = 220
+    ft = FreezeTracker(window=10, max_loop_period=8)
+    for i in range(24):
+        f = np.clip(np.rint(base[i % 4] + rng.normal(0, jitter, shape)), 0, 255).astype(np.uint8)
+        r = ft.update(f)
+    assert r.values["loop_period"] == 4
+
+
+@pytest.mark.parametrize("jitter", [0.0, 0.1])
+def test_replayed_buffer_is_a_loop_with_or_without_decoder_jitter(jitter):
+    """Static replayed buffer. Bit-exact: always a loop. With jitter 0.1 this only holds for wall
+    sigma 2 at 640x480; other resolutions/noise levels are a documented miss (ADR-005 table)."""
+    rng = np.random.default_rng(4)
+    base = [_wall(rng, 120, 2.0) for _ in range(4)]
+    ft = FreezeTracker(window=10, max_loop_period=8)
+    for i in range(24):
+        f = base[i % 4]
+        if jitter:
+            f = np.clip(np.rint(f + rng.normal(0, jitter, f.shape)), 0, 255).astype(np.uint8)
+        r = ft.update(f)
+    assert r.values["loop_period"] == 4
+
+
+def test_frozen_input_frame_is_bit_exact():
+    rng = np.random.default_rng(5)
+    f = _wall(rng, 120, 2.0)
+    ft = FreezeTracker(window=10)
+    for _ in range(12):
+        r = ft.update(f)
+    assert r.values["exact_repeat_ratio"] == 1.0
