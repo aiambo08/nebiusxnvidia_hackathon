@@ -37,8 +37,7 @@ faults:
     exact_repeat_ratio_min: 0.9
     repeated_hash_ratio_min: 0.95
     temporal_mse_floor: 0.5        # absolute cap on "no motion" (ADR-003)
-    noise_floor_quantile: 0.1      # quietest healthy temporal MSE seen = this camera's noise floor
-    noise_collapse_ratio: 0.25     # hash repeats are a freeze only below this fraction of the floor
+    noise_ratio_max: 0.3           # hash repeats are a freeze only when temporal/spatial noise <= this (ADR-005)
   lens_occlusion: { occluded_cell_ratio_min: 0.30 }
   fov_shift:      { translation_px_min: 25, rotation_deg_min: 3.0, inlier_ratio_min: 0.35 }
   low_fps:        { fps_ratio_max: 0.5 }

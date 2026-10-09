@@ -35,7 +35,8 @@ def _scene(kind: str, rng: np.random.Generator) -> np.ndarray:
 
 def frames(kind: str, sigma: float, n: int, *, gain: float = 1.0, freeze_at: int | None = None,
            jitter: float = 0.0, loop: int = 0, drift: float = 0.0,
-           motion: tuple[int, int] = (0, 0), blob: int = 0, seed: int = 0) -> Iterator[np.ndarray]:
+           motion: tuple[int, int] = (0, 0), blob: int = 0, contrast: int = 0,
+           seed: int = 0) -> Iterator[np.ndarray]:
     """Static scene with Gaussian sensor noise `sigma` (counts at full resolution).
 
     freeze_at: from that frame on the pipeline repeats one frame (bit-exact, or with codec
@@ -45,7 +46,8 @@ def frames(kind: str, sigma: float, n: int, *, gain: float = 1.0, freeze_at: int
     then the scene rests for `off_frames` (0 = forever); the cycle repeats. Models a baseline
     learned while someone is in front of the camera (reviewer case for ADR-004).
     blob: side in px of a small moving square instead of the person-sized blob (it leaves the
-    dHash unchanged but raises the MSE).
+    dHash unchanged but raises the MSE); contrast: the square's brightness offset below the wall
+    (0 = dark, the ADR-005 reviewer cases use +8 and +15 counts).
     """
     rng = np.random.default_rng(seed)
     base = _scene(kind, rng).astype(np.float32) * gain
@@ -68,7 +70,9 @@ def frames(kind: str, sigma: float, n: int, *, gain: float = 1.0, freeze_at: int
             scene = scene.copy()
             if blob:
                 x = int((i % 50) / 50 * (W - blob))
-                cv2.rectangle(scene, (x, H // 2), (x + blob, H // 2 + blob), (30, 30, 30), -1)
+                color = tuple(float(c) for c in (scene[H // 2, x] - contrast if contrast
+                                                 else np.array([30.0, 30.0, 30.0])))
+                cv2.rectangle(scene, (x, H // 2), (x + blob, H // 2 + blob), color, -1)
             else:
                 x = int((i % on) / on * (W + 160)) - 80
                 cv2.rectangle(scene, (x, 60), (x + 80, H - 20), (30, 30, 30), -1)
@@ -99,14 +103,22 @@ CASES = [
      dict(kind="wall", sigma=0.7, motion=(1500, 0), blob=10), False),
     ("wall sigma 0.7, 20 px object moves 5 min then rests",
      dict(kind="wall", sigma=0.7, motion=(1500, 0), blob=20), False),
+    ("wall sigma 0.7, 5 px object moves 5 min then rests (ADR-005 reviewer case)",
+     dict(kind="wall", sigma=0.7, motion=(1500, 0), blob=5), False),
+    ("wall sigma 0.7, 8 px object moves 5 min then rests (ADR-005 reviewer case)",
+     dict(kind="wall", sigma=0.7, motion=(1500, 0), blob=8), False),
+    ("wall sigma 0.7, 20 px object at +15 counts moves 5 min then rests (ADR-005 reviewer case)",
+     dict(kind="wall", sigma=0.7, motion=(1500, 0), blob=20, contrast=15), False),
+    ("wall sigma 0.7, 40 px object at +8 counts moves 5 min then rests (ADR-005 reviewer case)",
+     dict(kind="wall", sigma=0.7, motion=(1500, 0), blob=40, contrast=8), False),
     ("textured sigma 2, slow light drift 15%", dict(kind="textured", sigma=2.0, drift=0.15),
      False),
     ("textured sigma 2, frozen bit-exact", dict(kind="textured", sigma=2.0, freeze_at=300), True),
     ("textured sigma 2, frozen + codec jitter 0.1",
      dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.1), True),
-    # informative only (None): per-frame decoder noise flips dHash bits once it reaches ~0.3
-    # counts (hash repeat 1.0 -> 0.75 at 0.5 counts), so the hash path loses a frozen stream whose
-    # decoder is that noisy even though its MSE stays far under the live floor (ADR-004)
+    # informative only (None): the noise ratio stays far under the cap (jitter / sigma), but
+    # per-frame decoder noise flips dHash bits once it reaches ~0.3 counts (hash repeat 1.0 ->
+    # 0.75 at 0.5 counts), so the hash path loses a frozen stream whose decoder is that noisy
     ("textured sigma 2, frozen + codec jitter 0.15",
      dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.15), None),
     ("textured sigma 2, frozen + codec jitter 0.2",
@@ -116,6 +128,10 @@ CASES = [
     ("textured sigma 2, frozen + codec jitter 0.5",
      dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.5), None),
     ("wall sigma 0.7, frozen bit-exact", dict(kind="wall", sigma=0.7, freeze_at=300), True),
+    ("wall sigma 0.7, frozen + codec jitter 0.1",
+     dict(kind="wall", sigma=0.7, freeze_at=300, jitter=0.1), True),
+    ("wall sigma 0.7, frozen + codec jitter 0.25",
+     dict(kind="wall", sigma=0.7, freeze_at=300, jitter=0.25), None),
     ("textured sigma 2, loop of 4 frames", dict(kind="textured", sigma=2.0, freeze_at=300,
                                                  loop=4), True),
 ]

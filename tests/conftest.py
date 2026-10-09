@@ -14,7 +14,8 @@ from reliability_agent.contracts.models import (
 HEALTHY_VISUAL = dict(
     brightness_p50=110.0, contrast_p50=45.0, black_pixel_ratio=0.01, white_pixel_ratio=0.01,
     laplacian_variance_p50=400.0, blur_effect_p50=0.25, edge_density_p50=0.08,
-    temporal_mse_p50=12.0, repeated_hash_ratio=0.0, exact_repeat_ratio=0.0, loop_period=None,
+    temporal_mse_p50=12.0, noise_ratio_p50=1.0, repeated_hash_ratio=0.0, exact_repeat_ratio=0.0,
+    loop_period=None,
     occluded_cell_ratio=0.0,
 )
 
