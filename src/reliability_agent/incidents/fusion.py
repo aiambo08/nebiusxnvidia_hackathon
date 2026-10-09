@@ -63,16 +63,20 @@ def classify_window(
             ) or (v.black_pixel_ratio or 0) >= r["blackout"]["black_pixel_ratio_min"]
     if dark:
         hit(F.BLACKOUT, "visual.brightness_p50", v.brightness_p50)
-    if (v.white_pixel_ratio or 0) >= r["overexposure"]["white_pixel_ratio_min"]:
+    saturated = (v.white_pixel_ratio or 0) >= r["overexposure"]["white_pixel_ratio_min"]
+    if saturated:
         hit(F.OVEREXPOSURE, "visual.white_pixel_ratio", v.white_pixel_ratio)
 
+    # Occlusion needs cells that can carry texture: a blacked-out or clipped-white sensor makes
+    # every cell uniform and edge-less without anything in front of the lens (ADR-003 principle).
     occ = v.occluded_cell_ratio or 0
-    if not dark and occ >= r["lens_occlusion"]["occluded_cell_ratio_min"]:
+    if not dark and not saturated and occ >= r["lens_occlusion"]["occluded_cell_ratio_min"]:
         hit(F.LENS_OCCLUSION, "visual.occluded_cell_ratio", occ, score=min(1.0, occ / 0.6))
 
     fr = r["focus_drift"]
     be = v.blur_effect_p50
-    if be is not None and not dark and F.LENS_OCCLUSION not in faults:
+    # Likewise blur: a clipped-white frame has no edges left to judge focus on.
+    if be is not None and not dark and not saturated and F.LENS_OCCLUSION not in faults:
         z = baseline.z("visual.blur_effect_p50", be) if baseline else None
         be_base = base("visual.blur_effect_p50")
         ed, ed_base = v.edge_density_p50, base("visual.edge_density_p50")

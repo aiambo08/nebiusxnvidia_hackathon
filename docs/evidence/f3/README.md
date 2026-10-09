@@ -127,7 +127,42 @@ an in-plane rotation of exactly 3° on a smooth wall are not (documented in the 
 and contract unchanged; `static-scene.md` regenerated without `fov_shift` findings; probe cost
 unchanged. Tests: `tests/unit/test_probes.py::test_geometry_*`.
 
+## Recall / precision per detector — SIMULATION
+`scripts/bench_detectors.py` → `detectors.md`. 156 seeded runs on the `SyntheticSource` textured
+scene (sensor noise σ 1/2/3, 30 s healthy lead-in, 30 s of one injected fault from
+`benchmarks/injectors/faults.py`, strong strengths only; 4 seeds per fault × strength × σ), full
+local path (`benchmarks.replay.replay`), production thresholds. TP = the detector `EXPECTED` maps
+the injector to is confirmed after onset; FP = any detector confirmed where not expected.
+
+| detector | runs | recall | precision | delay p50 |
+|---|---|---|---|---|
+| blackout (`dark` 0.9/1.0) | 24 | 1.00 | 1.00 | 2.8 s |
+| focus_drift (`gaussian_blur` 0.7/1.0) | 24 | 0.96 | 1.00 | 2.8 s |
+| freeze (`freeze`, `loop4`, `loop8`) | 36 | 1.00 | 1.00 | 4.8 s |
+| lens_occlusion (`occlude_opaque` 0.7/1.0) | 24 | 1.00 | 0.96 | 2.8 s |
+| overexposure (`overexpose` 0.8/1.0, not gated) | 24 | 1.00 | 1.00 | 2.8 s |
+
+Negative controls (clean scene and a legitimate 35 % lighting change, 24 runs): 0 confirmations.
+
+Findings fixed in the same PR (production rules, thresholds unchanged, `docs/agents/DECISIONS.md`):
+every strong overexposure run also confirmed `lens_occlusion` (a clipped-white frame makes every
+cell uniform and edge-less; precision 0.50) and, once that was suppressed, `focus_drift` (no edges
+left to judge). Both rules now require a non-saturated window, symmetric to the blackout
+suppression of ADR-003. `benchmarks.replay.EXPECTED` grades `loop4`/`loop8` as `freeze`.
+
+Documented miss: one `gaussian_blur` 1.0 run (σ 3, seed 2) is confirmed as `lens_occlusion`
+instead of `focus_drift`. A 43 px defocus removes 80 % of the texture of 17–31 % of the grid
+cells (`occluded_cell_ratio` 0.17–0.31 across seeds, threshold 0.30) while `blur_effect_p50` is
+0.71, and the fusion rule lets occlusion mask blur. Extreme uniform defocus and a partial smudge
+are not separable with the current window metrics; tracked in `docs/agents/TASKS.md`
+(per-cell occlusion vs global defocus). The gate still passes (recall 0.96, precision 0.96).
+
+What this does not show: REAL HARDWARE recall/precision (F4 clips), semi-transparent occlusion,
+motion blur, slow drifts, and the detection delay on a laptop whose live probe p95 is 248 ms
+(`docs/evidence/f1/README.md`).
+
 ## Open F3 boxes
-Recall/precision per detector (≥ 10 runs per fault), the 20 walk-by trials for `fov_shift`, and the
-probe-set p95 ≤ 40 ms/frame at 720p are not measured yet. The 20-min static-scene freeze
+Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
+The 20 walk-by trials for `fov_shift` and the probe-set p95 ≤ 40 ms/frame at 720p in the live
+pipeline are not measured yet. The 20-min static-scene freeze
 false-positive box is measured in SIMULATION only (above); REAL HARDWARE is pending.
