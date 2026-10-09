@@ -1,4 +1,13 @@
-"""Field-of-view drift via ORB features + RANSAC homography against a reference bank."""
+"""Field-of-view drift via ORB features + RANSAC similarity (4 DOF) against a reference bank.
+
+The motion model is a similarity (`cv2.estimateAffinePartial2D`: translation, rotation, scale),
+not a full 8-DOF homography: on a smooth scene `equalizeHist` turns sensor noise into hundreds of
+spurious ORB keypoints, and a homography fitted through them still finds ~60 % "inliers" while its
+translation estimate jitters by tens of pixels (SIMULATION, wall σ 0.7–4: p95 27–48 px, max 94 px,
+rotation up to 3°), which met the `fov_shift` rule on a camera at rest. The rigid model cannot
+bend to the noise (same scenes: p95 2.4–4.6 px, rotation ≤ 1°) and reports a real 40 px shift,
+a 5° rotation or a slow pan within a pixel / a tenth of a degree. The metric keeps its contract
+name `homography_inlier_ratio` (inlier share of the fitted model)."""
 
 from __future__ import annotations
 
@@ -60,10 +69,12 @@ class GeometryProbe:
             )
         src = np.float32([rkp[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
         dst = np.float32([kp[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
-        H, mask = cv2.findHomography(src, dst, cv2.RANSAC, self.reproj_px)
+        H, mask = cv2.estimateAffinePartial2D(
+            src, dst, method=cv2.RANSAC, ransacReprojThreshold=self.reproj_px
+        )
         if H is None:
             return ProbeResult(
-                "geometry", quality="failed", unknown_reason="homography failed",
+                "geometry", quality="failed", unknown_reason="motion model failed",
                 values={"match_count": float(len(matches)), "homography_inlier_ratio": 0.0},
             )
         inliers = float(mask.sum()) / len(matches)
