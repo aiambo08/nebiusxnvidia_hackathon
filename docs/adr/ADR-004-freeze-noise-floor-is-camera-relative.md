@@ -1,6 +1,6 @@
 # ADR-004 — The freeze noise floor is relative to the camera's own healthy noise
 
-- Status: accepted
+- Status: superseded by ADR-005 (the learned floor is replaced by a per-frame temporal-vs-spatial noise ratio; the alternatives table and the quantisation findings below remain the record of why)
 - Date: 2026-10-08
 - Gate: F3
 

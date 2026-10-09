@@ -3,6 +3,11 @@
 A near-zero frame difference may be a genuinely static scene. Real sensors add noise, so a
 *bit-exact* repeat is strong evidence of a frozen pipeline. Perceptual hashes catch repeats
 after re-encoding and detect loops of period 2..N.
+
+Whether repeats are a freeze or a static scene is decided per frame, without history: a live
+sensor adds fresh noise every frame, so its frame-to-frame (temporal) noise is of the same order
+as the noise baked into one frame (spatial, Immerkaer's estimator on flat regions). A frozen
+pipeline keeps the spatial noise but loses the temporal one (ADR-005).
 """
 
 from __future__ import annotations
@@ -25,6 +30,41 @@ def hamming(a: int, b: int) -> int:
     return (a ^ b).bit_count()
 
 
+_IMMERKAER = np.array([[1, -2, 1], [-2, 4, -2], [1, -2, 1]], np.float32)
+_IMMERKAER_SCALE = float(np.sqrt(np.pi / 2) / 6.0)
+MIN_SPATIAL_SIGMA = 0.05  # below this the frame carries no measurable noise (dark, blurred)
+
+
+def noise_sigmas(gray: np.ndarray, prev: np.ndarray) -> tuple[float, float]:
+    """(temporal sigma, spatial sigma) of a frame pair in 8-bit counts at full resolution, both
+    on the flattest half of the frame (gradient magnitude at or below its median) so texture
+    and edges do not count as noise. Temporal: RMS of the frame difference divided by sqrt(2)
+    (two independent noise draws). Spatial: Immerkaer's Laplacian estimator."""
+    g = gray.astype(np.float32)
+    gx = cv2.Sobel(g, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(g, cv2.CV_32F, 0, 1, ksize=3)
+    mag = cv2.magnitude(gx, gy)[1:-1, 1:-1]
+    flat = mag <= float(np.median(mag))
+    if not flat.any():
+        return float("nan"), float("nan")
+    lap = cv2.filter2D(g, cv2.CV_32F, _IMMERKAER)[1:-1, 1:-1]
+    sigma_s = _IMMERKAER_SCALE * float(np.mean(np.abs(lap[flat])))
+    d = (g - prev.astype(np.float32))[1:-1, 1:-1]
+    sigma_t = float(np.sqrt(np.mean(d[flat] ** 2) / 2.0))
+    return sigma_t, sigma_s
+
+
+def noise_ratio(gray: np.ndarray, prev: np.ndarray) -> float:
+    """Temporal-to-spatial noise ratio of a frame pair, NaN when the frame carries no measurable
+    noise. Live: ~1 (fresh noise every frame). Frozen: ~0 (the noise is baked into the repeated
+    frame; with decoder jitter j the ratio is ~ j / sigma). Motion raises it, so motion can only
+    make a window look more alive, never frozen (ADR-005)."""
+    sigma_t, sigma_s = noise_sigmas(gray, prev)
+    if not np.isfinite(sigma_s) or sigma_s < MIN_SPATIAL_SIGMA:
+        return float("nan")
+    return sigma_t / sigma_s
+
+
 class FreezeTracker:
     def __init__(self, window: int = 10, max_loop_period: int = 8, hash_tol: int = 0,
                  loop_mse_max: float = 0.5) -> None:
@@ -33,6 +73,7 @@ class FreezeTracker:
         self.hash_tol = hash_tol
         self.loop_mse_max = loop_mse_max
         self._prev: np.ndarray | None = None
+        self._prev_full: np.ndarray | None = None
         self._frames: deque[np.ndarray] = deque(maxlen=2 * max_loop_period)
         self._hashes: deque[int] = deque(maxlen=max(window, 2 * max_loop_period + 1))
         self._exact: deque[bool] = deque(maxlen=window)
@@ -46,7 +87,13 @@ class FreezeTracker:
             mse = float(np.mean(diff.astype(np.float32) ** 2))
             self._mse.append(mse)
             self._exact.append(mse == 0.0)
+        ratio = sigma_t = float("nan")
+        if self._prev_full is not None and self._prev_full.shape == gray.shape:
+            sigma_t, sigma_s = noise_sigmas(gray, self._prev_full)
+            if np.isfinite(sigma_s) and sigma_s >= MIN_SPATIAL_SIGMA:
+                ratio = sigma_t / sigma_s
         self._prev = small
+        self._prev_full = gray.copy()
         self._frames.append(small)
         self._hashes.append(h)
         hs = list(self._hashes)
@@ -59,6 +106,8 @@ class FreezeTracker:
                 "repeated_hash_ratio": float(np.mean(recent)) if recent else 0.0,
                 "exact_repeat_ratio": float(np.mean(self._exact)) if self._exact else 0.0,
                 "loop_period": float(self._loop_period()),
+                "noise_ratio": ratio,
+                "temporal_sigma": sigma_t,
             },
         )
         if len(self._exact) < 2:
