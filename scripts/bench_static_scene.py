@@ -35,7 +35,7 @@ def _scene(kind: str, rng: np.random.Generator) -> np.ndarray:
 
 def frames(kind: str, sigma: float, n: int, *, gain: float = 1.0, freeze_at: int | None = None,
            jitter: float = 0.0, loop: int = 0, drift: float = 0.0,
-           motion: tuple[int, int] = (0, 0), seed: int = 0) -> Iterator[np.ndarray]:
+           motion: tuple[int, int] = (0, 0), blob: int = 0, seed: int = 0) -> Iterator[np.ndarray]:
     """Static scene with Gaussian sensor noise `sigma` (counts at full resolution).
 
     freeze_at: from that frame on the pipeline repeats one frame (bit-exact, or with codec
@@ -44,6 +44,8 @@ def frames(kind: str, sigma: float, n: int, *, gain: float = 1.0, freeze_at: int
     motion: (on_frames, off_frames) — a person-sized dark blob crosses the scene for `on_frames`,
     then the scene rests for `off_frames` (0 = forever); the cycle repeats. Models a baseline
     learned while someone is in front of the camera (reviewer case for ADR-004).
+    blob: side in px of a small moving square instead of the person-sized blob (it leaves the
+    dHash unchanged but raises the MSE).
     """
     rng = np.random.default_rng(seed)
     base = _scene(kind, rng).astype(np.float32) * gain
@@ -62,10 +64,14 @@ def frames(kind: str, sigma: float, n: int, *, gain: float = 1.0, freeze_at: int
         g = 1.0 + drift * np.sin(2 * np.pi * i / n) if drift else 1.0
         scene = base * g
         on, off = motion
-        if on and (not off or (i % (on + off)) < on):
+        if on and (i < on if not off else (i % (on + off)) < on):
             scene = scene.copy()
-            x = int((i % on) / on * (W + 160)) - 80
-            cv2.rectangle(scene, (x, 60), (x + 80, H - 20), (30, 30, 30), -1)
+            if blob:
+                x = int((i % 50) / 50 * (W - blob))
+                cv2.rectangle(scene, (x, H // 2), (x + blob, H // 2 + blob), (30, 30, 30), -1)
+            else:
+                x = int((i % on) / on * (W + 160)) - 80
+                cv2.rectangle(scene, (x, 60), (x + 80, H - 20), (30, 30, 30), -1)
         img = np.clip(np.rint(scene + rng.normal(0, sigma, base.shape)), 0, 255).astype(np.uint8)
         if loop:
             tail.append(img)
@@ -89,6 +95,10 @@ CASES = [
      False),
     ("wall sigma 2, alternating 30 s motion / 30 s rest",
      dict(kind="wall", sigma=2.0, motion=(150, 150)), False),
+    ("wall sigma 0.7, 10 px object moves 5 min then rests (reviewer case)",
+     dict(kind="wall", sigma=0.7, motion=(1500, 0), blob=10), False),
+    ("wall sigma 0.7, 20 px object moves 5 min then rests",
+     dict(kind="wall", sigma=0.7, motion=(1500, 0), blob=20), False),
     ("textured sigma 2, slow light drift 15%", dict(kind="textured", sigma=2.0, drift=0.15),
      False),
     ("textured sigma 2, frozen bit-exact", dict(kind="textured", sigma=2.0, freeze_at=300), True),
@@ -97,8 +107,12 @@ CASES = [
     # informative only (None): per-frame decoder noise flips dHash bits once it reaches ~0.3
     # counts (hash repeat 1.0 -> 0.75 at 0.5 counts), so the hash path loses a frozen stream whose
     # decoder is that noisy even though its MSE stays far under the live floor (ADR-004)
+    ("textured sigma 2, frozen + codec jitter 0.15",
+     dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.15), None),
     ("textured sigma 2, frozen + codec jitter 0.2",
      dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.2), None),
+    ("textured sigma 2, frozen + codec jitter 0.25",
+     dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.25), None),
     ("textured sigma 2, frozen + codec jitter 0.5",
      dict(kind="textured", sigma=2.0, freeze_at=300, jitter=0.5), None),
     ("wall sigma 0.7, frozen bit-exact", dict(kind="wall", sigma=0.7, freeze_at=300), True),

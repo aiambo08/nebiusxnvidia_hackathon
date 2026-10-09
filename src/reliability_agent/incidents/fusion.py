@@ -19,7 +19,7 @@ from reliability_agent.contracts.models import (
 )
 from reliability_agent.incidents.state_machine import IncidentStateMachine
 
-STILL_NOISE_METRIC = "visual.still_temporal_mse_p50"  # learned by IncidentTracker only
+NOISE_FLOOR_METRIC = "visual.noise_temporal_mse_p50"  # learned by IncidentTracker only
 
 
 F = FaultType
@@ -97,9 +97,9 @@ def classify_window(
     # noise floor is learned only bit-exact repeats and loops are freeze evidence.
     fz = r["freeze"]
     if not dark:
-        # the floor is learned only from windows that were themselves still (see
-        # IncidentTracker.step); a baseline learned under motion gives no floor (cold start)
-        noise_floor = (baseline.quantile(STILL_NOISE_METRIC, fz["noise_floor_quantile"])
+        # the floor is learned only from healthy windows under the absolute cap (see
+        # IncidentTracker._sample); a baseline learned under motion gives no floor (cold start)
+        noise_floor = (baseline.quantile(NOISE_FLOOR_METRIC, fz["noise_floor_quantile"])
                        if baseline else None)
         noise_collapsed = (v.temporal_mse_p50 is not None and noise_floor is not None
                            and v.temporal_mse_p50 <= fz["temporal_mse_floor"]
@@ -154,14 +154,15 @@ class IncidentTracker:
             self._suppressed[f] = now_s + self.cooldown_s
 
     def _sample(self, tw: TelemetryWindow) -> dict[str, float]:
-        """Flat metrics plus the still-window noise floor sample: the temporal MSE of a healthy
-        window whose frames repeated by hash, i.e. the sensor noise of this camera on a still
-        scene. Windows with motion carry scene change, not noise, and must not raise the floor."""
+        """Flat metrics plus the noise floor sample: the temporal MSE of a healthy window that is
+        under the absolute freeze cap, i.e. sensor noise rather than scene change. Motion of any
+        size (a person, or a small object that leaves the dHash unchanged) gives a larger MSE and
+        must not raise the floor; a textured scene whose noise flips hash bits still teaches it."""
         sample = tw.flat()
         v = tw.visual
-        if (v.temporal_mse_p50 is not None and (v.repeated_hash_ratio or 0)
-                >= self.rules["freeze"]["repeated_hash_ratio_min"]):
-            sample[STILL_NOISE_METRIC] = float(v.temporal_mse_p50)
+        if (v.temporal_mse_p50 is not None
+                and v.temporal_mse_p50 <= self.rules["freeze"]["temporal_mse_floor"]):
+            sample[NOISE_FLOOR_METRIC] = float(v.temporal_mse_p50)
         return sample
 
     def step(self, tw: TelemetryWindow, now_s: float = 0.0) -> TrackerStep:
