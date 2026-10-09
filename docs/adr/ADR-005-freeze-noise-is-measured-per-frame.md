@@ -98,7 +98,7 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
   repeats. While exact repeats were judged on the 160×120 analysis image, jitter 0.1 still
   averaged away and was confirmed, with the miss starting at ≥ 0.15 on texture and ≥ 0.2 on a
   wall (independent review; `main` caught 0.15–0.2 on texture through the hash path). Since
-  exact repeats are judged on the full-resolution frame (follow-up PR), any decoder jitter
+  exact repeats are judged on the probe input frame (`downscale(max_side=640)` in `runner.py`: native pixels at 640×480, 2× INTER_AREA at 720p/1080p) (follow-up PR), any decoder jitter
   breaks equality (jitter 0.1: windows with `exact_repeat_ratio` ≥ 0.9 fall from 1.00 to
   0.08 at 640×480 and 0.04–0.33 at 720p in the reviewer's harness; the benchmark's
   "frozen + jitter 0.1" cases went from confirmed in 4 s to INFO), so the miss now starts at
@@ -117,8 +117,11 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
   wall with sensor σ ≤ 0.4 rounded to the same image every frame (σ 0.3: 120/120 windows; σ 0.4:
   22/120), as did a raw σ 0.7 sensor behind an 8-bit temporal denoiser α ≥ 0.8 (129–240/240).
   Since the follow-up, `FreezeTracker` judges bit-exact repeats, and the bit-exact *period* of a
-  loop, on the full-resolution frame (≈ 300k pixels never all coincide while the sensor is
-  alive); those cases now give `exact_repeat_ratio` 0 (`tests/unit/test_probes.py`). The
+  loop, on the probe input frame (`downscale(max_side=640)` in `runner.py`: native pixels at 640×480, 2× INTER_AREA at 720p/1080p) instead of the 160×120 image, so sensor noise is averaged 1× or 4× instead of 16× before the
+  equality test; those cases now give `exact_repeat_ratio` 0 (`tests/unit/test_probes.py`).
+  Residual, measured by the reviewer: a live wall at 720p with σ 0.1, or at 1080p with σ ≤ 0.2,
+  is still bit-exact after the 2× downscale; and a live σ 0.7 wall over MJPEG at quality ≤ 50 is
+  bit-exact at 480 and 720p (identical on `main`) — both belong to the real-hardware re-check. The
   MSE-floor loop branch stays on the 160×120 image with `loop_mse_max` 0.5 (now
   `probes.loop_mse_max` in config, same value and same meaning): judging it at full resolution
   would have made it 16× stricter on noise and lost replayed-buffer loops with decoder jitter

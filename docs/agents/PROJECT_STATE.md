@@ -34,7 +34,8 @@ Last update: 2026-10-08 · Current phase: **F3** (F1/F2: every box evidenced, in
   documented miss. Open: the 20-min box on REAL HARDWARE (phone on a plain wall may decode
   bit-exact while alive: libx264 repeats a live smooth wall bit-exact at full resolution at every
   CRF, SIMULATION; the raw-sensor cases — σ ≤ 0.4 wall, strong temporal denoiser — are fixed since bit-exact
-  repeats are judged on the full-resolution frame, at the cost of missing frozen + jitter 0.1;
+  repeats are judged on the probe input frame (≤ 640 px side) instead of the 160×120 image, at
+  the cost of missing frozen + jitter 0.1; 720p σ 0.1 / 1080p σ ≤ 0.2 and MJPEG q ≤ 50 still repeat;
   periodic flicker still trips the 160×120 MSE-floor loop branch, pre-existing),
   transport-level freeze evidence for compressed sources (later phase),
   recall/precision per detector, walk-by FOV trials, live probe p95 at 720p.

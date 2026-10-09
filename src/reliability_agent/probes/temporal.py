@@ -120,12 +120,12 @@ class FreezeTracker:
 
     def _loop_period(self) -> int:
         """Smallest p in [2, max] such that frame[t-i] ~= frame[t-i-p] for i < p while consecutive
-        frames differ: either pixel MSE below the loop floor with real motion between frames (both
-        on the 160x120 analysis image, as before), or a bit-exact period on the full-resolution
-        frames (a replayed buffer whose frames merely differ by noise). A live static scene has
-        consecutive frames that are equal up to noise but never bit-exact across a period at full
-        resolution, so it is never reported as a loop; a bit-exact repeat of one frame is a freeze,
-        not a loop."""
+        frames differ: either pixel MSE below the loop floor with real motion between frames
+        (both on the 160x120 analysis image, as before), or a bit-exact period on the frames as
+        given to `update` (<= 640 px side, not the 160x120 image): a replayed buffer whose frames
+        merely differ by noise. A live static scene has consecutive frames that are equal up to
+        noise but never bit-exact across a period on the input frames, so it is never reported as
+        a loop; a bit-exact repeat of one frame is a freeze, not a loop."""
         fr = list(self._frames)
         full = list(self._full)
 

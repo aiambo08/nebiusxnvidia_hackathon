@@ -185,9 +185,9 @@ def _wall(rng, level, sigma, shape=(480, 640)):
 
 
 @pytest.mark.parametrize("level,sigma", [(40, 0.3), (120, 0.3), (200, 0.4)])
-def test_live_low_noise_wall_is_not_bit_exact_at_full_resolution(level, sigma):
+def test_live_low_noise_wall_is_not_bit_exact_on_the_input_frame(level, sigma):
     """Reviewer FP (ADR-005, 5th pass): sigma <= 0.4 averaged into the 160x120 image rounds to
-    the same value every frame; the full-resolution frame never repeats."""
+    the same value every frame; the 640x480 input frame never repeats."""
     rng = np.random.default_rng(1)
     ft = FreezeTracker(window=10)
     for _ in range(30):
@@ -208,7 +208,7 @@ def test_live_wall_behind_temporal_denoiser_is_not_bit_exact():
 
 def test_periodic_flicker_on_a_live_sensor_is_a_loop_only_through_the_mse_floor():
     """A 4-level flicker (period 4, every step +-4 counts) on a live sigma 0.7 sensor: the
-    full-resolution frames are never bit-exact across the period, but the 160x120 period MSE
+    640x480 input frames are never bit-exact across the period, but the 160x120 period MSE
     (noise variance / 16) sits under `loop_mse_max`, so the MSE floor still reports a loop.
     Pre-existing on `main`, kept on purpose: lowering it would cost replayed-buffer recall
     (ADR-005 consequences)."""
@@ -250,7 +250,7 @@ def test_replayed_buffer_is_a_loop_with_or_without_decoder_jitter(jitter):
     assert r.values["loop_period"] == 4
 
 
-def test_frozen_full_resolution_frame_is_bit_exact():
+def test_frozen_input_frame_is_bit_exact():
     rng = np.random.default_rng(5)
     f = _wall(rng, 120, 2.0)
     ft = FreezeTracker(window=10)
