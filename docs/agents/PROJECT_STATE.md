@@ -39,6 +39,8 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
   periodic flicker still trips the 160×120 MSE-floor loop branch, pre-existing),
   tool ready for the owner's run: `scripts/spike_static_scene.py` (live source -> production
   path, per-window freeze telemetry, reports without the URI, `tests/unit/test_spike_static_scene.py`),
+  and `run_live` no longer judges the same `Frame.seq` twice on a source slower than
+  `analytic_fps` (`tests/unit/test_runtime.py`),
   transport-level freeze evidence for compressed sources (later phase),
   recall/precision per detector, walk-by FOV trials, live probe p95 at 720p.
 

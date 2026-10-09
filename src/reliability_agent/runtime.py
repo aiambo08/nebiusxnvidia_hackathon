@@ -41,6 +41,7 @@ def run_live(cfg: dict | None = None, *, duration_s: float | None = None,
     fps = cam["analytic_fps"]
     t_end = time.monotonic() + duration_s if duration_s else None
     calibrated = False
+    last_seq: int | None = None
     try:
         while t_end is None or time.monotonic() < t_end:
             agg = WindowAggregator(cam["id"], win_s)
@@ -48,8 +49,9 @@ def run_live(cfg: dict | None = None, *, duration_s: float | None = None,
             while time.monotonic() - t0 < win_s:
                 time.sleep(1.0 / fps)
                 f = worker.buffer.latest()
-                if f is None:
-                    continue
+                if f is None or f.seq == last_seq:
+                    continue  # no new frame since the last poll: never judge the same pixels twice
+                last_seq = f.seq
                 if not calibrated:
                     runner.calibrate_reference(f)
                     calibrated = True
