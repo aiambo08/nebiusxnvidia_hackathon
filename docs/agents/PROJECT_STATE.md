@@ -13,7 +13,9 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
 - Live Token Factory verified (REAL TOKEN FACTORY, 2026-10-05): model IDs confirmed, json_schema works,
   thinking must be disabled; fast tier 20/20 valid at ~0.0001 USD/diagnosis (ADR-002).
 - Real webcam verified (REAL HARDWARE, native Windows, integrated 640×480 webcam): 30-min soak 100% valid
-  windows, heap +0.4%, 0 reconnects (`docs/evidence/f1/`). Risk: live probe p95 110 ms vs 20.5 ms isolated.
+  windows, heap +0.4%, 0 reconnects (`docs/evidence/f1/`). The live probe p95 (110 ms webcam, 248 ms RTSP) vs 20–25 ms isolated is
+  explained in SIMULATION (`spike_capture.py` measures with tracemalloc + capture thread on raw 640×480;
+  `bench_probes.py` flags reproduce a 3–4× gap); owner's CPU numbers pending.
 - F1 replay tooling: record a clean clip, inject seeded blur/dark/freeze, replay it through
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.
@@ -62,6 +64,6 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
 
 ## Next 3 actions
 1. Webcam + phone RTSP contract passed on REAL HARDWARE (2026-10-08), closing the shared F1/F2 box. 10-min RTSP soak passed (533/536, 99.4 %). Next: independent F1/F2 gate review.
-1b. Devin: F3 visual monitors — freeze specificity on dark/blurred real frames (ADR + benchmark), per-cell occlusion, live probe p95.
+1b. Devin: F3 visual monitors — per-cell occlusion against the baseline (textured occluder, occlusion under clipping); owner runs `bench_probes.py` flags and the four 20-min static-scene checks.
 2. Ingestion: probe UVC exposure/autofocus on the integrated webcam (decides UVC vs pipeline action).
 3. Nebius (F6): golden set including the cases where the reasoning tier disagrees with the local top fault.
