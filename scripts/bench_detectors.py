@@ -8,7 +8,9 @@ scene, legitimate lighting change) are replayed the same way. A run counts as a 
 detector D when D is the fault `benchmarks.replay.EXPECTED` maps the injector to and D is
 confirmed after onset; any detector confirmed on a run that does not expect it (including every
 negative control and any confirmation before onset) is a false positive of that detector.
-Writes a Markdown report; exits 1 if any detector misses the gate.
+Only the first confirmation of a run is recorded (the tracker stays CONFIRMED afterwards), so a
+wrong detector that appears after a correct confirmation is not counted: precision is optimistic
+by construction. Writes a Markdown report; exits 1 if any detector misses the gate.
 """
 
 from __future__ import annotations

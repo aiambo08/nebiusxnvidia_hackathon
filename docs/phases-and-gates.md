@@ -16,7 +16,7 @@ recalibrated with real camera data.
 | F0 | Compliance & scope freeze | 1 | Architecture + Nebius | in progress |
 | F1 | Feasibility spikes | 1 | All | in progress |
 | F2 | Ingestion & observability | 1 | Ingestion | in progress |
-| F3 | Visual monitors | 2 | Vision | scaffolded |
+| F3 | Visual monitors | 2 | Vision | in progress |
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | scaffolded |
 | F6 | Nemotron integration | 3 | Nebius | scaffolded |

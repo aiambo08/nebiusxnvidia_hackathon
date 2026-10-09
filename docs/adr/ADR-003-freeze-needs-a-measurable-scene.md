@@ -36,7 +36,9 @@ to measure motion is not in the image.
      repeats (`exact_repeat_ratio_min`) or a detected loop count as freeze.
 2. No threshold in `configs/default.yaml` changes. The rule gains specificity through causal
    suppression (the same mechanism that already stops blackout from being reported as occlusion or
-   blur), not through looser numbers.
+   blur), not through looser numbers. The same principle covers saturation: a clipped-white window
+   (`white_pixel_ratio >= overexposure.white_pixel_ratio_min`) is reported as `overexposure` only and
+   never as `lens_occlusion` or `focus_drift` (added 2026-10-09, `docs/agents/DECISIONS.md`).
 3. A frozen pipeline that is also black is reported as `blackout` only. This is a documented
    limitation, covered by `test_frozen_dark_pipeline_is_attributed_to_blackout`.
 

@@ -157,9 +157,25 @@ cells (`occluded_cell_ratio` 0.17–0.31 across seeds, threshold 0.30) while `bl
 are not separable with the current window metrics; tracked in `docs/agents/TASKS.md`
 (per-cell occlusion vs global defocus). The gate still passes (recall 0.96, precision 0.96).
 
-What this does not show: REAL HARDWARE recall/precision (F4 clips), semi-transparent occlusion,
-motion blur, slow drifts, and the detection delay on a laptop whose live probe p95 is 248 ms
-(`docs/evidence/f1/README.md`).
+What "strong" means here, from the independent reviewer's sweeps just below the bench strengths
+(SIMULATION, σ 2, identical on `main`): `dark` 0.8 leaves `brightness_p50` at 26 against the
+25 cap and nothing fires on a 78 % brightness drop (0/4; 0.85 → 4/4); `occlude_opaque` 0.3
+(38 % of the width) → 0/4, 0.5 (50 %) → 4/4 with a 2.8 or 7.8 s delay depending on how the band
+lands on the 8×8 grid; `gaussian_blur` 0.4/0.5 → 8/8 at 2.8 s. A hand-like textured occluder
+(mean 90, σ 10) over 40–60 % of the width gives `occluded_cell_ratio` 0.05–0.06 (threshold 0.30)
+and is never detected: the 1.00 occlusion recall rests on the flat-value injector. A
+semi-transparent smudge (`occlude_semi` 1.0) is confirmed 3/3 at 2.8 s and does not push
+`white_pixel_ratio` past 0.17, so it never suppresses itself. A real occlusion that co-occurs
+with a clipped frame (white ratio ≥ 0.45) is now reported as `overexposure` alone until exposure
+is restored; on `main` the same claim was false on every pure overexposure run.
+
+Accounting caveat: `benchmarks.replay.replay` records the first confirmation only and the tracker
+stays CONFIRMED, so a wrong detector that appears after a correct confirmation is not counted as
+an FP; precision is optimistic by construction. The one FP above is a wrong *first* confirmation.
+
+What this does not show: REAL HARDWARE recall/precision (F4 clips), textured occluders, motion
+blur, slow drifts, walk-by or AGC negatives (freeze FPs are covered by `static-scene.md`), and
+the detection delay on a laptop whose live probe p95 is 248 ms (`docs/evidence/f1/README.md`).
 
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).

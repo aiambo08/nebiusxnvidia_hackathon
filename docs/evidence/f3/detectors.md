@@ -171,4 +171,4 @@
 | lighting_change | 1 | 3 | 2 | - | - | - | PASS |
 | lighting_change | 1 | 3 | 3 | - | - | - | PASS |
 
-commit: 7332832 | runs: 156 | wall time: 1910 s | generated: 2026-10-09 15:12:50 | overall: PASS
+commit: 73b2ad6 | runs: 156 | wall time: 1957 s | generated: 2026-10-09 15:46:45 | overall: PASS

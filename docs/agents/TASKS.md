@@ -40,7 +40,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F2][ingestion] Disconnect < 5 s, non-blocking reconnect, telemetry resume < 15 s — `tests/unit/test_capture_resilience.py`
 - [x] [F2][human] Contract suite on the integrated webcam (`RA_TEST_WEBCAM=0`) and on the phone RTSP (`RA_TEST_RTSP`) — `2 passed` in one run (REAL HARDWARE, 2026-10-08)
 - [x] [F1][human] 10-min RTSP soak (`scripts/spike_capture.py --uri <rtsp> --minutes 10`): 533/536 valid windows (99.4 %), heap +1.6 %, 0 reconnects, REAL HARDWARE 2026-10-08 (`docs/evidence/f1/README.md`)
-- [ ] [F3][vision] Per-cell occlusion against baseline cells; also separate a global extreme defocus from a partial smudge: `gaussian_blur` 1.0 on the σ 3 / seed 2 scene lost 80 % of the texture in 31 % of the cells (threshold 0.30) and was confirmed as `lens_occlusion`, masking `focus_drift` (`docs/evidence/f3/detectors.md`, SIMULATION)
+- [ ] [F3][vision] Per-cell occlusion against baseline cells; also separate a global extreme defocus from a partial smudge: `gaussian_blur` 1.0 on the σ 3 / seed 2 scene lost 80 % of the texture in 31 % of the cells (threshold 0.30) and was confirmed as `lens_occlusion`, masking `focus_drift`; a hand-like textured occluder (mean 90, σ 10) over 40–60 % of the width gives `occluded_cell_ratio` 0.05–0.06 and is never detected; exclude *clipped cells* rather than the whole saturated window so an occlusion that co-occurs with overexposure stays visible (`docs/evidence/f3/README.md`, SIMULATION)
 - [ ] [F3][vision] Day/night baselines + reference bank for geometry
 - [ ] [F4][evaluation] `scripts/run_benchmark.py` producing a markdown report from event files
 - [ ] [F5][architecture] Restore FSM + baseline from SQLite after restart
