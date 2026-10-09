@@ -101,8 +101,10 @@ path (`CaptureWorker` -> probes -> windows -> baseline -> `IncidentTracker`) on 
 writes `spikes/static-scene-<tag>.md` (summary, quantiles of the three fields, verdict) and
 `spikes/static-scene-<tag>.json` (per-window series + worker `health()`); neither contains the URI,
 and a label with a URL or IP is rejected. Verdict with the same criterion as the table above: FAIL
-(exit 1) on any `freeze` window, INCONCLUSIVE (exit 3) when the source did not deliver frames for
-≥ 95 % of the windows or `stream_down`/`low_fps` appeared, PASS otherwise; another detector
+(exit 1) on any `freeze` window, INCONCLUSIVE (exit 3) when the source did not deliver a steady
+picture (first frame after more than 10 s, frames in < 95 % of the judged windows, or
+`stream_down`/`low_fps` in > 5 % of them), PASS otherwise. Windows before the first frame (RTSP
+handshake + H.264 warm-up) are reported apart and never judged; another detector
 confirming on the healthy scene is reported as a finding, as in the table. FFmpeg may print the
 camera address on stderr when a connection fails, so stderr is not evidence to paste. Dry run:
 `--synthetic --minutes 0.5` (SIMULATION, 0 freeze windows, `tests/unit/test_spike_static_scene.py`).

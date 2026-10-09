@@ -12,11 +12,14 @@ fed by `CaptureWorker` from a real source. Logs per window the freeze telemetry 
 - spikes/static-scene-<label>.json per-window series + worker `health()` (never the URI)
 
 Verdict (same criterion as `docs/evidence/f3/static-scene.md`): FAIL, exit 1, if any window
-reports `freeze`; INCONCLUSIVE, exit 3, if the source did not deliver frames for almost the whole
-run (valid windows < 95 % or `stream_down` / `low_fps` seen); PASS, exit 0, otherwise. The scene is
+reports `freeze`; INCONCLUSIVE, exit 3, if the source did not deliver a steady picture (handshake
+before the first frame longer than 10 s, valid windows < 95 % or `stream_down` / `low_fps` in more
+than 5 % of the windows after the first frame); PASS, exit 0, otherwise. Windows before the first
+frame (RTSP handshake + H.264 warm-up) are reported apart and not judged. The scene is
 expected to be a *healthy* camera at rest. The label is a free tag for the report file name; a URL
-or IP address in it is rejected. The reports never contain the URI, but FFmpeg may print
-`tcp://<ip>:<port>` on stderr when a connection fails: review stderr before pasting it anywhere.
+or IPv4 address in it is rejected (IPv6 is not checked). The reports never contain the URI, but
+FFmpeg may print `tcp://<ip>:<port>` on stderr when a connection fails: review stderr before
+pasting it anywhere.
 """
 
 from __future__ import annotations
@@ -36,7 +39,10 @@ from reliability_agent.config import REPO_ROOT, load_config
 from reliability_agent.incidents.fusion import IncidentTracker
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 
-VALID_MIN = 0.95  # share of windows with frames below which the run is INCONCLUSIVE
+VALID_MIN = 0.95  # share of judged windows with frames below which the run is INCONCLUSIVE
+TRANSPORT_FAULT_MAX = 0.05  # share of judged windows with stream_down/low_fps tolerated
+LABEL_DENY_RE = r"://|(?<!\d)\d{1,3}([._-]\d{1,3}){3}(?!\d)"  # URL scheme or IPv4-like run
+HANDSHAKE_MAX_S = 10.0  # longest wait for the first frame before the run is INCONCLUSIVE
 TRANSPORT_FAULTS = {"stream_down", "low_fps"}
 METRICS = ("exact_repeat_ratio", "noise_ratio_p50", "temporal_sigma_p50", "temporal_mse_p50",
            "repeated_hash_ratio", "loop_period")
@@ -47,8 +53,15 @@ def _pct(values: list[float], q: float) -> float | None:
 
 
 def summarise(windows: list[dict[str, Any]], freeze_min: float) -> dict[str, Any]:
-    """Aggregate the per-window series: freeze windows, confirmation and metric quantiles."""
+    """Aggregate the per-window series: freeze windows, confirmation and metric quantiles.
+
+    Windows before the first frame are the source handshake: counted apart, never judged.
+    """
+    first = next((i for i, w in enumerate(windows) if w["frames"] > 0), len(windows))
+    handshake, windows = windows[:first], windows[first:]
     out: dict[str, Any] = {
+        "handshake_windows": len(handshake),
+        "handshake_s": handshake[-1]["t_s"] if handshake else 0.0,
         "windows": len(windows),
         "valid_windows": sum(w["frames"] > 0 for w in windows),
         "freeze_windows": sum("freeze" in w["faults"] for w in windows),
@@ -73,10 +86,12 @@ def summarise(windows: list[dict[str, Any]], freeze_min: float) -> dict[str, Any
                                               f"{out['confirmed_at_s']:.0f} s"
                                               if out["confirmed"] else ""))
         out["exit_code"] = 1
-    elif (not windows or out["valid_windows"] < VALID_MIN * len(windows)
-          or out["transport_fault_windows"]):
-        out["verdict"] = (f"INCONCLUSIVE: {out['valid_windows']}/{len(windows)} windows with "
-                          f"frames, {out['transport_fault_windows']} with stream_down/low_fps; "
+    elif (not windows or out["handshake_s"] > HANDSHAKE_MAX_S
+          or out["valid_windows"] < VALID_MIN * len(windows)
+          or out["transport_fault_windows"] > TRANSPORT_FAULT_MAX * len(windows)):
+        out["verdict"] = (f"INCONCLUSIVE: first frame after {out['handshake_s']:.0f} s, "
+                          f"{out['valid_windows']}/{len(windows)} judged windows with frames, "
+                          f"{out['transport_fault_windows']} with stream_down/low_fps; "
                           "the source did not deliver a steady picture")
         out["exit_code"] = 3
     else:
@@ -102,7 +117,9 @@ def render(label: str, kind: str, minutes: float, fps: float, shape: str,
         else f"# Static-scene spike `{label}` (Gate F3) — SIMULATION (dry run)",
         "",
         f"- source: {kind} | frame: {shape} | duration: {minutes:g} min | analytic {fps:g} FPS",
-        f"- windows: {summ['windows']}, valid: {summ['valid_windows']}, "
+        f"- handshake (windows before the first frame, not judged): "
+        f"{summ['handshake_windows']} ({summ['handshake_s']:.0f} s)",
+        f"- judged windows: {summ['windows']}, valid: {summ['valid_windows']}, "
         f"freeze windows: {summ['freeze_windows']}, other-fault windows: "
         f"{summ['other_fault_windows']}",
         f"- windows with exact_repeat_ratio >= {freeze_min:g}: {summ['exact_repeat_ge_min']}; "
@@ -128,7 +145,7 @@ def main() -> int:
                     help="tag for the report file name (no IP/URL)")
     ap.add_argument("--synthetic", action="store_true", help="dry run without hardware")
     args = ap.parse_args()
-    if re.search(r"://|\d{1,3}([.-]\d{1,3}){3}", args.label):
+    if re.search(LABEL_DENY_RE, args.label):
         ap.error("--label must not contain a URL or an IP address (reports are committed)")
     label = re.sub(r"[^A-Za-z0-9_-]+", "-", args.label).strip("-") or "scene"
     cfg = load_config()

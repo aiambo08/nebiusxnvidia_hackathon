@@ -1,6 +1,7 @@
 """`scripts/spike_static_scene.py`: the live static-scene spike (F3 real-hardware re-check)."""
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -46,10 +47,29 @@ def test_freeze_windows_after_another_confirmed_incident_still_fail():
     assert s["exit_code"] == 1 and "FAIL" in s["verdict"] and "fov_shift" in s["verdict"]
 
 
+def _gap(t, faults=("stream_down",)):
+    return _row(float(t), list(faults), frames=0, exact=None, loop=None)
+
+
+def test_handshake_windows_are_reported_apart_and_not_judged():
+    """RTSP open + H.264 warm-up takes seconds; `connected=False` meanwhile yields `stream_down`
+    windows that must not turn a healthy 20-min run into INCONCLUSIVE (reviewer finding)."""
+    run = [_gap(t) for t in range(1, 7)] + [_row(float(t)) for t in range(7, 1207)]
+    s = spike.summarise(run, 0.9)
+    assert s["handshake_windows"] == 6 and s["handshake_s"] == 6.0
+    assert s["windows"] == 1200 and s["transport_fault_windows"] == 0
+    assert s["exit_code"] == 0
+    txt = spike.render("w", "rtsp", 20, 5, "640x480", s, {"transport": {}}, 0, 6000, 0.9)
+    assert "handshake (windows before the first frame, not judged): 6 (6 s)" in txt
+    too_long = [_gap(t) for t in range(1, 12)] + [_row(float(t)) for t in range(12, 40)]
+    s = spike.summarise(too_long, 0.9)
+    assert s["exit_code"] == 3 and "first frame after 11 s" in s["verdict"]
+
+
 def test_no_picture_is_inconclusive_not_pass():
     empty = [_row(float(t), frames=0, exact=None, loop=None) for t in range(1, 25)]
     s = spike.summarise(empty, 0.9)
-    assert s["exit_code"] == 3 and s["verdict"].startswith("INCONCLUSIVE: 0/24")
+    assert s["exit_code"] == 3 and s["windows"] == 0 and "INCONCLUSIVE" in s["verdict"]
     cut = [_row(1.0), _row(2.0)] + [_row(float(t), ["stream_down"], frames=0, exact=None,
                                          loop=None) for t in range(3, 25)]
     s = spike.summarise(cut, 0.9)
@@ -58,6 +78,13 @@ def test_no_picture_is_inconclusive_not_pass():
     one_hiccup = [_row(float(t)) for t in range(1, 40)] + [_row(40.0, frames=0, exact=None,
                                                                 loop=None)]
     assert spike.summarise(one_hiccup, 0.9)["exit_code"] == 0
+    # a 3-s Wi-Fi drop in a 20-min run is a transport finding, not a reason to discard the run
+    wifi_drop = ([_row(float(t)) for t in range(1, 600)] + [_gap(t) for t in range(600, 603)]
+                 + [_row(float(t)) for t in range(603, 1200)])
+    assert spike.summarise(wifi_drop, 0.9)["exit_code"] == 0
+    # ... unless the drops cover more than 5 % of the judged windows
+    flaky = [_row(float(t)) if t % 10 else _gap(t) for t in range(1, 1200)]
+    assert spike.summarise(flaky, 0.9)["exit_code"] == 3
 
 
 def test_render_verdicts():
@@ -91,7 +118,7 @@ def test_dry_run_writes_reports_without_the_uri(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("label", ["rtsp://10.0.0.1:8080/x", "wall 192.168.1.20",
-                                   "http://cam/video", "wall-192-168-1-20"])
+                                   "http://cam/video", "wall-192-168-1-20", "cam_10_0_0_1"])
 def test_label_with_url_or_ip_is_rejected(label, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["spike", "--synthetic", "--minutes", "0.1", "--label", label])
     with pytest.raises(SystemExit) as e:
@@ -103,3 +130,8 @@ def test_cli_help_runs_without_hardware():
     r = subprocess.run([sys.executable, str(ROOT / "scripts" / "spike_static_scene.py"), "-h"],
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0 and "--label" in r.stdout
+
+
+@pytest.mark.parametrize("label", ["webcam-2026-10-09-1", "rtsp-textured", "mjpeg-q50"])
+def test_date_like_labels_are_accepted(label):
+    assert re.search(spike.LABEL_DENY_RE, label) is None
