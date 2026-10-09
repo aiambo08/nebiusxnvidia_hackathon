@@ -75,7 +75,8 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
 
 | population | ratio | σ_t (counts) |
 |---|---|---|
-| live raw static scene, any σ, any texture, any gain | 0.99–1.01 | = sensor σ |
+| live raw static scene, σ ≥ 0.7, any texture, any gain | 0.99–1.01 | = sensor σ |
+| live raw smooth wall, σ ≤ 0.4 | ≈ 1 at full resolution, but bit-exact on the 160×120 analysis image (see Consequences) | = sensor σ |
 | live + motion: 40 px at +8 / 20 px at +15 / 5 px / 8 px / person-sized | ≥ 1.09 / 1.14 / 1.28 / 1.70 / 8.7 | ≥ sensor σ |
 | live, spatially correlated noise / Poisson / 2 % flicker | 5.3 / 1.0 / 1.7 | ≥ 1 |
 | live, pixel-scale static grain σ 6 + sensor σ 1 | 0.17 | 1.0 |
@@ -86,14 +87,18 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
 ## Consequences
 - No learned history: motion before rest, alternating motion/rest, small or low-contrast objects
   and AGC/light-driven noise changes cannot produce `freeze`; the four counter-examples of the
-  ADR-004 review and the H.264 / denoiser / fine-texture cases of this review are all alive
+  ADR-004 review and the H.264 / fine-texture / denoiser cases of this review no longer fire
+  through the hash path (the pre-existing bit-exact cases below are unchanged from `main`)
   (`tests/unit/test_baseline_fusion.py`, `scripts/bench_static_scene.py` →
   `docs/evidence/f3/static-scene.md`).
 - Recall unchanged from ADR-003 for the realistic frozen pipelines (stuck sensor, stuck frame
-  buffer, encoder repeating a frame): these are bit-exact. **Documented miss:** a frozen frame
-  re-emitted with per-frame decoder noise (jitter ≥ 0.1 counts) is neither bit-exact nor, since
-  this ADR, claimable through hash repeats; `scripts/bench_static_scene.py` reports those cases
-  as INFO. Catching it needs transport evidence, not pixels.
+  buffer, encoder repeating a frame — a frozen frame behind libx264 CRF 28 decodes bit-exact and
+  is confirmed): these are bit-exact. **Documented miss:** a frozen frame re-emitted with
+  per-frame decoder noise is neither bit-exact nor, since this ADR, claimable through hash
+  repeats; the 160×120 analysis image still averages jitter 0.1 away (confirmed), the miss
+  starts at jitter ≥ 0.15 on texture and ≥ 0.2 on a wall (independent review; `main` caught
+  0.15–0.2 on texture through the hash path). `scripts/bench_static_scene.py` reports those
+  cases as INFO. Catching it needs transport evidence, not pixels.
 - **Pre-existing risk, now measured (REAL HARDWARE to decide):** a live *smooth* scene over
   H.264 decodes bit-exact (table above), so the bit-exact rule itself can fire on a healthy
   compressed camera pointed at a plain wall. The owner's 10-min phone RTSP soak (textured room)
@@ -101,5 +106,13 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
   plain wall, with `exact_repeat_ratio`, `noise_ratio_p50` and `temporal_sigma_p50` logged.
   The structural answer for compressed sources is transport-level freeze evidence (RTP
   timestamps / decoder frame counters), recorded in `docs/agents/TASKS.md` for a later phase.
+- **Pre-existing bit-exact false positives, unchanged from `main` (independent review, 5th
+  pass, SIMULATION):** `exact_repeat_ratio` is computed on the 160×120 INTER_AREA analysis
+  image, where 16 raw pixels average into one, so a live smooth wall with sensor σ ≤ 0.4 rounds
+  to the same image every frame (σ 0.3: 120/120 windows; σ 0.4: 22/120), as does a raw sensor
+  σ 0.7 behind an 8-bit temporal denoiser α ≥ 0.8 (129–240/240) and libx264 at CRF 35
+  (82–217/240); a ±4-count flicker with a 4-frame period trips the loop rule (300/420). Fix for
+  a separate PR: bit-exact repeats on the full-resolution frame (≈ 300k pixels never all
+  coincide at σ 0.3), and `FreezeTracker.loop_mse_max` moved into config (`docs/agents/TASKS.md`).
 - Contract change: `VisualMetrics.noise_ratio_p50` and `temporal_sigma_p50` added (Architecture
   role); they are telemetry and incident evidence, and feed no rule.

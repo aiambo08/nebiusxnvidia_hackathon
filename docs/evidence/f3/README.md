@@ -84,10 +84,11 @@ the reference for reading the two fields on REAL HARDWARE:
 | live, H.264 static scene (CRF 23–28) | 0.00–0.04 | 0.00–0.03 |
 | frozen bit-exact / + jitter 0.1 / 0.25 / 0.5 | 0.00 / 0.00 / 0.11–0.27 / 0.27–0.60 | 0 / = jitter |
 
-<!-- BENCH -->
-
-Documented miss: a frozen frame re-emitted with decoder jitter (≥ 0.1 counts) is neither bit-exact nor
-claimable through hashes; the benchmark lists those cases as INFO. Pre-existing risk, now measured: a
+Documented miss: a frozen frame re-emitted with decoder jitter is neither bit-exact nor claimable
+through hashes once the jitter survives the 160×120 averaging (≥ 0.15 counts on texture, ≥ 0.2 on a
+wall; 0.1 is still confirmed); the benchmark lists those cases as INFO. The independent review also
+measured pre-existing bit-exact false positives identical on `main` (raw smooth wall σ ≤ 0.4, strong
+8-bit temporal denoiser, libx264 CRF 35): tracked in `docs/agents/TASKS.md` for a separate PR. Pre-existing risk, now measured: a
 live **smooth** scene over H.264 decodes bit-exact, so the bit-exact rule can fire on a healthy
 compressed camera pointed at a plain wall. REAL HARDWARE must decide: the owner's webcam and phone at
 rest (textured room and plain wall) with `exact_repeat_ratio`, `noise_ratio_p50` and `temporal_sigma_p50`

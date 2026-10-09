@@ -32,7 +32,10 @@ Last update: 2026-10-08 · Current phase: **F3** (F1/F2: every box evidenced, in
   `docs/evidence/f3/static-scene.md`: 20-min SIMULATION static scenes incl. the reviewer's cases
   with 0 freeze false positives; bit-exact and looped streams confirmed, jittered freezes are a
   documented miss. Open: the 20-min box on REAL HARDWARE (phone on a plain wall may decode
-  bit-exact while alive), transport-level freeze evidence for compressed sources (later phase),
+  bit-exact while alive; also pre-existing in SIMULATION and identical on `main`: a raw smooth wall
+  with sensor σ ≤ 0.4, a σ 0.7 sensor behind a strong temporal denoiser or libx264 CRF 35 round to
+  the same 160×120 analysis image — fix in a small PR is bit-exact on the full-resolution frame),
+  transport-level freeze evidence for compressed sources (later phase),
   recall/precision per detector, walk-by FOV trials, live probe p95 at 720p.
 
 ## Budget (update weekly from the Token Factory console)
