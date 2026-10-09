@@ -89,7 +89,9 @@ def summarise(windows: list[dict[str, Any]], freeze_min: float) -> dict[str, Any
     elif (not windows or out["handshake_s"] > HANDSHAKE_MAX_S
           or out["valid_windows"] < VALID_MIN * len(windows)
           or out["transport_fault_windows"] > TRANSPORT_FAULT_MAX * len(windows)):
-        out["verdict"] = (f"INCONCLUSIVE: first frame after {out['handshake_s']:.0f} s, "
+        waited = (f"first frame after {out['handshake_s']:.1f} s" if windows
+                  else f"no frame in {out['handshake_s']:.1f} s")
+        out["verdict"] = (f"INCONCLUSIVE: {waited}, "
                           f"{out['valid_windows']}/{len(windows)} judged windows with frames, "
                           f"{out['transport_fault_windows']} with stream_down/low_fps; "
                           "the source did not deliver a steady picture")
@@ -118,7 +120,7 @@ def render(label: str, kind: str, minutes: float, fps: float, shape: str,
         "",
         f"- source: {kind} | frame: {shape} | duration: {minutes:g} min | analytic {fps:g} FPS",
         f"- handshake (windows before the first frame, not judged): "
-        f"{summ['handshake_windows']} ({summ['handshake_s']:.0f} s)",
+        f"{summ['handshake_windows']} ({summ['handshake_s']:.1f} s)",
         f"- judged windows: {summ['windows']}, valid: {summ['valid_windows']}, "
         f"freeze windows: {summ['freeze_windows']}, other-fault windows: "
         f"{summ['other_fault_windows']}",
@@ -188,6 +190,10 @@ def main() -> int:
             agg.add(runner.analyse(f))
         now = time.monotonic() - t_start
         tw = agg.emit(worker.meter.snapshot(), runner._geom_quality)  # frames_analyzed may be 0
+        if not calibrated:  # handshake: no frame yet, keep the tracker out of it (as in replay)
+            windows.append({"t_s": round(now, 1), "frames": 0, "state": "handshake",
+                            "faults": [], "confirmed": None, **{m: None for m in METRICS}})
+            continue
         st = tracker.step(tw, now_s=now)
         row = {"t_s": round(now, 1), "frames": tw.frames_analyzed, "state": st.state.value,
                "faults": sorted(map(str, st.faults)),

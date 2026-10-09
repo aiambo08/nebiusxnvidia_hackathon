@@ -60,16 +60,17 @@ def test_handshake_windows_are_reported_apart_and_not_judged():
     assert s["windows"] == 1200 and s["transport_fault_windows"] == 0
     assert s["exit_code"] == 0
     txt = spike.render("w", "rtsp", 20, 5, "640x480", s, {"transport": {}}, 0, 6000, 0.9)
-    assert "handshake (windows before the first frame, not judged): 6 (6 s)" in txt
+    assert "handshake (windows before the first frame, not judged): 6 (6.0 s)" in txt
     too_long = [_gap(t) for t in range(1, 12)] + [_row(float(t)) for t in range(12, 40)]
     s = spike.summarise(too_long, 0.9)
-    assert s["exit_code"] == 3 and "first frame after 11 s" in s["verdict"]
+    assert s["exit_code"] == 3 and "first frame after 11.0 s" in s["verdict"]
 
 
 def test_no_picture_is_inconclusive_not_pass():
     empty = [_row(float(t), frames=0, exact=None, loop=None) for t in range(1, 25)]
     s = spike.summarise(empty, 0.9)
-    assert s["exit_code"] == 3 and s["windows"] == 0 and "INCONCLUSIVE" in s["verdict"]
+    assert s["exit_code"] == 3 and s["windows"] == 0
+    assert s["verdict"].startswith("INCONCLUSIVE: no frame in 24.0 s")
     cut = [_row(1.0), _row(2.0)] + [_row(float(t), ["stream_down"], frames=0, exact=None,
                                          loop=None) for t in range(3, 25)]
     s = spike.summarise(cut, 0.9)
