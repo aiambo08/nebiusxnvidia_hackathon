@@ -239,6 +239,8 @@ def test_replayed_moving_buffer_with_decoder_jitter_is_still_a_loop(shape, jitte
 
 @pytest.mark.parametrize("jitter", [0.0, 0.1])
 def test_replayed_buffer_is_a_loop_with_or_without_decoder_jitter(jitter):
+    """Static replayed buffer. Bit-exact: always a loop. With jitter 0.1 this only holds for wall
+    sigma 2 at 640x480; other resolutions/noise levels are a documented miss (ADR-005 table)."""
     rng = np.random.default_rng(4)
     base = [_wall(rng, 120, 2.0) for _ in range(4)]
     ft = FreezeTracker(window=10, max_loop_period=8)

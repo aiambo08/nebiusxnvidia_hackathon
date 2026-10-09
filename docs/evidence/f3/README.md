@@ -84,7 +84,7 @@ the reference for reading the two fields on REAL HARDWARE:
 | live, H.264 static scene (CRF 23–28) | 0.00–0.04 | 0.00–0.03 |
 | frozen bit-exact / + jitter 0.1 / 0.25 / 0.5 | 0.00 / 0.00 / 0.11–0.27 / 0.27–0.60 | 0 / = jitter |
 
-Documented miss: a frozen frame re-emitted with decoder jitter is neither bit-exact (exact repeats
+Documented miss: a frozen frame (or a replayed buffer of a static scene) re-emitted with decoder jitter is neither bit-exact (exact repeats
 are judged on the probe input frame (≤ 640 px side, not the 160×120 image), where any jitter breaks equality — jitter 0.1 was still
 confirmed while they were judged on the 160×120 image) nor claimable through hashes; the benchmark
 lists those cases as INFO. The independent review also

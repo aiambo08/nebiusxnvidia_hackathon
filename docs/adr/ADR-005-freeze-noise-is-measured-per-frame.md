@@ -123,13 +123,30 @@ contrast) are kept as the reference for the REAL HARDWARE read-out of the two te
   is still bit-exact after the 2× downscale; and a live σ 0.7 wall over MJPEG at quality ≤ 50 is
   bit-exact at 480 and 720p (identical on `main`) — both belong to the real-hardware re-check. The
   MSE-floor loop branch stays on the 160×120 image with `loop_mse_max` 0.5 (now
-  `probes.loop_mse_max` in config, same value and same meaning): judging it at full resolution
-  would have made it 16× stricter on noise and lost replayed-buffer loops with decoder jitter
-  (reviewer: p2/p4/p8 at 480 from 1.0/1.0/0.94 to 0.50/0.25/0.42; p8 at 720p texture 0.94 → 0.08).
-  Trade-offs accepted and measured: (a) a frozen frame with decoder jitter ≥ 0.1 is a miss (see
-  above); (b) a periodic multi-level flicker on a live sensor still trips the MSE-floor loop
-  branch (pre-existing on `main`, ±4 counts period 4 at σ 0.7: 300/420 windows; `tests/unit/
-  test_probes.py::test_periodic_flicker_on_a_live_sensor_is_a_loop_only_through_the_mse_floor`),
+  `probes.loop_mse_max` in config, same value and same meaning), so loops with real motion
+  between frames are detected exactly as on `main` (replayed blob, jitter 0.1–0.6, 480 and 720p;
+  `test_replayed_moving_buffer_with_decoder_jitter_is_still_a_loop`).
+  Trade-offs accepted and measured: (a) decoder jitter on a *static* repeated picture is now a
+  miss, through one mechanism: a frozen frame with jitter ≥ 0.1 (see above), and a replayed
+  buffer of a static scene with jitter ≥ 0.1 — on `main` its bit-exact period survived the
+  160×120 averaging; now it is judged on the input frame where the jitter breaks it, and the MSE
+  branch cannot take over because the step between its frames is noise only (~0.2 at σ 0.7 on
+  160×120, under 0.5). Reviewer's harness, fraction of windows with `loop_period` > 0, jitter 0.1:
+
+  | case (p2 / p4 / p8) | `main` | this PR |
+  |---|---|---|
+  | 480, wall σ 0.7 | 1.0 / 1.0 / 0.94 | 0.50 / 0.25 / 0.42 |
+  | 720p, wall σ 0.7 | 1.0 / 1.0 / 0.94 | 0.50 / 0.52 / 0.08 |
+  | 720p, wall σ 2 | 0.92 / 1.0 / 0.94 | 0.58 / 0.42 / 0.00 |
+  | 720p, texture | 0.83 / 0.83 / 0.94 | 0.69 / 0.23 / 0.08 |
+
+  (480 with wall σ 2 is the one case that still holds, which is what
+  `test_replayed_buffer_is_a_loop_with_or_without_decoder_jitter` covers.) Accepted because the
+  same jitter makes the identical live/frozen pictures of the H.264 case below indistinguishable
+  anyway; transport evidence is the real fix for both. (b) A periodic multi-level flicker on a
+  live sensor still trips the MSE-floor loop branch (pre-existing on `main`, ±4 counts period 4
+  at σ 0.7: 300/420 windows; `tests/unit/test_probes.py::
+  test_periodic_flicker_on_a_live_sensor_is_a_loop_only_through_the_mse_floor`),
   open in `docs/agents/TASKS.md`. What no pixel rule can reach is the compressed case above:
   libx264 decodes a live smooth wall bit-exact at full resolution at every CRF tried (23/28/35),
   and a textured scene from CRF 28 up — the encoder itself repeats the pixels, so only transport
