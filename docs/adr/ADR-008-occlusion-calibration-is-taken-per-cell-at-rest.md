@@ -79,6 +79,10 @@ Probe latency at 720p (`scripts/bench_probes.py`, isolated, sandbox): p50 15.5 m
   final (a person standing still at start-up). An untextured cell's final baseline learns a
   foreground at rest there for more of the 30 s than the scene. After calibration the baseline
   does not learn (ADR-007 principle).
+- A person in the middle of the picture at calibration leaves a small residue on the wall:
+  0.14 at rest, max 0.24 during walk-bys (first design 0.00); below 0.30 but less margin.
+- With ±20 % flicker every frame some textured cells never rest while the global clause does
+  not trigger (0.94 of the cells calibrated); occlusion still reads 0.51 (single frame 0.55).
 - Pre-existing, unchanged: a low-texture wall with luminance noise σ ≈ `std_max` (6) sits on the
   judgeable boundary; both baselines reach 0.43–0.45 per frame at rest.
 - Recalibration after a legitimate scene change remains the orchestrator's responsibility.
