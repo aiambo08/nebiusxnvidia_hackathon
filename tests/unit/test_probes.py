@@ -496,7 +496,7 @@ def test_occlusion_is_unknown_while_no_cell_is_calibrated(runner_cfg):
     """ADR-008. A blank wall right after calibration is not a uniform-cell occlusion."""
     wall = np.full((480, 640), 120, np.uint8)
     base = np.full((8, 8, 3), np.nan, np.float32)
-    r = occlusion_probe(wall, baseline_cells=base)
+    r = occlusion_probe(wall, baseline_cells=base, calibrating=True)
     assert r.quality == "unknown" and r.unknown_reason == "calibrating"
     assert r.values["occluded_cell_ratio"] == 0.0
     src = SyntheticSource(seed=1, noise_sigma=2)
@@ -508,8 +508,8 @@ def test_occlusion_is_unknown_while_no_cell_is_calibrated(runner_cfg):
     assert v["occluded_cell_ratio"] == 0.0
 
 
-def test_cells_that_never_rest_stay_unjudged(runner_cfg):
-    """ADR-008. A cell in constant motion never adopts a baseline; calibration stops."""
+def test_cells_that_never_rest_adopt_the_median_at_max_frames(runner_cfg):
+    """ADR-008. A cell never at rest adopts the median of all calibration frames at max_frames."""
     src = SyntheticSource(seed=1, noise_sigma=2)
     src.open()
     cal = runner_cfg["probes"]["occlusion_calibration"]
@@ -519,7 +519,55 @@ def test_cells_that_never_rest_stay_unjudged(runner_cfg):
         img = f.image.copy()
         img[:60, :80] = 30 if i % 2 else 220  # top-left cell flickers every frame
         frames.append(dataclasses.replace(f, image=img))
-    runner = _calibrated(runner_cfg, frames)
-    assert np.isnan(runner.baseline_cells[0, 0, 1])
-    assert 0.75 < runner.occlusion_calibrated_ratio < 1.0
-    assert runner._cal_frames == cal["max_frames"]
+    runner = _calibrated(runner_cfg, frames[: cal["max_frames"] - 2])
+    assert np.isnan(runner.baseline_cells[0, 0, 1]) and runner.occlusion_calibrating
+    for f in frames[cal["max_frames"] - 2:]:
+        runner.analyse(f)
+    assert not runner.occlusion_calibrating
+    assert runner.occlusion_calibrated_ratio == 1.0
+
+
+def _perturbed(kind: str, n: int, occlude_from: int) -> list[Frame]:
+    """Static textured scene with one ADR-008 reviewer perturbation, opaque half from a frame."""
+    src = SyntheticSource(seed=1, noise_sigma=0)
+    src.open()
+    base = src.read().image.astype(np.float32)
+    rng = np.random.default_rng(0)
+    out = []
+    for i in range(n):
+        img = base + (rng.normal(0, 10, base.shape[:2])[..., None] if kind == "luma_noise"
+                      else rng.normal(0, 2, base.shape))
+        if kind == "vibration":
+            img = np.roll(img, 1 if i % 2 else -1, axis=1)
+        if kind == "flicker":
+            img *= 1.1 if i % 2 else 0.9
+        if kind == "wide_person" and i < 60:
+            cv2.rectangle(img, (4 * i, 40), (4 * i + 300, 470), (70, 70, 90), -1)
+        if i >= occlude_from:
+            img[:, :320] = 30
+        out.append(Frame(np.clip(np.rint(img), 0, 255).astype(np.uint8), i, i / 5))
+    return out
+
+
+@pytest.mark.parametrize("kind", ["luma_noise", "vibration", "flicker", "wide_person"])
+def test_calibration_completes_and_occlusion_is_still_detected(runner_cfg, kind):
+    """ADR-008 review, SIMULATION. Luminance noise sigma 10, +-1 px vibration and +-10 % flicker
+    every frame used to leave every cell uncalibrated (occlusion never judged); a wide uniform
+    person at calibration used to leave the wall untextured. Calibration now always completes."""
+    max_frames = runner_cfg["probes"]["occlusion_calibration"]["max_frames"]
+    clip = _perturbed(kind, max_frames + 15, occlude_from=max_frames + 5)
+    runner = _calibrated(runner_cfg, clip[: max_frames + 5])
+    assert not runner.occlusion_calibrating and runner.occlusion_calibrated_ratio == 1.0
+    ratios = [runner.analyse(f)["occluded_cell_ratio"] for f in clip[max_frames + 5:]]
+    assert min(ratios) >= runner_cfg["faults"]["lens_occlusion"]["occluded_cell_ratio_min"]
+
+
+def test_calibration_counts_a_frame_once(runner_cfg):
+    """ADR-008 review: replay and runtime pass the first frame to both calibrate and analyse."""
+    src = SyntheticSource(seed=1, noise_sigma=2)
+    src.open()
+    f = src.read()
+    runner = ProbeRunner(runner_cfg)
+    runner.calibrate_reference(f)
+    runner.analyse(f)
+    assert len(runner._cal_stats) == 1

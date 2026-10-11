@@ -21,16 +21,25 @@ built **per cell, from frames in which that cell is at rest**:
 
 - `calibrate_reference` resets the baseline to NaN for every cell; NaN cells are never judged
   (`occlusion_probe`).
-- On every analysed frame while cells are pending, a pixel is *moving* when it changed by more
-  than `pixel_delta` (25 counts, > 4 σ of the noisiest sensor in the benchmarks) since the
-  previous analysed frame; a cell is *still* when at most `moving_fraction_max` (1 %) of its
-  pixels moved.
-- A pending cell adopts its baseline once it has been still for `rest_frames` (10, 2 s at 5 FPS)
-  consecutive frames: the per-cell median of those frames' statistics.
-- After `max_frames` (150, 30 s) calibration stops; cells never at rest stay unjudged.
-- While fewer than `judgeable_min` cells can be judged and some are still pending, the probe
-  reports `quality="unknown"`, `unknown_reason="calibrating"` and ratio 0 — not the absolute
-  uniform-cell rule, which would call a blank wall occluded.
+- On every new analysed frame (a `Frame.seq` is counted once; the first frame reaches both
+  `calibrate_reference` and `analyse`) the frame is brightness-normalised and differenced with
+  the previous one. A pixel is *moving* when it changed by more than
+  `max(pixel_delta, noise_k × 1.4826 × median|Δ|)` — 25 counts, raised on noisy sensors to 4×
+  the frame's robust σ of the change; a cell is *still* when at most `moving_fraction_max`
+  (1 %) of its pixels moved. Normalising first makes global flicker/AGC steps not motion.
+- An open cell adopts the per-cell median of the last `rest_frames` (10, 2 s at 5 FPS)
+  statistics once it has been still for that many consecutive frames. A textured adoption
+  closes the cell; an untextured one (baseline std < `std_max`) keeps the cell open, because a
+  uniform foreground (a wide person in plain clothes moving slowly) is "still" inside and would
+  otherwise leave the cell unjudgeable for good.
+- After `max_frames` (150, 30 s) calibration ends: cells never at rest (vibration ±1 px every
+  frame, a cell that never stops moving) adopt the per-cell median of all calibration frames,
+  which still discards a person who was in that cell less than half of the time. Every cell
+  has a baseline afterwards; occlusion is never disabled by an unfinished calibration.
+- While calibration is open and fewer than `judgeable_min` cells can be judged, the probe
+  reports `quality="unknown"`, `unknown_reason="calibrating"` and ratio 0 (afterwards
+  `too_few_judgeable_cells`) — not the absolute uniform-cell rule, which would call a blank wall
+  occluded.
 
 Thresholds in `configs/default.yaml` → `probes.occlusion_calibration`. ADR-007 thresholds and
 `faults.lens_occlusion.occluded_cell_ratio_min` (0.30) are unchanged.
@@ -39,6 +48,8 @@ Thresholds in `configs/default.yaml` → `probes.occlusion_calibration`. ADR-007
 | Case | single-frame baseline (ADR-007) | per-cell at rest (this ADR) |
 |---|---|---|
 | Wall σ 2, person walks during calibration, rest, then a walk-by (`test_occlusion_calibration_does_not_learn_a_person_walking_by`, person at the border / mid-frame) | at rest 0.14–0.28, walk-by max 0.24–0.36 | at rest 0.00, walk-by max 0.11 |
+| Independent review, DO_NOT_MERGE on the first design (fixed, `test_calibration_completes_and_occlusion_is_still_detected`): luminance noise σ 7–10, ±1 px vibration, ±10 % flicker every frame | first design: 0.00–0.17 of the cells calibrated, a 50 % opaque occlusion → ratio 0.00 (single frame 0.50–0.57) | all cells calibrated, 0.47–0.67 (= single frame) |
+| Wide uniform person (300 px, 4 px/frame) at calibration, then a 50 % opaque occlusion | first design: wall unjudgeable, 0.00; single frame 0.28 on texture | texture 0.47, wall 0.79 |
 | `bench_static_scene.py`, `docs/evidence/f3/static-scene.md` | `lens_occlusion` confirmed on `wall sigma 2, 5 min of motion then rest` | see the regenerated report |
 | `bench_detectors.py`, `docs/evidence/f3/detectors.md` | recall/precision 1.00 | see the regenerated report |
 
@@ -49,8 +60,13 @@ Probe latency at 720p (`scripts/bench_probes.py`, isolated, sandbox): p50 15.5 m
   A fault already present then is learned as the scene, as before.
 - A person or object that stands **still** for ≥ 2 s during calibration is still learned as the
   scene; pixels cannot tell a still person from furniture. The fix only removes what moves.
-- Cells that never rest (a robot arm's path, the moving object of `SyntheticSource`) are never
-  judged; the ratio is over the cells that can be.
-- A pending cell can adopt an occluder that arrives and holds still within the first 30 s;
-  `max_frames` bounds that window. After it, the baseline does not learn (ADR-007 principle).
+- Cells that never rest (a robot arm's path) get the median of 30 s of motion; whatever was
+  there more than half of the time is learned.
+- A straight edge moving along itself (the top of a person sliding sideways) looks still and
+  can be learned: wide-person case on the wall still reaches 0.36 per frame after it leaves
+  (single frame 0.45). A real silhouette is less regular; to be re-checked on hardware.
+- An open cell can adopt an occluder that arrives and holds still before the cell closes
+  (≤ 30 s). After calibration the baseline does not learn (ADR-007 principle).
+- Pre-existing, unchanged: a low-texture wall with luminance noise σ ≈ `std_max` (6) sits on the
+  judgeable boundary; both baselines reach 0.43–0.45 per frame at rest.
 - Recalibration after a legitimate scene change remains the orchestrator's responsibility.

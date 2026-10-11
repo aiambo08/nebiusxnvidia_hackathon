@@ -69,6 +69,7 @@ def occlusion_probe(
     mean_shift_min: float = 1.0,
     global_loss_ratio_min: float = 0.75,
     judgeable_min: float = 0.25,
+    calibrating: bool = False,
 ) -> ProbeResult:
     """`gray` is the raw probe input frame; normalisation happens here.
 
@@ -86,12 +87,12 @@ def occlusion_probe(
     n = int(judgeable.sum())
     judgeable_ratio = n / judgeable.size
     if judgeable_ratio < judgeable_min:
-        pending = bool(np.isnan(baseline_cells[..., 1]).any())
         return ProbeResult("occlusion", values={"occluded_cell_ratio": 0.0,
                                                 "judgeable_cell_ratio": judgeable_ratio,
                                                 "global_texture_loss": 0.0},
                            quality="unknown",
-                           unknown_reason="calibrating" if pending else "too_few_judgeable_cells",
+                           unknown_reason=("calibrating" if calibrating
+                                           else "too_few_judgeable_cells"),
                            evidence={"clipped_cells": float(clipped.sum())})
     base_std = np.maximum(baseline_cells[..., 1], 1e-3)
     base_edges = np.maximum(baseline_cells[..., 2], 1e-3)
