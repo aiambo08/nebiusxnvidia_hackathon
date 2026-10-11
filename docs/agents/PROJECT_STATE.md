@@ -46,7 +46,7 @@ Last update: 2026-10-11 · Current phase: **F3** (F1/F2: every box evidenced, in
   `docs/evidence/f3/static-scene.md`: 20-min SIMULATION static scenes incl. the reviewer's cases
   with 0 freeze false positives; bit-exact and looped streams confirmed, jittered freezes are a
   documented miss. The 20-min box passed on REAL HARDWARE on 2026-10-11 (`docs/evidence/f3/static-scene-hardware.md`:
-  webcam, phone RTSP wall/textured, MJPEG q80, 0 `freeze` windows; the phone's H.264 wall was never bit-exact). Background (a smooth wall may decode
+  PASS on webcam at rest and phone RTSP wall/textured, MJPEG q80 INCONCLUSIVE but 0 `freeze`; the phone's H.264 wall was never bit-exact). Background (a smooth wall may decode
   bit-exact while alive: libx264 repeats a live smooth wall bit-exact at full resolution at every
   CRF, SIMULATION; the raw-sensor cases — σ ≤ 0.4 wall, strong temporal denoiser — are fixed since bit-exact
   repeats are judged on the probe input frame (≤ 640 px side) instead of the 160×120 image, at

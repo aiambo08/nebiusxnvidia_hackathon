@@ -12,13 +12,18 @@ address. Each run drives the production path (`CaptureWorker` -> probes -> windo
 | label | source / scene | judged windows (with frames) | freeze windows | exact_repeat_ratio p95 | other faults | verdict |
 |---|---|---:|---:|---:|---|---|
 | `webcam-rest` (run 2) | integrated webcam, laptop turned to a fixed scene, nobody in frame | 1057 (1057) | **0** | 0.0 | none | **PASS** |
-| `rtsp-wall` | phone RTSP H.264, plain lit wall | 980 (971) | **0** | 0.0 | 1 window | **PASS** |
-| `rtsp-textured` | phone RTSP H.264, textured scene | 987 (944) | **0** | 0.0 | `stream_down` at 464 s (~40 s outage, recovered without reconnect) | **PASS** (finding) |
-| `mjpeg-q80` | phone MJPEG over HTTP (`/video`, quality 80), same plain wall | 1058 (1003) | **0** | 0.0 | `stream_down` at 251 s (~35 s outage), 36 windows | INCONCLUSIVE (outage > 5 % of windows) |
+| `rtsp-wall` | phone RTSP H.264, plain lit wall | 980 (971) | **0** | 0.0 | 1 window (fault not named in the `.md` summary) | **PASS** |
+| `rtsp-textured` | phone RTSP H.264, textured scene | 987 (944) | **0** | 0.0 | `stream_down` at 464 s (~40 s gap without frames, recovered without reconnect) | **PASS** (finding) |
+| `mjpeg-q80` | phone MJPEG over HTTP (`/video`, quality 80), same plain wall | 1058 (1003) | **0** | 0.0 | `stream_down` at 251 s (~35 s gap without frames), 36 windows | INCONCLUSIVE (windows with frames 1003/1058 = 94.8 % < 95 %; supporting evidence only) |
 | `webcam-rest` (run 1, excluded) | integrated webcam with the owner sitting in front of it | 1032 (1032) | **0** | 0.0 | `lens_occlusion` from 9 s, 757 windows | not a scene at rest |
 
-Across the five runs: 5114 judged windows, 0 `freeze` windows, no window with
-`exact_repeat_ratio ≥ 0.9`, no loop window.
+The box is carried by the PASS runs (webcam at rest, phone RTSP wall, phone RTSP textured). Across
+all five runs, including the excluded one and the INCONCLUSIVE MJPEG run: 5114 judged windows, 0
+`freeze` windows, no window with `exact_repeat_ratio ≥ 0.9`, no loop window.
+
+Traceability: the figures come from the tool's `.md` summaries pasted by the owner; the per-window
+`spikes/static-scene-<tag>.json` files and the owner's checkout SHA (`main` after PR #24, 05c5030
+expected) are not attached yet (`docs/agents/TASKS.md`).
 
 ## Findings
 - **The H.264 plain-wall risk did not materialise on this phone.** SIMULATION showed libx264 decoding
@@ -33,10 +38,11 @@ Across the five runs: 5114 judged windows, 0 `freeze` windows, no window with
   measurable, as designed (`probes/temporal.py::noise_ratio`); `temporal_sigma_p50` ≈ 0.39 is still
   measured. Telemetry only, no detector reads it (ADR-005).
 - **Webcam at rest is clean on every detector** in run 2, including `lens_occlusion` (ADR-007/008).
-  Run 1's `lens_occlusion` was the owner in front of the camera (owner's confirmation): a person close
-  to the lens covers > 30 % of the calibrated cells, which per-cell statistics cannot tell from an
-  occluder (documented limit of ADR-007).
-- **Phone Wi-Fi outages:** both 20-min phone runs had one 35–40 s gap without frames, confirmed as
+  Run 1's `lens_occlusion` happened with the owner in front of the camera (owner's confirmation). From
+  the summary alone it cannot be told whether it was a true positive (a person close to the lens covering
+  > 30 % of the calibrated cells) or the owner learned during calibration and then absent (ADR-008
+  limit); the run's JSON timeline would tell (`docs/agents/TASKS.md`).
+- **Phone stream gaps:** both 20-min phone runs had one 35–40 s gap without frames, confirmed as
   `stream_down` and recovered by the stream itself (`reconnects: 0`). Cause not established
   (phone or Wi-Fi); it is a transport event, correctly not reported as `freeze`.
 - Live webcam noise: `noise_ratio_p50` ≈ 3.1 with `temporal_sigma_p50` ≈ 0.51 (run 2) — the ISP
