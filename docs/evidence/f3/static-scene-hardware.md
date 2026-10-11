@@ -12,18 +12,29 @@ address. Each run drives the production path (`CaptureWorker` -> probes -> windo
 | label | source / scene | judged windows (with frames) | freeze windows | exact_repeat_ratio p95 | other faults | verdict |
 |---|---|---:|---:|---:|---|---|
 | `webcam-rest` (run 2) | integrated webcam, laptop turned to a fixed scene, nobody in frame | 1057 (1057) | **0** | 0.0 | none | **PASS** |
-| `rtsp-wall` | phone RTSP H.264, plain lit wall | 980 (971) | **0** | 0.0 | 1 window (fault not named in the `.md` summary) | **PASS** |
-| `rtsp-textured` | phone RTSP H.264, textured scene | 987 (944) | **0** | 0.0 | `stream_down` at 464 s (~40 s gap without frames, recovered without reconnect) | **PASS** (finding) |
-| `mjpeg-q80` | phone MJPEG over HTTP (`/video`, quality 80), same plain wall | 1058 (1003) | **0** | 0.0 | `stream_down` at 251 s (~35 s gap without frames), 36 windows | INCONCLUSIVE (windows with frames 1003/1058 = 94.8 % < 95 %; supporting evidence only) |
+| `rtsp-wall` | phone RTSP H.264, plain lit wall | 980 (971) | **0** | 0.0 | 1 unconfirmed `fov_shift` window at 988.9 s | **PASS** |
+| `rtsp-textured` | phone RTSP H.264, textured scene | 987 (944) | **0** | 0.0 | `stream_down` confirmed at 464 s; 20 short gaps without frames after the handshake (43 windows; longest 6 windows ≈ 6 s, at 460 s and 500 s), 16 transport-fault windows, 0 reconnects | **PASS** (finding) |
+| `mjpeg-q80` | phone MJPEG over HTTP (`/video`, quality 80), same plain wall | 1058 (1003) | **0** | 0.0 | `stream_down` confirmed at 251 s; 16 gaps without frames (longest 21 windows ≈ 22 s at 584–605 s, then 11 ≈ 12 s at 468–478 s), 36 transport-fault windows, 0 reconnects | INCONCLUSIVE (windows with frames 1003/1058 = 94.8 % < 95 %; supporting evidence only) |
 | `webcam-rest` (run 1, excluded) | integrated webcam with the owner sitting in front of it | 1032 (1032) | **0** | 0.0 | `lens_occlusion` from 9 s, 757 windows | not a scene at rest |
 
 The box is carried by the PASS runs (webcam at rest, phone RTSP wall, phone RTSP textured). Across
 all five runs, including the excluded one and the INCONCLUSIVE MJPEG run: 5114 judged windows, 0
 `freeze` windows, no window with `exact_repeat_ratio ≥ 0.9`, no loop window.
 
-Traceability: the figures come from the tool's `.md` summaries pasted by the owner; the per-window
-`spikes/static-scene-<tag>.json` files and the owner's checkout SHA (`main` after PR #24, 05c5030
-expected) are not attached yet (`docs/agents/TASKS.md`).
+Traceability: code at `05c5030`, as reported by the owner's `git rev-parse --short HEAD` (`main`
+after PR #24); the JSON files carry no `commit` field, so the SHA is not verifiable from them. The per-window JSON written by `scripts/spike_static_scene.py` for each counted run is
+committed unchanged under `hardware/` (label only, no URI; scanned for IPv4, URLs, paths and `@`: none).
+Re-running `summarise()` of `scripts/spike_static_scene.py` on each file's `windows` reproduces its
+stored summary and the figures below exactly.
+
+| run | file | sha256 |
+|---|---|---|
+| `webcam-rest` (run 2) | `hardware/static-scene-webcam-rest.json` | `7dbb965382e4695e24661906f77945c0016d6aeec3078a2f8146780007669715` |
+| `rtsp-wall` | `hardware/static-scene-rtsp-wall.json` | `a57fd4bfcfd4c75123c19450d77d13836aff0ebc9c8da8d0d4c4ac8cc1ec5ccf` |
+| `rtsp-textured` | `hardware/static-scene-rtsp-textured.json` | `4cc8c95367509ed92bc81d904228a45b0eceb8c61302547699a53640af36b8a2` |
+| `mjpeg-q80` | `hardware/static-scene-mjpeg-q80.json` | `cee544e11a4194f779cd275b661a81282b5625ba887f9cbdf6c561c1de2e83e5` |
+
+Run 1 of `webcam-rest` has no JSON: run 2 used the same label and overwrote it.
 
 ## Findings
 - **The H.264 plain-wall risk did not materialise on this phone.** SIMULATION showed libx264 decoding
@@ -41,10 +52,19 @@ expected) are not attached yet (`docs/agents/TASKS.md`).
   Run 1's `lens_occlusion` happened with the owner in front of the camera (owner's confirmation). From
   the summary alone it cannot be told whether it was a true positive (a person close to the lens covering
   > 30 % of the calibrated cells) or the owner learned during calibration and then absent (ADR-008
-  limit); the run's JSON timeline would tell (`docs/agents/TASKS.md`).
-- **Phone stream gaps:** both 20-min phone runs had one 35–40 s gap without frames, confirmed as
-  `stream_down` and recovered by the stream itself (`reconnects: 0`). Cause not established
-  (phone or Wi-Fi); it is a transport event, correctly not reported as `freeze`.
+  limit); its JSON was overwritten by run 2 (same label), so this stays undetermined on hardware.
+- **Phone stream gaps** (from the JSON; the `.md` timeline prints one line per ~70 s and had
+  suggested a single 35–40 s outage, which is wrong): the phone streams stall repeatedly for short
+  spells instead. `rtsp-textured`: 20 runs of windows without frames after the 4 handshake
+  windows (43 windows), mostly 1–3 windows, longest 6 (≈ 6 s) at 460 s and 500 s; `stream_down` confirmed at
+  464 s. `mjpeg-q80`: 16 runs, longest 21 windows (≈ 22 s) at 584–605 s and 11 (≈ 12 s) at
+  468–478 s. `rtsp-wall`: 6 runs after the handshake, 1–2 windows each, never reaching `stream_down`.
+  All recovered with `reconnects: 0`. Cause not established (phone or Wi-Fi); they are transport
+  events, correctly not reported as `freeze`.
+- **One unconfirmed `fov_shift` window on `rtsp-wall`** at 988.9 s (4 frames, `SUSPECT`, never
+  confirmed), coinciding with the run's only visual transient (`temporal_mse_p50` 27.2 vs a run
+  median of 0.24, `temporal_sigma_p50` 2.3 vs 0.6): something changed in the picture (light, the
+  phone touched, AE/AF); cause not established, so it is not counted as a geometry false alarm.
 - Live webcam noise: `noise_ratio_p50` ≈ 3.1 with `temporal_sigma_p50` ≈ 0.51 (run 2) — the ISP
   smooths spatially more than temporally, unlike the raw-sensor population of ADR-005 (≈ 1).
 
