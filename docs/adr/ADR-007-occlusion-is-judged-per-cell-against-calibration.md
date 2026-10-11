@@ -55,7 +55,7 @@ and its uniform cells reached 0.32 of the judgeable cells.
 | `overexpose` 1.0 (white 0.96) | 0.69 | 0.00 (`unknown`) |
 | `overexpose` 0.5 + opaque | 0.56 | 0.83–0.86 |
 | Hard local shadow (half frame × 0.15) | no confirmation | **confirmed `lens_occlusion`** (reviewer replay) |
-| Wall σ 2, calibrated with a person at the frame edge, then 5 min walk-by (`bench_static_scene.py`) | no confirmation | **confirmed `lens_occlusion`** |
+| Low-texture wall (σ 0.7 or 2) calibrated while a person / moving object is in view, then a walk-by (`bench_static_scene.py`; reviewer: also with the person mid-frame) | no confirmation | **confirmed `lens_occlusion`** |
 | Dark-clothed person standing, 35 % / 50 % width | 0.19–0.22 / 0.34–0.44 | 0.26–0.29 / 0.49–0.56 |
 
 Full chain: `scripts/bench_detectors.py` and `scripts/bench_static_scene.py` regenerated on this
@@ -77,7 +77,8 @@ change (`docs/evidence/f3/detectors.md`, `docs/evidence/f3/static-scene.md`).
   wall only 25 of 64 cells are judgeable, and the ratio is taken over judgeable cells, so each
   cell weighs 2.6× more than in `main` (which divided by all 64). In `wall sigma 2, 5 min of
   motion then rest` the calibration frame holds the edge of the walking person at the left
-  border; once the person moves on, those 7 border cells lose their (person) edges and stay
+  border (the reviewer reproduced it with the person mid-frame and on a σ 0.7 wall: any person
+  or moving object in the calibration frame does it); once the person moves on, those 7 cells lose their (person) edges and stay
   "occluded" (ratio 0.28 persistently, `main` 0.11), and the person crossing the textured part
   of the wall pushes the windows over 0.30. With a clean calibration frame the same walk-by
   peaks at 0.22 and never confirms. Root cause: a single calibration frame taken while the

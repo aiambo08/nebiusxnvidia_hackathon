@@ -203,7 +203,8 @@ are not. Tracked in `docs/agents/TASKS.md` with the other ADR-007 consequences.
 
 Second known false positive, new vs `main`, found by the regenerated 20-min static-scene
 benchmark (`static-scene.md`, finding on `wall sigma 2, 5 min of motion then rest`): the
-calibration frame holds a walking person's edge at the frame border; on a low-texture wall
+calibration frame holds a walking person's edge (any person or moving object in the calibration
+frame does it — reviewer: mid-frame person and σ 0.7 wall too); on a low-texture wall
 (25/64 judgeable cells) those cells stay "occluded" after the person leaves (0.28, `main` 0.11)
 and the walk-by tips the windows over 0.30. A clean calibration frame peaks at 0.22. Freeze
 results of that report are unchanged (0 false `freeze` on the 16 healthy scenes).
