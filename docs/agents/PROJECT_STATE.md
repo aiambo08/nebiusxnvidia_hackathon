@@ -1,6 +1,6 @@
 # Project state
 
-Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 21
+Last update: 2026-10-11 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 21
 
 ## Snapshot
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
@@ -45,7 +45,8 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
   `noise_floor_quantile`, `noise_collapse_ratio` removed). `scripts/bench_static_scene.py` →
   `docs/evidence/f3/static-scene.md`: 20-min SIMULATION static scenes incl. the reviewer's cases
   with 0 freeze false positives; bit-exact and looped streams confirmed, jittered freezes are a
-  documented miss. Open: the 20-min box on REAL HARDWARE (phone on a plain wall may decode
+  documented miss. The 20-min box passed on REAL HARDWARE on 2026-10-11 (`docs/evidence/f3/static-scene-hardware.md`:
+  PASS on webcam at rest and phone RTSP wall/textured, MJPEG q80 INCONCLUSIVE but 0 `freeze`; the phone's H.264 wall was never bit-exact). Background (a smooth wall may decode
   bit-exact while alive: libx264 repeats a live smooth wall bit-exact at full resolution at every
   CRF, SIMULATION; the raw-sensor cases — σ ≤ 0.4 wall, strong temporal denoiser — are fixed since bit-exact
   repeats are judged on the probe input frame (≤ 640 px side) instead of the 160×120 image, at
@@ -71,6 +72,6 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
 
 ## Next 3 actions
 1. Webcam + phone RTSP contract passed on REAL HARDWARE (2026-10-08), closing the shared F1/F2 box. 10-min RTSP soak passed (533/536, 99.4 %). Next: independent F1/F2 gate review.
-1b. Devin: F3 — structure veto for hard shadows (ADR-007 follow-up), then the 20 walk-by protocol; owner runs `bench_probes.py` flags and the four 20-min static-scene checks.
+1b. Devin: F3 — structure veto for hard shadows (ADR-007 follow-up), then the 20 walk-by protocol; owner runs `bench_probes.py` flags (the four 20-min static-scene checks are done, REAL HARDWARE 2026-10-11).
 2. Ingestion: probe UVC exposure/autofocus on the integrated webcam (decides UVC vs pipeline action).
 3. Nebius (F6): golden set including the cases where the reasoning tier disagrees with the local top fault.
