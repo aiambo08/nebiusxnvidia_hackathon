@@ -273,4 +273,5 @@ Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWA
 The 20 walk-by trials for `fov_shift` are not measured yet. The probe-set p95 ≤ 40 ms/frame box
 passes on the sandbox CPU in isolation (above); about 2× of the live gap is attributed in
 SIMULATION and the rest is unexplained until the owner's CPU numbers arrive. The 20-min static-scene freeze
-false-positive box is measured in SIMULATION only (above); REAL HARDWARE is pending.
+false-positive box passes on REAL HARDWARE (`static-scene-hardware.md`: owner's webcam, phone RTSP on a
+plain wall and a textured scene, MJPEG q80; 0 `freeze` windows in 5114 judged windows).
