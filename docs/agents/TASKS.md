@@ -43,6 +43,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F1][human] 10-min RTSP soak (`scripts/spike_capture.py --uri <rtsp> --minutes 10`): 533/536 valid windows (99.4 %), heap +1.6 %, 0 reconnects, REAL HARDWARE 2026-10-08 (`docs/evidence/f1/README.md`)
 - [x] [F3][vision] Per-cell occlusion against the calibration cells (ADR-007, SIMULATION): textured hand-like occluders counted, global and motion blur no longer counted as occlusion, clipped cells excluded instead of the whole saturated window (`docs/evidence/f3/README.md`)
 - [ ] [F4][vision] REAL HARDWARE occlusion check: hand at 40 % and 100 % of the frame in front of the webcam and the phone; sharp high-frequency occluders are only partially counted (ADR-007 consequence)
+- [ ] [F3][vision] Hard local shadow (half frame × 0.15) is confirmed as `lens_occlusion` (ADR-007 reviewer, SIMULATION; `main` did not). Try a per-cell structure veto (NCC against the calibration cell) without hiding `occlude_semi`; also a dark-clothed person standing at 35 % width is at 0.26–0.29 (threshold 0.30)
+- [ ] [F3][contracts] Carry occlusion `quality`/`judgeable_cell_ratio`/`global_texture_loss` into `VisualMetrics` so "could not judge" (clipped, blank) is visible to the operator (ADR-007 reviewer; contract change, ADR needed)
 - [ ] [F3][vision] Day/night baselines + reference bank for geometry
 - [ ] [F4][evaluation] `scripts/run_benchmark.py` producing a markdown report from event files
 - [ ] [F5][architecture] Restore FSM + baseline from SQLite after restart

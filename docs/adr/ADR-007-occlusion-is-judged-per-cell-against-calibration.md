@@ -54,6 +54,8 @@ and its uniform cells reached 0.32 of the judgeable cells.
 | `motion_blur_h` 1.0 | 0.14–0.27 | 0.00 |
 | `overexpose` 1.0 (white 0.96) | 0.69 | 0.00 (`unknown`) |
 | `overexpose` 0.5 + opaque | 0.56 | 0.83–0.86 |
+| Hard local shadow (half frame × 0.15) | no confirmation | **confirmed `lens_occlusion`** (reviewer replay) |
+| Dark-clothed person standing, 35 % / 50 % width | 0.19–0.22 / 0.34–0.44 | 0.26–0.29 / 0.49–0.56 |
 
 Full chain: `scripts/bench_detectors.py` and `scripts/bench_static_scene.py` regenerated on this
 change (`docs/evidence/f3/detectors.md`, `docs/evidence/f3/static-scene.md`).
@@ -64,6 +66,22 @@ change (`docs/evidence/f3/detectors.md`, `docs/evidence/f3/static-scene.md`).
   (0.24–0.38 around the 0.30 threshold). Documented limitation.
 - An occluder that arrives together with a global defocus of the rest of the frame is reported
   as defocus (`global_texture_loss`), not occlusion.
+- **Known false positive, new vs `main`:** a hard local shadow (part of the frame dimmed to
+  ~15 %) is confirmed as `lens_occlusion`. The shadowed cells lose absolute Canny edges, their
+  mean moves by many baseline stds and their std collapses, so per-cell mean/std/edge statistics
+  cannot separate a deep shadow from a dark occluder. Soft shadows and gain 0.3–2.0 are not
+  affected. A structure veto (normalised cross-correlation against the calibration cell) is
+  tracked in `docs/agents/TASKS.md`; it must not hide a semi-transparent smudge.
+- A dark-clothed person standing still in front of the camera moves closer to the threshold
+  (0.26–0.29 at 35 % width); at 50 % width both `main` and this design confirm `lens_occlusion`.
+- Overexposure + occlusion is data-dependent: when fewer than `judgeable_min` cells stay
+  judgeable the probe returns `unknown` and only `overexposure` is reported (still actionable).
+- `quality="unknown"`, `judgeable_cell_ratio` and `global_texture_loss` are not yet carried into
+  `VisualMetrics`; an operator cannot tell "no occlusion" from "could not judge" (TASKS item).
+- Opaque bands narrower than ~35 % of the width still do not reach 0.30 (grid placement,
+  pre-existing).
+- Recalibrating with an occluder in the reference gives no phantom occlusion afterwards, and no
+  detection of that occluder until the next calibration.
 - The calibration frame matters more: cells must carry texture at calibration to be judged.
   Recalibration after a legitimate scene change is the orchestrator's responsibility (unchanged).
 - REAL HARDWARE validation (hand in front of the webcam, phone RTSP) is still pending.

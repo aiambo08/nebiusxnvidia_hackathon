@@ -67,7 +67,7 @@ def occlusion_probe(
     texture_drop: float = 0.8,
     edge_loss_ratio_max: float = 0.25,
     mean_shift_min: float = 1.0,
-    global_loss_ratio_min: float = 0.9,
+    global_loss_ratio_min: float = 0.75,
     judgeable_min: float = 0.25,
 ) -> ProbeResult:
     """`gray` is the raw probe input frame; normalisation happens here."""

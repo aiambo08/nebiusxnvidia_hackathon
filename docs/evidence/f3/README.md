@@ -196,6 +196,10 @@ seeds 1–3) are in ADR-007; the tests are `tests/unit/test_probes.py::test_occl
 - Clipped frame (`overexpose` 1.0): `unknown`, ratio 0; `overexpose` 0.5 + opaque band: 0.83–0.86,
   so overexposure and occlusion are both reported.
 
+Known false positive found by the independent reviewer (new vs `main`): a hard local shadow
+(half the frame × 0.15) is confirmed as `lens_occlusion`; soft shadows and global gain 0.3–2.0
+are not. Tracked in `docs/agents/TASKS.md` with the other ADR-007 consequences.
+
 Still open: REAL HARDWARE (a hand in front of the webcam and the phone).
 
 ## Probe latency: isolated benchmark vs live spike — SIMULATION
