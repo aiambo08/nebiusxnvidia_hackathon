@@ -177,8 +177,48 @@ What this does not show: REAL HARDWARE recall/precision (F4 clips), textured occ
 blur, slow drifts, walk-by or AGC negatives (freeze FPs are covered by `static-scene.md`), and
 the detection delay on a laptop whose live probe p95 is 248 ms (`docs/evidence/f1/README.md`).
 
+## Probe latency: isolated benchmark vs live spike — SIMULATION
+Box: probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS. The isolated number comes from
+`scripts/bench_probes.py` (default: 1280×720 synthetic frames, back-to-back, nothing else in the
+process; CI runs it on every push and prints it without gating). The live number printed by
+`scripts/spike_capture.py` on the owner's laptop was 68–110 ms (webcam, 640×480) and 240–248 ms
+(phone RTSP) against 20–25 ms isolated on the sandbox, and the F1 evidence listed four unverified
+candidate causes. `bench_probes.py` now reproduces each of the spike's conditions with a flag
+(`--size`, `--paced`, `--worker`, `--tracemalloc`, `--breakdown`) so the gap can be attributed on
+the same machine. Sandbox, two passes each (the host is shared: identical runs vary up to 2×, so
+treat single-factor numbers as indicative):
+
+| condition | p50 ms | p95 ms |
+|---|---|---|
+| 1280×720 isolated (the box) | 13.6 / 15.8 | 21.8 / 25.1 |
+| 640×480 isolated | 23.4 / 21.5 | 35.6 / 31.2 |
+| 1920×1080 isolated | 29.6 / 30.5 (13.8 in a third run) | 47.5 / 45.9 |
+| 720p paced at 5 FPS | 16.7 / 29.9 | 26.6 / 44.2 |
+| 720p with tracemalloc | 40.2 / 18.6 | 57.3 / 28.9 |
+| 720p paced + 30 FPS capture thread | 15.7 / 15.9 | 26.0 / 24.7 |
+| **640×480 + capture thread + tracemalloc (= spike_capture)** | **60.1 / 62.1** | **85.4 / 83.3** |
+
+Findings:
+1. The spike's own conditions reproduce a 3–4× gap in the sandbox, stably across passes. The live
+   figure is an instrumented measurement, not the probe-set cost the box is about.
+2. `tracemalloc` is the largest single factor (it hooks every NumPy allocation; the spike needs it
+   for the F1 heap-growth gate). Per-probe breakdown at 720p (`--breakdown`, p95 ms): geometry
+   11–17 (every 5th frame), freeze 8–9, sharpness 4–5, task 3–4, occlusion 1.6, exposure 0.6,
+   downscale 0.1.
+3. A 640×480 webcam frame is analysed raw: `downscale(max_side=640)` leaves it untouched, so the
+   probes see 307 k un-smoothed pixels instead of the 230 k INTER_AREA-averaged pixels of a 720p
+   frame (sharpness and freeze roughly double). Not changed here — thresholds were calibrated on
+   that path — recorded in TASKS as a candidate for a fixed analysis area with its own benchmark.
+4. The 30 FPS capture thread alone costs little on 8 cores; it compounds with tracemalloc (GIL).
+5. The 1080p result is inconsistent between runs on this host and needs the owner's machine.
+
+What the box still needs: the same commands on the owner's laptop (REAL HARDWARE CPU, which is
+what the agent runs on). `spike_capture.py` now prints frame size, p50 and machine facts next to
+its p95 so future live numbers are comparable. Tests: `tests/unit/test_bench_probes.py`.
+
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
-The 20 walk-by trials for `fov_shift` and the probe-set p95 ≤ 40 ms/frame at 720p in the live
-pipeline are not measured yet. The 20-min static-scene freeze
+The 20 walk-by trials for `fov_shift` are not measured yet. The probe-set p95 ≤ 40 ms/frame box
+passes on the sandbox CPU in isolation (above) and the live gap is explained in SIMULATION; the
+owner's CPU numbers are pending. The 20-min static-scene freeze
 false-positive box is measured in SIMULATION only (above); REAL HARDWARE is pending.

@@ -7,10 +7,13 @@ Writes spikes/capture-report.md (commit it as evidence) and spikes/capture-healt
 
 import argparse
 import json
+import os
+import platform
 import time
 import tracemalloc
 
 import _src_path  # noqa: F401  (adds src/ to sys.path)
+import cv2
 import numpy as np
 
 from reliability_agent.capture import CaptureWorker, OpenCVSource, SyntheticSource
@@ -37,6 +40,7 @@ def main() -> int:
     mem: list[tuple[float, int]] = []
     t_start = time.monotonic()
     calibrated = False
+    frame_size = "unknown"
     while time.monotonic() - t_start < args.minutes * 60:
         agg = WindowAggregator("spike", 1.0)
         t0 = time.monotonic()
@@ -48,6 +52,7 @@ def main() -> int:
             if not calibrated:
                 runner.calibrate_reference(f)
                 calibrated = True
+                frame_size = f"{f.image.shape[1]}x{f.image.shape[0]}"
             p0 = time.perf_counter()
             agg.add(runner.analyse(f))
             probe_ms.append((time.perf_counter() - p0) * 1000)
@@ -66,14 +71,21 @@ def main() -> int:
     snap = worker.meter.snapshot()
     report = REPO_ROOT / "spikes" / "capture-report.md"
     report.parent.mkdir(exist_ok=True)
+    p50 = float(np.percentile(probe_ms, 50)) if probe_ms else float("nan")
     p95 = float(np.percentile(probe_ms, 95)) if probe_ms else float("nan")
+    machine = (f"cpus={os.cpu_count()} cv2_threads={cv2.getNumThreads()} "
+               f"python={platform.python_version()} opencv={cv2.__version__} "
+               f"platform={platform.system()} {platform.machine()}")
     lines = [
         "# Capture spike report (Gate F1)", "",
         f"- source: {'synthetic' if args.synthetic else src.kind} | duration: {args.minutes} min",
         f"- windows: {windows}, valid telemetry: {valid} ({100 * valid / max(1, windows):.1f}%)"
         " — gate >= 95%",
         f"- python heap growth after warm-up: {100 * growth:.1f}% — gate <= 10%",
-        f"- probe latency p95: {p95:.1f} ms/frame (analytic {fps} FPS)",
+        f"- probe latency p50: {p50:.1f} ms, p95: {p95:.1f} ms/frame (analytic {fps} FPS, "
+        f"frames {frame_size}, measured with tracemalloc active and the capture thread running; "
+        "compare with scripts/bench_probes.py on the same machine)",
+        f"- machine: {machine}",
         f"- reconnects: {snap.reconnect_count}, dropped frames: {snap.dropped_frames}, "
         f"decode errors: {snap.decode_errors}, "
         f"ring buffer overwritten: {worker.buffer.overwritten}",
@@ -83,7 +95,9 @@ def main() -> int:
     print("\n".join(lines))
     ok = valid >= 0.95 * windows and growth <= 0.10
     health.update({"windows": windows, "valid_windows": valid, "heap_growth": round(growth, 4),
-                   "probe_ms_p95": None if np.isnan(p95) else round(p95, 1), "gate_pass": ok})
+                   "probe_ms_p50": None if np.isnan(p50) else round(p50, 1),
+                   "probe_ms_p95": None if np.isnan(p95) else round(p95, 1),
+                   "frame_size": frame_size, "machine": machine, "gate_pass": ok})
     (report.parent / "capture-health.json").write_text(json.dumps(health, indent=2) + "\n",
                                                         encoding="utf-8")
     return 0 if ok else 1

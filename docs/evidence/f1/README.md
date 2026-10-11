@@ -32,7 +32,7 @@ Run by the owner on 2026-10-05 from `main`, with `uv run python scripts/...`. Re
 ```
 
 ## Open risk for F3
-The live probe p95 (68 ms after 1 min, 110 ms after 30 min, at 640 × 480) is 3–5× the isolated benchmark. Probe latency is not an F1 gate, but F3 must explain this gap before it claims the ≤ 40 ms gate. Candidate causes, none verified yet:
+The live probe p95 (68 ms after 1 min, 110 ms after 30 min, at 640 × 480) is 3–5× the isolated benchmark. Probe latency is not an F1 gate, but F3 must explain this gap before it claims the ≤ 40 ms gate. Candidate causes (attributed in SIMULATION in `docs/evidence/f3/README.md`, "Probe latency": 1 is the largest factor, 2 compounds with it, the 640×480 frame being analysed without downscale adds ~50 %, 3 and 4 are untested):
 1. `tracemalloc` is active during the spike, which slows every allocation.
 2. GIL contention with the 30 FPS capture thread.
 3. Geometry and ArUco cost more on real textured frames than on synthetic ones.

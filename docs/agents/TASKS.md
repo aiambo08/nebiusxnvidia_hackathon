@@ -15,7 +15,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 ## F1
 - [ ] [F1][ingestion] Probe UVC exposure/autofocus support of the integrated webcam (set-and-read-back)
 - [x] [F1][ingestion] 30-min webcam soak — `docs/evidence/f1/README.md`
-- [ ] [F3][vision] Explain live probe p95 (110 ms at 640×480) vs isolated bench (20.5 ms at 720p) — see `docs/evidence/f1/README.md`
+- [x] [F3][vision] Explain live probe p95 (110 ms at 640×480) vs isolated bench (20.5 ms at 720p) — SIMULATION: `spike_capture.py`'s own conditions (tracemalloc + 30 FPS capture thread + raw 640×480 input) reproduce a 3–4× gap on the sandbox; `scripts/bench_probes.py --size/--paced/--worker/--tracemalloc/--breakdown` attributes it per factor (`docs/evidence/f3/README.md`). REAL HARDWARE: run the same flags on the owner's laptop.
+- [ ] [F3][vision] Frames ≤ 640 px are analysed raw (`downscale(max_side=640)` is a no-op on a 640×480 webcam): ~50 % more probe time and no INTER_AREA smoothing compared with the 720p calibration path. Candidate: a fixed analysis area; needs the detector and static-scene benchmarks re-run because thresholds were calibrated on the current path.
 - [x] [F1][ingestion] Local RTSP from the phone (IP Webcam app) through the same source contract — `2 passed` on REAL HARDWARE (2026-10-08) after the decode retries (PR #6) and the network warm-up (PR #7), `docs/evidence/f1/README.md`
 - [x] [F1][evaluation] Inject blur/dark/freeze on a recorded clip — `docs/evidence/f1/README.md`, manifests `benchmarks/manifests/f1-s001-*.yaml`
 - [x] [F3][vision] Freeze rule fires on dark/blurred real frames and ranks first — fixed by causal suppression (ADR-003, `docs/evidence/f3/README.md`); owner to confirm on the real clip replay

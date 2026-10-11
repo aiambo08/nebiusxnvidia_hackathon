@@ -84,7 +84,7 @@ On ≥ 10 runs per fault:
 - [ ] Precision ≥ 0.85 per detector (SIMULATION passes: 1.00 for blackout, freeze, focus_drift, overexposure; 0.96 for lens_occlusion — one extreme-blur run attributed to occlusion; 0 confirmations on 24 negative-control runs, same report)
 - [ ] 0 freeze false positives on a 20-min static scene with healthy capture (SIMULATION passes with ADR-003 + ADR-005, `docs/evidence/f3/static-scene.md`, incl. walk-by, small/low-contrast objects, low-noise walls and temporal denoiser via bit-exact repeats on the ≤ 640 px probe input frame, AGC and light drift; H.264 and denoised live scenes are covered by `tests/unit/test_noise_ratio.py` and `tests/unit/test_baseline_fusion.py`, not by the benchmark; REAL HARDWARE run on the owner's webcam and phone — textured room and plain wall — still to be measured)
 - [ ] 0 "camera moved" false positives across ≥ 20 person-walk-by trials
-- [ ] Probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS
+- [ ] Probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS (sandbox: p50 13.6–15.8 ms, p95 21.8–25.1 ms isolated, `scripts/bench_probes.py`; the 3–4× live gap of `spike_capture.py` is attributed in SIMULATION to its own instrumentation and raw 640×480 input, `docs/evidence/f3/README.md`; the owner's CPU, where the agent runs, is pending)
 - [x] Each probe returns score, evidence, measurement quality and `unknown` reason
 - [x] Thresholds live in config, not in logic
 
