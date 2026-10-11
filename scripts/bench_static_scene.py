@@ -9,6 +9,7 @@ of the same scene must be confirmed as `freeze`. Writes a Markdown table.
 from __future__ import annotations
 
 import argparse
+import subprocess
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -193,7 +194,9 @@ def main() -> None:
         lines += ["", "## Findings (other faults confirmed on a healthy static scene)", ""]
         lines += [f"- `{name}`: {', '.join(f'`{f}`' for f in fs)} — false positive of another "
                   "detector, tracked in `docs/agents/TASKS.md`" for name, fs in findings]
-    lines += ["", f"generated: {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
+    rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
+                         text=True, check=False).stdout.strip() or "unknown"
+    lines += ["", f"commit: {rev} | generated: {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
     out.write_text("\n".join(lines))
     print(f"wrote {out}")
     if any(r[-1].startswith("FAIL") for r in rows):
