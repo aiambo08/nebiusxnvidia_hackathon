@@ -231,18 +231,30 @@ treat single-factor numbers as indicative):
 | 720p paced + 30 FPS capture thread | 15.7 / 15.9 | 26.0 / 24.7 |
 | **640×480 + capture thread + tracemalloc (= spike_capture)** | **60.1 / 62.1** | **85.4 / 83.3** |
 
+Independent reviewer re-measurement (PR #21 review, same sandbox, three passes each, `--frames 50`
+where paced): 720p isolated p50 13.3–14.2 / p95 21.0–24.3 ms; spike conditions p50 29.1–29.5 /
+p95 43.3–43.9 ms, tightly stable. Single factors vs 720p isolated, p50: raw 640×480 input
++7.5 ms, tracemalloc +4.5–6 ms, capture thread +2–4 ms, pacing ≈ +2 ms. The author's 60 / 85 ms
+rows and the 40.2 ms tracemalloc pass are outliers of the shared host; the reviewer's three-pass
+numbers are the ones the findings below use.
+
 Findings:
-1. The spike's own conditions reproduce a 3–4× gap in the sandbox, stably across passes. The live
-   figure is an instrumented measurement, not the probe-set cost the box is about.
-2. `tracemalloc` is the largest single factor (it hooks every NumPy allocation; the spike needs it
-   for the F1 heap-growth gate). Per-probe breakdown at 720p (`--breakdown`, p95 ms): geometry
+1. The spike's own conditions account for a ~2× gap on the sandbox (2.0–2.1×, three passes). The
+   live figure is an instrumented measurement, not the probe-set cost the box is about. ~2× does
+   **not** explain the owner's 110 ms (webcam) or 248 ms (RTSP); the rest needs the owner's CPU
+   numbers from the same flags.
+2. Ranking of the factors: raw 640×480 input > `tracemalloc` (it hooks every NumPy allocation; the
+   spike needs it for the F1 heap-growth gate) > capture thread ≈ pacing; they compound to ~2×.
+   Per-probe breakdown at 720p (`--breakdown`, p95 ms): geometry
    11–17 (every 5th frame), freeze 8–9, sharpness 4–5, task 3–4, occlusion 1.6, exposure 0.6,
    downscale 0.1.
 3. A 640×480 webcam frame is analysed raw: `downscale(max_side=640)` leaves it untouched, so the
-   probes see 307 k un-smoothed pixels instead of the 230 k INTER_AREA-averaged pixels of a 720p
-   frame (sharpness and freeze roughly double). Not changed here — thresholds were calibrated on
+   probes see 307 k pixels instead of the 230 k of a 720p frame downscaled to 640×360. The cost
+   tracks the pixel count, not the missing INTER_AREA smoothing: the reviewer measured 960×720 and
+   1280×960 downscaled to 640×480 (same 307 k pixels, smoothed) at the same p50 as raw 640×480
+   (17–18 vs 17–21 ms), and raw 480×360 (172 k) at 11 ms. Not changed here — thresholds were calibrated on
    that path — recorded in TASKS as a candidate for a fixed analysis area with its own benchmark.
-4. The 30 FPS capture thread alone costs little on 8 cores; it compounds with tracemalloc (GIL).
+4. The 30 FPS capture thread alone costs +2–4 ms p50 on 8 cores; it compounds with tracemalloc (GIL).
 5. The 1080p result is inconsistent between runs on this host and needs the owner's machine.
 
 What the box still needs: the same commands on the owner's laptop (REAL HARDWARE CPU, which is
@@ -252,6 +264,6 @@ its p95 so future live numbers are comparable. Tests: `tests/unit/test_bench_pro
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
 The 20 walk-by trials for `fov_shift` are not measured yet. The probe-set p95 ≤ 40 ms/frame box
-passes on the sandbox CPU in isolation (above) and the live gap is explained in SIMULATION; the
-owner's CPU numbers are pending. The 20-min static-scene freeze
+passes on the sandbox CPU in isolation (above); about 2× of the live gap is attributed in
+SIMULATION and the rest is unexplained until the owner's CPU numbers arrive. The 20-min static-scene freeze
 false-positive box is measured in SIMULATION only (above); REAL HARDWARE is pending.
