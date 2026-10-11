@@ -29,7 +29,7 @@ def normalise_brightness(gray: np.ndarray) -> np.ndarray:
     return np.clip(gray.astype(np.float32) * (128.0 / m), 0, 255).astype(np.uint8)
 
 
-def _cells(shape: tuple[int, int], grid: tuple[int, int]):
+def cell_slices(shape: tuple[int, int], grid: tuple[int, int]):
     rows, cols = grid
     h, w = shape
     for r in range(rows):
@@ -42,7 +42,7 @@ def cell_stats(gray: np.ndarray, grid: tuple[int, int] = (8, 8)) -> np.ndarray:
     """Per cell: mean, std, edge density — on a brightness-normalised image."""
     edges = cv2.Canny(gray, 50, 150)
     out = np.zeros((*grid, 3), np.float32)
-    for r, c, sl in _cells(gray.shape, grid):
+    for r, c, sl in cell_slices(gray.shape, grid):
         cell, e = gray[sl], edges[sl]
         out[r, c] = (cell.mean(), cell.std(), np.count_nonzero(e) / max(1, e.size))
     return out
@@ -51,7 +51,7 @@ def cell_stats(gray: np.ndarray, grid: tuple[int, int] = (8, 8)) -> np.ndarray:
 def clipped_cells(gray: np.ndarray, grid: tuple[int, int], white_level: int) -> np.ndarray:
     """Cells where most pixels are clipped white in the *raw* frame; they cannot be judged."""
     out = np.zeros(grid, bool)
-    for r, c, sl in _cells(gray.shape, grid):
+    for r, c, sl in cell_slices(gray.shape, grid):
         out[r, c] = (gray[sl] >= white_level).mean() > 0.5
     return out
 
@@ -70,7 +70,10 @@ def occlusion_probe(
     global_loss_ratio_min: float = 0.75,
     judgeable_min: float = 0.25,
 ) -> ProbeResult:
-    """`gray` is the raw probe input frame; normalisation happens here."""
+    """`gray` is the raw probe input frame; normalisation happens here.
+
+    NaN rows in `baseline_cells` are cells not calibrated yet (ADR-008); they are never judged.
+    """
     stats = cell_stats(normalise_brightness(gray), grid)
     uniform = (stats[..., 1] < std_max) & (stats[..., 2] < edge_max)
     if baseline_cells is None or baseline_cells.shape != stats.shape:
@@ -83,10 +86,12 @@ def occlusion_probe(
     n = int(judgeable.sum())
     judgeable_ratio = n / judgeable.size
     if judgeable_ratio < judgeable_min:
+        pending = bool(np.isnan(baseline_cells[..., 1]).any())
         return ProbeResult("occlusion", values={"occluded_cell_ratio": 0.0,
                                                 "judgeable_cell_ratio": judgeable_ratio,
                                                 "global_texture_loss": 0.0},
-                           quality="unknown", unknown_reason="too_few_judgeable_cells",
+                           quality="unknown",
+                           unknown_reason="calibrating" if pending else "too_few_judgeable_cells",
                            evidence={"clipped_cells": float(clipped.sum())})
     base_std = np.maximum(baseline_cells[..., 1], 1e-3)
     base_edges = np.maximum(baseline_cells[..., 2], 1e-3)

@@ -31,6 +31,11 @@ probes:
     mean_shift_min: 1.0      # brightness move (baseline std units) that marks a textured occluder
     global_loss_ratio_min: 0.75  # share of judgeable cells with lost edges = global defocus, not occlusion
     judgeable_min: 0.25      # minimum share of cells that can be judged (textured, not clipped)
+  occlusion_calibration:   # a cell's baseline is taken only once that cell is at rest (ADR-008)
+    pixel_delta: 25          # frame-to-frame change (counts) that marks a pixel as moving, >4 sigma of sensor noise
+    moving_fraction_max: 0.01  # a cell with more moving pixels than this is in motion
+    rest_frames: 10          # consecutive still frames before a cell adopts its baseline (2 s at 5 FPS)
+    max_frames: 150          # cells not at rest within this many analysed frames stay unjudged
   geometry:
     every_n_frames: 5
     orb_features: 500

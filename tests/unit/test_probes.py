@@ -9,7 +9,7 @@ from reliability_agent.capture.base import Frame
 from reliability_agent.capture.worker import TransportMeter
 from reliability_agent.config import load_config
 from reliability_agent.contracts.models import TransportMetrics
-from reliability_agent.probes.base import to_gray
+from reliability_agent.probes.base import downscale, to_gray
 from reliability_agent.probes.geometry import GeometryProbe
 from reliability_agent.probes.occlusion import (
     cell_stats,
@@ -109,6 +109,8 @@ def _occ(runner_cfg, sigma: int, fn):
     src.open()
     runner = ProbeRunner(runner_cfg)
     runner.calibrate_reference(src.read())
+    for _ in range(runner_cfg["probes"]["occlusion_calibration"]["rest_frames"]):
+        runner.analyse(src.read())  # ADR-008: cells adopt their baseline once at rest
     vals = []
     for _ in range(3):
         f = src.read()
@@ -439,3 +441,85 @@ def test_frozen_input_frame_is_bit_exact():
     for _ in range(12):
         r = ft.update(f)
     assert r.values["exact_repeat_ratio"] == 1.0
+
+
+def _walker(img, x):
+    out = img.copy()
+    cv2.rectangle(out, (x, 60), (x + 80, img.shape[0] - 20), (30, 30, 30), -1)
+    return out
+
+
+def _calibrated(runner_cfg, frames):
+    runner = ProbeRunner(runner_cfg)
+    runner.calibrate_reference(frames[0])
+    for f in frames[1:]:
+        runner.analyse(f)
+    return runner
+
+
+def _wall_clip(person_at_calibration: int, seed: int = 0) -> list[Frame]:
+    """Low-texture wall, sigma 2 (bench_static_scene `wall`): a person walks while the camera
+    calibrates, the scene rests, then a second person walks by."""
+    rng = np.random.default_rng(seed)
+    wall = np.full((480, 640, 3), 120, np.uint8)
+    cv2.rectangle(wall, (100, 100), (300, 300), (200, 180, 160), -1)
+    cv2.putText(wall, "wall", (350, 250), cv2.FONT_HERSHEY_SIMPLEX, 3, (40, 40, 40), 6)
+    xs = ([person_at_calibration + 3 * i for i in range(40)] + [None] * 30
+          + [-80 + 12 * i for i in range(60)])
+    out = []
+    for i, x in enumerate(xs):
+        img = wall if x is None else _walker(wall, x)
+        noisy = np.clip(np.rint(img + rng.normal(0, 2.0, img.shape)), 0, 255).astype(np.uint8)
+        out.append(Frame(noisy, i, i / 5))
+    return out
+
+
+@pytest.mark.parametrize("person_at", [0, 280])
+def test_occlusion_calibration_does_not_learn_a_person_walking_by(runner_cfg, person_at):
+    """ADR-008, SIMULATION. The static-scene false positive of ADR-007: a person in view at
+    calibration left their cells 'occluded' after leaving and a later walk-by tipped 0.30."""
+    clip = _wall_clip(person_at)
+    runner = _calibrated(runner_cfg, clip[:70])
+    assert runner.occlusion_calibrated_ratio > 0.9
+    walk_by = [runner.analyse(f)["occluded_cell_ratio"] for f in clip[70:]]
+    assert max(walk_by) < runner_cfg["faults"]["lens_occlusion"]["occluded_cell_ratio_min"]
+    single = ProbeRunner(runner_cfg)  # pre-ADR-008: the first frame was the baseline
+    single.calibrate_reference(clip[0])
+    single.baseline_cells = cell_stats(normalise_brightness(downscale(to_gray(clip[0].image))),
+                                       single.grid)
+    single.calibration_cfg = {"max_frames": 0}
+    old = [single.analyse(f)["occluded_cell_ratio"] for f in clip[1:]]
+    assert max(old[69:]) > max(walk_by)
+
+
+def test_occlusion_is_unknown_while_no_cell_is_calibrated(runner_cfg):
+    """ADR-008. A blank wall right after calibration is not a uniform-cell occlusion."""
+    wall = np.full((480, 640), 120, np.uint8)
+    base = np.full((8, 8, 3), np.nan, np.float32)
+    r = occlusion_probe(wall, baseline_cells=base)
+    assert r.quality == "unknown" and r.unknown_reason == "calibrating"
+    assert r.values["occluded_cell_ratio"] == 0.0
+    src = SyntheticSource(seed=1, noise_sigma=2)
+    src.open()
+    runner = ProbeRunner(runner_cfg)
+    runner.calibrate_reference(src.read())
+    v = runner.analyse(dataclasses.replace(src.read(), image=_opaque(src.read().image)))
+    assert runner.occlusion_calibrated_ratio == 0.0
+    assert v["occluded_cell_ratio"] == 0.0
+
+
+def test_cells_that_never_rest_stay_unjudged(runner_cfg):
+    """ADR-008. A cell in constant motion never adopts a baseline; calibration stops."""
+    src = SyntheticSource(seed=1, noise_sigma=2)
+    src.open()
+    cal = runner_cfg["probes"]["occlusion_calibration"]
+    frames = []
+    for i in range(cal["max_frames"] + 20):
+        f = src.read()
+        img = f.image.copy()
+        img[:60, :80] = 30 if i % 2 else 220  # top-left cell flickers every frame
+        frames.append(dataclasses.replace(f, image=img))
+    runner = _calibrated(runner_cfg, frames)
+    assert np.isnan(runner.baseline_cells[0, 0, 1])
+    assert 0.75 < runner.occlusion_calibrated_ratio < 1.0
+    assert runner._cal_frames == cal["max_frames"]

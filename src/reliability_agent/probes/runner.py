@@ -19,7 +19,12 @@ from reliability_agent.contracts.models import (
 )
 from reliability_agent.probes.base import downscale, to_gray
 from reliability_agent.probes.geometry import GeometryProbe
-from reliability_agent.probes.occlusion import cell_stats, normalise_brightness, occlusion_probe
+from reliability_agent.probes.occlusion import (
+    cell_slices,
+    cell_stats,
+    normalise_brightness,
+    occlusion_probe,
+)
 from reliability_agent.probes.photometric import exposure_probe
 from reliability_agent.probes.sharpness import sharpness_probe
 from reliability_agent.probes.temporal import FreezeTracker
@@ -44,14 +49,57 @@ class ProbeRunner:
         self.task = task or MarkerTask()
         self.occlusion_cfg: dict[str, float] = dict(p.get("occlusion", {}))
         self.baseline_cells: np.ndarray | None = None
+        self.calibration_cfg: dict[str, float] = dict(p.get("occlusion_calibration", {}))
+        self._cal_prev: np.ndarray | None = None
+        self._cal_still = np.zeros(self.grid, np.int32)
+        self._cal_stats: list[np.ndarray] = []
+        self._cal_frames = 0
         self._n = 0
         self._last_geom: dict[str, float] = {}
         self._geom_quality = "no_reference"
 
     def calibrate_reference(self, frame: Frame) -> None:
+        """Set the geometry reference now; start the per-cell occlusion calibration (ADR-008).
+
+        A frame is not a baseline by itself: whatever moves through it (a person walking by)
+        would be learned as the scene. Each occlusion cell adopts its baseline only after it has
+        been still for ``rest_frames`` consecutive frames (median of those frames' statistics).
+        Until then the cell is NaN and not judged.
+        """
         gray = downscale(to_gray(frame.image))
         self.geometry.set_reference(cv2.equalizeHist(gray))
-        self.baseline_cells = cell_stats(normalise_brightness(gray), self.grid)
+        self.baseline_cells = np.full((*self.grid, 3), np.nan, np.float32)
+        self._cal_prev = None
+        self._cal_still[:] = 0
+        self._cal_stats = []
+        self._cal_frames = 0
+        self._calibrate_cells(gray)
+
+    @property
+    def occlusion_calibrated_ratio(self) -> float:
+        if self.baseline_cells is None:
+            return 0.0
+        return float((~np.isnan(self.baseline_cells[..., 1])).mean())
+
+    def _calibrate_cells(self, gray: np.ndarray) -> None:
+        c = self.calibration_cfg
+        pending = np.isnan(self.baseline_cells[..., 1])
+        if not pending.any() or self._cal_frames >= c.get("max_frames", 150):
+            self._cal_prev = None
+            return
+        self._cal_frames += 1
+        rest = int(c.get("rest_frames", 10))
+        stats = cell_stats(normalise_brightness(gray), self.grid)
+        self._cal_stats = [*self._cal_stats, stats][-rest:]
+        if self._cal_prev is not None and self._cal_prev.shape == gray.shape:
+            moving = cv2.absdiff(gray, self._cal_prev) > c.get("pixel_delta", 25)
+            for r, col, sl in cell_slices(gray.shape, self.grid):
+                still = moving[sl].mean() <= c.get("moving_fraction_max", 0.01)
+                self._cal_still[r, col] = self._cal_still[r, col] + 1 if still else 0
+        self._cal_prev = gray
+        ready = pending & (self._cal_still >= rest)
+        if ready.any():
+            self.baseline_cells[ready] = np.median(np.stack(self._cal_stats), axis=0)[ready]
 
     def analyse(self, frame: Frame) -> dict[str, float]:
         gray = downscale(to_gray(frame.image))
@@ -60,6 +108,8 @@ class ProbeRunner:
         out.update(exposure_probe(gray, self.cfg["black_level"], self.cfg["white_level"]).values)
         out.update(sharpness_probe(gray, self.cfg["blur_kernel"]).values)
         out.update(self.freeze.update(gray).values)
+        if self.baseline_cells is not None:
+            self._calibrate_cells(gray)
         occ = occlusion_probe(gray, self.grid, self.baseline_cells,
                               white_level=self.cfg["white_level"], **self.occlusion_cfg)
         out.update(occ.values)
