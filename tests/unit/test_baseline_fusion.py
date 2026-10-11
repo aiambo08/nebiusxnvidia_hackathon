@@ -61,17 +61,23 @@ def test_blackout_is_not_reported_as_occlusion_or_blur(cfg):
     assert set(faults) == {FaultType.BLACKOUT}
 
 
-def test_saturation_is_not_reported_as_occlusion_or_blur(cfg):
-    """A clipped-white sensor makes every cell uniform and edge-less, and leaves no edges to judge
-    focus on (found by `scripts/bench_detectors.py`: every overexposure run also confirmed
-    lens_occlusion, and focus_drift once occlusion was suppressed)."""
+def test_saturation_is_not_reported_as_blur(cfg):
+    """A clipped-white sensor leaves no edges to judge focus on (found by
+    `scripts/bench_detectors.py`). Clipped cells are excluded by the occlusion probe (ADR-007),
+    so a fully clipped frame reports no occlusion."""
     w = make_window(visual=dict(brightness_p50=250.0, white_pixel_ratio=0.95,
-                                occluded_cell_ratio=1.0, blur_effect_p50=0.9))
+                                occluded_cell_ratio=0.0, blur_effect_p50=0.9))
     faults, _ = classify_window(w, None, cfg["faults"])
     assert set(faults) == {FaultType.OVEREXPOSURE}
-    w = make_window(visual=dict(white_pixel_ratio=0.1, occluded_cell_ratio=0.6))
+
+
+def test_occlusion_next_to_a_saturated_area_is_still_reported(cfg):
+    """ADR-007: an occluder in the non-clipped cells co-occurs with overexposure; both are real."""
+    w = make_window(visual=dict(brightness_p50=230.0, white_pixel_ratio=0.6,
+                                occluded_cell_ratio=0.6))
     faults, _ = classify_window(w, None, cfg["faults"])
-    assert FaultType.LENS_OCCLUSION in faults
+    assert set(faults) == {FaultType.OVEREXPOSURE, FaultType.LENS_OCCLUSION}
+    assert next(iter(faults)) == FaultType.OVEREXPOSURE
 
 
 def _tracker(cfg):

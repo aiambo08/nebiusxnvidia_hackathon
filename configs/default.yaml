@@ -23,6 +23,14 @@ probes:
   freeze_window: 10      # frames considered for repeat/loop detection
   max_loop_period: 8
   loop_mse_max: 0.5      # full-resolution MSE under which a periodic frame counts as replayed
+  occlusion:             # per-cell judgement against the calibration cells (ADR-007)
+    std_max: 6.0             # a cell under this std with no edges is uniform (cap, tape)
+    edge_max: 0.01
+    texture_drop: 0.8        # std ratio vs the cell's baseline under which its texture collapsed
+    edge_loss_ratio_max: 0.25  # edge-density ratio vs baseline under which a cell lost its edges
+    mean_shift_min: 1.0      # brightness move (baseline std units) that marks a textured occluder
+    global_loss_ratio_min: 0.75  # share of judgeable cells with lost edges = global defocus, not occlusion
+    judgeable_min: 0.25      # minimum share of cells that can be judged (textured, not clipped)
   geometry:
     every_n_frames: 5
     orb_features: 500

@@ -20,10 +20,14 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.
 - F3 recall/precision box (SIMULATION, `scripts/bench_detectors.py` → `docs/evidence/f3/detectors.md`):
-  156 seeded runs, blackout/freeze/occlusion recall 1.00, strong blur 0.96, precision 1.00 except
-  lens_occlusion 0.96, 0 confirmations on 24 negative controls. Two fusion mis-attributions found
-  and fixed (saturation ⇒ no `lens_occlusion`/`focus_drift` claim, ADR-003 principle); one
-  documented miss (extreme defocus read as occlusion). REAL HARDWARE recall/precision is F4.
+  156 seeded runs, recall and precision 1.00 for every detector after ADR-007 (strong blur recall and
+  lens_occlusion precision were 0.96 before), 0 confirmations on 24 negative controls. Two fusion mis-attributions found
+  and fixed (saturation ⇒ no `focus_drift` claim; `lens_occlusion` is now judged per cell, ADR-007).
+  REAL HARDWARE recall/precision is F4.
+- F3 per-cell occlusion (ADR-007, SIMULATION): cells compared with their calibration cells, clipped
+  cells excluded, global/motion blur no longer counted as occlusion, hand-like occluders detected.
+  Known new false positives: hard local shadow; low-texture wall calibrated with any person or moving
+  object in view, then a walk-by (TASKS).
 - F3 started: spurious `freeze` on dark/blurred live scenes fixed by causal suppression (ADR-003,
   `docs/evidence/f3/`); owner to confirm on the real clip replay. The absolute MSE floor that
   flagged a healthy σ=2 static scene was first replaced by a learned camera-relative noise floor
@@ -64,6 +68,6 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
 
 ## Next 3 actions
 1. Webcam + phone RTSP contract passed on REAL HARDWARE (2026-10-08), closing the shared F1/F2 box. 10-min RTSP soak passed (533/536, 99.4 %). Next: independent F1/F2 gate review.
-1b. Devin: F3 visual monitors — per-cell occlusion against the baseline (textured occluder, occlusion under clipping); owner runs `bench_probes.py` flags and the four 20-min static-scene checks.
+1b. Devin: F3 — structure veto for hard shadows (ADR-007 follow-up), then the 20 walk-by protocol; owner runs `bench_probes.py` flags and the four 20-min static-scene checks.
 2. Ingestion: probe UVC exposure/autofocus on the integrated webcam (decides UVC vs pipeline action).
 3. Nebius (F6): golden set including the cases where the reasoning tier disagrees with the local top fault.

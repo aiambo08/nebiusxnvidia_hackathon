@@ -137,9 +137,9 @@ the injector to is confirmed after onset; FP = any detector confirmed where not 
 | detector | runs | recall | precision | delay p50 |
 |---|---|---|---|---|
 | blackout (`dark` 0.9/1.0) | 24 | 1.00 | 1.00 | 2.8 s |
-| focus_drift (`gaussian_blur` 0.7/1.0) | 24 | 0.96 | 1.00 | 2.8 s |
+| focus_drift (`gaussian_blur` 0.7/1.0) | 24 | 1.00 (0.96 before ADR-007) | 1.00 | 2.8 s |
 | freeze (`freeze`, `loop4`, `loop8`) | 36 | 1.00 | 1.00 | 4.8 s |
-| lens_occlusion (`occlude_opaque` 0.7/1.0) | 24 | 1.00 | 0.96 | 2.8 s |
+| lens_occlusion (`occlude_opaque` 0.7/1.0) | 24 | 1.00 | 1.00 (0.96 before ADR-007) | 2.8 s |
 | overexposure (`overexpose` 0.8/1.0, not gated) | 24 | 1.00 | 1.00 | 2.8 s |
 
 Negative controls (clean scene and a legitimate 35 % lighting change, 24 runs): 0 confirmations.
@@ -150,12 +150,13 @@ cell uniform and edge-less; precision 0.50) and, once that was suppressed, `focu
 left to judge). Both rules now require a non-saturated window, symmetric to the blackout
 suppression of ADR-003. `benchmarks.replay.EXPECTED` grades `loop4`/`loop8` as `freeze`.
 
-Documented miss: one `gaussian_blur` 1.0 run (σ 3, seed 2) is confirmed as `lens_occlusion`
+Resolved by ADR-007 (report regenerated on that change): one `gaussian_blur` 1.0 run (σ 3, seed 2) was confirmed as `lens_occlusion`
 instead of `focus_drift`. A 43 px defocus removes 80 % of the texture of 17–31 % of the grid
 cells (`occluded_cell_ratio` 0.17–0.31 across seeds, threshold 0.30) while `blur_effect_p50` is
 0.71, and the fusion rule lets occlusion mask blur. Extreme uniform defocus and a partial smudge
 are not separable with the current window metrics; tracked in `docs/agents/TASKS.md`
-(per-cell occlusion vs global defocus). The gate still passes (recall 0.96, precision 0.96).
+(per-cell occlusion vs global defocus). The gate passed then with recall 0.96 and precision 0.96;
+after ADR-007 that run confirms `focus_drift` and both are 1.00.
 
 What "strong" means here, from the independent reviewer's sweeps just below the bench strengths
 (SIMULATION, σ 2, identical on `main`): `dark` 0.8 leaves `brightness_p50` at 26 against the
@@ -176,6 +177,39 @@ an FP; precision is optimistic by construction. The one FP above is a wrong *fir
 What this does not show: REAL HARDWARE recall/precision (F4 clips), textured occluders, motion
 blur, slow drifts, walk-by or AGC negatives (freeze FPs are covered by `static-scene.md`), and
 the detection delay on a laptop whose live probe p95 is 248 ms (`docs/evidence/f1/README.md`).
+
+## Occlusion judged per cell against the calibration cells (ADR-007) — SIMULATION
+
+`occlusion_probe` now compares each 8×8 cell with the same cell at calibration, judges only cells
+that were textured then and are not clipped white now, and treats a frame where ≥ 75 % of those
+cells lost their edges while keeping contrast and brightness as global defocus
+(`global_texture_loss` 1, ratio 0). `fusion.classify_window` no longer hides `lens_occlusion` on
+a saturated window. Thresholds: `configs/default.yaml` → `probes.occlusion`;
+`faults.lens_occlusion.occluded_cell_ratio_min` unchanged (0.30). Per-case values (σ 1/2/3,
+seeds 1–3) are in ADR-007; the tests are `tests/unit/test_probes.py::test_occlusion_*`.
+
+- Smooth hand-like occluder over 40 % of the width: 0.40–0.42 (`main` 0.31); full frame 1.00.
+- Reviewer's i.i.d. textured occluder (mean 90, σ 10), 40–60 %: 0.24–0.38 (`main` 0.05).
+  Partial: a sharp high-frequency occluder keeps its Canny edges. A real near-lens occluder is
+  out of focus and smooth.
+- `gaussian_blur` 0.4–1.0 and `motion_blur_h` 1.0: 0.00 (`main` 0.14–0.30, which let the σ 3 /
+  seed 2 extreme blur be confirmed as `lens_occlusion`).
+- Clipped frame (`overexpose` 1.0): `unknown`, ratio 0; `overexpose` 0.5 + opaque band: 0.83–0.86,
+  so overexposure and occlusion are both reported.
+
+Known false positive found by the independent reviewer (new vs `main`): a hard local shadow
+(half the frame × 0.15) is confirmed as `lens_occlusion`; soft shadows and global gain 0.3–2.0
+are not. Tracked in `docs/agents/TASKS.md` with the other ADR-007 consequences.
+
+Second known false positive, new vs `main`, found by the regenerated 20-min static-scene
+benchmark (`static-scene.md`, finding on `wall sigma 2, 5 min of motion then rest`): the
+calibration frame holds a walking person's edge (any person or moving object in the calibration
+frame does it — reviewer: mid-frame person and σ 0.7 wall too); on a low-texture wall
+(25/64 judgeable cells) those cells stay "occluded" after the person leaves (0.28, `main` 0.11)
+and the walk-by tips the windows over 0.30. A clean calibration frame peaks at 0.22. Freeze
+results of that report are unchanged (0 false `freeze` on the 16 healthy scenes).
+
+Still open: REAL HARDWARE (a hand in front of the webcam and the phone).
 
 ## Probe latency: isolated benchmark vs live spike — SIMULATION
 Box: probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS. The isolated number comes from

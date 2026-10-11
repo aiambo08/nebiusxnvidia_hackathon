@@ -67,10 +67,11 @@ def classify_window(
     if saturated:
         hit(F.OVEREXPOSURE, "visual.white_pixel_ratio", v.white_pixel_ratio)
 
-    # Occlusion needs cells that can carry texture: a blacked-out or clipped-white sensor makes
-    # every cell uniform and edge-less without anything in front of the lens (ADR-003 principle).
+    # Occlusion needs cells that can carry texture: a blacked-out sensor makes every cell uniform
+    # and edge-less without anything in front of the lens (ADR-003 principle). Clipped-white cells
+    # are excluded by the probe itself (ADR-007), so an occlusion next to a saturated area counts.
     occ = v.occluded_cell_ratio or 0
-    if not dark and not saturated and occ >= r["lens_occlusion"]["occluded_cell_ratio_min"]:
+    if not dark and occ >= r["lens_occlusion"]["occluded_cell_ratio_min"]:
         hit(F.LENS_OCCLUSION, "visual.occluded_cell_ratio", occ, score=min(1.0, occ / 0.6))
 
     fr = r["focus_drift"]

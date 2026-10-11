@@ -1,3 +1,5 @@
+import dataclasses
+
 import cv2
 import numpy as np
 import pytest
@@ -9,7 +11,12 @@ from reliability_agent.config import load_config
 from reliability_agent.contracts.models import TransportMetrics
 from reliability_agent.probes.base import to_gray
 from reliability_agent.probes.geometry import GeometryProbe
-from reliability_agent.probes.occlusion import cell_stats, occlusion_probe
+from reliability_agent.probes.occlusion import (
+    cell_stats,
+    clipped_cells,
+    normalise_brightness,
+    occlusion_probe,
+)
 from reliability_agent.probes.photometric import exposure_probe
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 from reliability_agent.probes.sharpness import blur_effect, sharpness_probe
@@ -81,6 +88,104 @@ def test_occlusion_ratio(scene):
     assert occlusion_probe(g, baseline_cells=base).values["occluded_cell_ratio"] < 0.1
     r = occlusion_probe(occ, baseline_cells=base).values["occluded_cell_ratio"]
     assert 0.4 <= r <= 0.6
+
+
+def _hand(img: np.ndarray, frac: float, seed: int = 0) -> np.ndarray:
+    """Textured skin-like occluder over the left `frac` of the frame: not uniform, so the
+    absolute uniform-cell rule alone misses it."""
+    out = img.copy()
+    h, w = out.shape[:2]
+    cw = int(w * frac)
+    x = np.linspace(0, 1, cw)[None, :, None]
+    y = np.linspace(0, 1, h)[:, None, None]
+    skin = np.array([150, 170, 210], np.float32) * (0.7 + 0.3 * x) * (0.8 + 0.2 * y)
+    skin = skin + np.random.default_rng(seed).normal(0, 4, skin.shape)
+    out[:, :cw] = np.clip(cv2.GaussianBlur(skin, (9, 9), 0), 0, 255).astype(np.uint8)
+    return out
+
+
+def _occ(runner_cfg, sigma: int, fn):
+    src = SyntheticSource(seed=1, noise_sigma=sigma)
+    src.open()
+    runner = ProbeRunner(runner_cfg)
+    runner.calibrate_reference(src.read())
+    vals = []
+    for _ in range(3):
+        f = src.read()
+        vals.append(runner.analyse(dataclasses.replace(f, image=fn(f.image))))
+    return vals
+
+
+@pytest.fixture(scope="module")
+def runner_cfg():
+    return load_config(env=False)
+
+
+def _overexpose(img):
+    return np.clip(img.astype(np.float32) * 3.0, 0, 255).astype(np.uint8)
+
+
+def _blur(img):
+    return cv2.GaussianBlur(img, (31, 31), 0)
+
+
+def _opaque(img):
+    out = img.copy()
+    out[:, : img.shape[1] // 2] = 10
+    return out
+
+
+@pytest.mark.parametrize("sigma", [1, 2, 3])
+@pytest.mark.parametrize(
+    ("name", "fn", "lo", "hi"),
+    [
+        ("healthy", lambda i: i, 0.0, 0.05),
+        ("lighting_change", lambda i: np.clip(i * 0.6, 0, 255).astype(np.uint8), 0.0, 0.05),
+        ("dark_but_alive", lambda i: (i * 0.25).astype(np.uint8), 0.0, 0.05),
+        ("hand_40pct", lambda i: _hand(i, 0.4), 0.30, 0.60),
+        ("hand_full", lambda i: _hand(i, 1.0), 0.90, 1.0),
+        ("opaque_half", _opaque, 0.40, 0.90),
+        ("global_defocus", _blur, 0.0, 0.0),
+        ("motion_blur", lambda i: cv2.blur(i, (41, 1)), 0.0, 0.10),
+        ("fully_clipped", _overexpose, 0.0, 0.0),
+    ],
+)
+def test_occlusion_per_cell_against_baseline(runner_cfg, sigma, name, fn, lo, hi):
+    """ADR-007, SIMULATION. Textured occluders count, global defocus and clipped cells do not."""
+    for v in _occ(runner_cfg, sigma, fn):
+        assert lo <= v["occluded_cell_ratio"] <= hi, (name, v["occluded_cell_ratio"])
+
+
+def test_occlusion_is_still_measured_beside_a_clipped_area(runner_cfg):
+    def fn(img):
+        out = _opaque(img)
+        out[:, 3 * img.shape[1] // 4:] = 255
+        return out
+
+    for v in _occ(runner_cfg, 2, fn):
+        assert v["occluded_cell_ratio"] >= runner_cfg["faults"]["lens_occlusion"][
+            "occluded_cell_ratio_min"]
+        assert v["judgeable_cell_ratio"] < 0.8
+
+
+def test_global_defocus_is_flagged_not_counted(runner_cfg):
+    v = _occ(runner_cfg, 2, _blur)[-1]
+    assert v["global_texture_loss"] == 1.0 and v["occluded_cell_ratio"] == 0.0
+
+
+def test_too_few_judgeable_cells_is_unknown_not_occluded(scene):
+    _, g = scene
+    flat = np.full_like(g, 120)
+    r = occlusion_probe(flat, baseline_cells=cell_stats(normalise_brightness(flat)))
+    assert r.quality == "unknown" and r.values["occluded_cell_ratio"] == 0.0
+
+
+def test_clipped_cells_reads_the_raw_frame(scene):
+    _, g = scene
+    out = g.copy()
+    out[:, g.shape[1] // 2:] = 255
+    c = clipped_cells(out, (8, 8), 240)
+    assert c[:, 4:].all() and not c[:, :4].any()
 
 
 def test_geometry_detects_shift(scene):
