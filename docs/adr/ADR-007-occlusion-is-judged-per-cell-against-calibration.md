@@ -55,6 +55,7 @@ and its uniform cells reached 0.32 of the judgeable cells.
 | `overexpose` 1.0 (white 0.96) | 0.69 | 0.00 (`unknown`) |
 | `overexpose` 0.5 + opaque | 0.56 | 0.83–0.86 |
 | Hard local shadow (half frame × 0.15) | no confirmation | **confirmed `lens_occlusion`** (reviewer replay) |
+| Wall σ 2, calibrated with a person at the frame edge, then 5 min walk-by (`bench_static_scene.py`) | no confirmation | **confirmed `lens_occlusion`** |
 | Dark-clothed person standing, 35 % / 50 % width | 0.19–0.22 / 0.34–0.44 | 0.26–0.29 / 0.49–0.56 |
 
 Full chain: `scripts/bench_detectors.py` and `scripts/bench_static_scene.py` regenerated on this
@@ -72,6 +73,17 @@ change (`docs/evidence/f3/detectors.md`, `docs/evidence/f3/static-scene.md`).
   cannot separate a deep shadow from a dark occluder. Soft shadows and gain 0.3–2.0 are not
   affected. A structure veto (normalised cross-correlation against the calibration cell) is
   tracked in `docs/agents/TASKS.md`; it must not hide a semi-transparent smudge.
+- **Known false positive, new vs `main` (20-min static-scene benchmark):** on a low-texture
+  wall only 25 of 64 cells are judgeable, and the ratio is taken over judgeable cells, so each
+  cell weighs 2.6× more than in `main` (which divided by all 64). In `wall sigma 2, 5 min of
+  motion then rest` the calibration frame holds the edge of the walking person at the left
+  border; once the person moves on, those 7 border cells lose their (person) edges and stay
+  "occluded" (ratio 0.28 persistently, `main` 0.11), and the person crossing the textured part
+  of the wall pushes the windows over 0.30. With a clean calibration frame the same walk-by
+  peaks at 0.22 and never confirms. Root cause: a single calibration frame taken while the
+  scene is not at rest (the ADR-004 lesson). Dividing by all non-clipped cells removes it but
+  gives back the ADR-007 recall (textured hand 0.18–0.29, full-frame occluder 0.75), so it is
+  not done here; a calibration taken only on a scene at rest is tracked in `docs/agents/TASKS.md`.
 - A dark-clothed person standing still in front of the camera moves closer to the threshold
   (0.26–0.29 at 35 % width); at 50 % width both `main` and this design confirm `lens_occlusion`.
 - Overexposure + occlusion is data-dependent: when fewer than `judgeable_min` cells stay

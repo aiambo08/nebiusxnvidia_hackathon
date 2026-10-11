@@ -5,9 +5,9 @@
 | detector | expected runs | TP | FN | FP | recall | precision | delay p50 s | gate |
 |---|---|---|---|---|---|---|---|---|
 | blackout | 24 | 24 | 0 | 0 | 1.00 | 1.00 | 2.80 | PASS |
-| focus_drift | 24 | 23 | 1 | 0 | 0.96 | 1.00 | 2.80 | PASS |
+| focus_drift | 24 | 24 | 0 | 0 | 1.00 | 1.00 | 2.80 | PASS |
 | freeze | 36 | 36 | 0 | 0 | 1.00 | 1.00 | 4.80 | PASS |
-| lens_occlusion | 24 | 24 | 0 | 1 | 1.00 | 0.96 | 2.80 | PASS |
+| lens_occlusion | 24 | 24 | 0 | 0 | 1.00 | 1.00 | 2.80 | PASS |
 | overexposure | 24 | 24 | 0 | 0 | 1.00 | 1.00 | 2.80 | PASS (not gated) |
 
 ## Runs
@@ -60,7 +60,7 @@
 | gaussian_blur | 1 | 2 | 3 | focus_drift | 2.8 | - | PASS |
 | gaussian_blur | 1 | 3 | 0 | focus_drift | 2.8 | - | PASS |
 | gaussian_blur | 1 | 3 | 1 | focus_drift | 2.8 | - | PASS |
-| gaussian_blur | 1 | 3 | 2 | lens_occlusion | 2.8 | lens_occlusion | FAIL |
+| gaussian_blur | 1 | 3 | 2 | focus_drift | 2.8 | - | PASS |
 | gaussian_blur | 1 | 3 | 3 | focus_drift | 2.8 | - | PASS |
 | freeze | 1 | 1 | 0 | freeze | 4.8 | - | PASS |
 | freeze | 1 | 1 | 1 | freeze | 4.8 | - | PASS |
@@ -171,4 +171,4 @@
 | lighting_change | 1 | 3 | 2 | - | - | - | PASS |
 | lighting_change | 1 | 3 | 3 | - | - | - | PASS |
 
-commit: 73b2ad6 | runs: 156 | wall time: 1957 s | generated: 2026-10-09 15:46:45 | overall: PASS
+commit: 204300f | runs: 156 | wall time: 1613 s | generated: 2026-10-11 11:36:03 | overall: PASS
