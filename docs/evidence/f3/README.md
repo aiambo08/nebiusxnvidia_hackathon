@@ -209,6 +209,12 @@ frame does it — reviewer: mid-frame person and σ 0.7 wall too); on a low-text
 and the walk-by tips the windows over 0.30. A clean calibration frame peaks at 0.22. Freeze
 results of that report are unchanged (0 false `freeze` on the 16 healthy scenes).
 
+**Fixed by ADR-008 (SIMULATION):** each cell adopts its baseline only after it has been still
+for 10 analysed frames (2 s), median of those frames; until then it is not judged and the probe
+reports `unknown`/`calibrating`. Wall σ 2 with a person walking during calibration
+(`test_occlusion_calibration_does_not_learn_a_person_walking_by`): at rest 0.28 → 0.00, walk-by
+max 0.36 → 0.11. A person standing still ≥ 2 s during calibration is still learned.
+
 Still open: REAL HARDWARE (a hand in front of the webcam and the phone).
 
 ## Probe latency: isolated benchmark vs live spike — SIMULATION

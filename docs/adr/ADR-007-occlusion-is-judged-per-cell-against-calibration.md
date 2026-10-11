@@ -84,7 +84,7 @@ change (`docs/evidence/f3/detectors.md`, `docs/evidence/f3/static-scene.md`).
   peaks at 0.22 and never confirms. Root cause: a single calibration frame taken while the
   scene is not at rest (the ADR-004 lesson). Dividing by all non-clipped cells removes it but
   gives back the ADR-007 recall (textured hand 0.18–0.29, full-frame occluder 0.75), so it is
-  not done here; a calibration taken only on a scene at rest is tracked in `docs/agents/TASKS.md`.
+  not done here; superseded by ADR-008 (each cell calibrates only once it is at rest).
 - A dark-clothed person standing still in front of the camera moves closer to the threshold
   (0.26–0.29 at 35 % width); at 50 % width both `main` and this design confirm `lens_occlusion`.
 - Overexposure + occlusion is data-dependent: when fewer than `judgeable_min` cells stay
