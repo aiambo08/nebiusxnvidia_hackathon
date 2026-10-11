@@ -14,8 +14,8 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
   thinking must be disabled; fast tier 20/20 valid at ~0.0001 USD/diagnosis (ADR-002).
 - Real webcam verified (REAL HARDWARE, native Windows, integrated 640×480 webcam): 30-min soak 100% valid
   windows, heap +0.4%, 0 reconnects (`docs/evidence/f1/`). The live probe p95 (110 ms webcam, 248 ms RTSP) vs 20–25 ms isolated is
-  explained in SIMULATION (`spike_capture.py` measures with tracemalloc + capture thread on raw 640×480;
-  `bench_probes.py` flags reproduce a 3–4× gap); owner's CPU numbers pending.
+  only partly attributed in SIMULATION (`spike_capture.py` measures with tracemalloc + capture thread
+  on raw 640×480; `bench_probes.py` flags reproduce ~2×); owner's CPU numbers pending.
 - F1 replay tooling: record a clean clip, inject seeded blur/dark/freeze, replay it through
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.
