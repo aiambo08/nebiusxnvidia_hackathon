@@ -13,7 +13,7 @@ address. Each run drives the production path (`CaptureWorker` -> probes -> windo
 |---|---|---:|---:|---:|---|---|
 | `webcam-rest` (run 2) | integrated webcam, laptop turned to a fixed scene, nobody in frame | 1057 (1057) | **0** | 0.0 | none | **PASS** |
 | `rtsp-wall` | phone RTSP H.264, plain lit wall | 980 (971) | **0** | 0.0 | 1 unconfirmed `fov_shift` window at 988.9 s | **PASS** |
-| `rtsp-textured` | phone RTSP H.264, textured scene | 987 (944) | **0** | 0.0 | `stream_down` confirmed at 464 s; 21 short gaps without frames (longest 6 windows ≈ 7 s, at 460 s and 500 s), 16 transport-fault windows, 0 reconnects | **PASS** (finding) |
+| `rtsp-textured` | phone RTSP H.264, textured scene | 987 (944) | **0** | 0.0 | `stream_down` confirmed at 464 s; 20 short gaps without frames after the handshake (43 windows; longest 6 windows ≈ 6 s, at 460 s and 500 s), 16 transport-fault windows, 0 reconnects | **PASS** (finding) |
 | `mjpeg-q80` | phone MJPEG over HTTP (`/video`, quality 80), same plain wall | 1058 (1003) | **0** | 0.0 | `stream_down` confirmed at 251 s; 16 gaps without frames (longest 21 windows ≈ 22 s at 584–605 s, then 11 ≈ 12 s at 468–478 s), 36 transport-fault windows, 0 reconnects | INCONCLUSIVE (windows with frames 1003/1058 = 94.8 % < 95 %; supporting evidence only) |
 | `webcam-rest` (run 1, excluded) | integrated webcam with the owner sitting in front of it | 1032 (1032) | **0** | 0.0 | `lens_occlusion` from 9 s, 757 windows | not a scene at rest |
 
@@ -21,8 +21,8 @@ The box is carried by the PASS runs (webcam at rest, phone RTSP wall, phone RTSP
 all five runs, including the excluded one and the INCONCLUSIVE MJPEG run: 5114 judged windows, 0
 `freeze` windows, no window with `exact_repeat_ratio ≥ 0.9`, no loop window.
 
-Traceability: code at `05c5030` (`git rev-parse --short HEAD` on the owner's checkout, `main` after
-PR #24). The per-window JSON written by `scripts/spike_static_scene.py` for each counted run is
+Traceability: code at `05c5030`, as reported by the owner's `git rev-parse --short HEAD` (`main`
+after PR #24); the JSON files carry no `commit` field, so the SHA is not verifiable from them. The per-window JSON written by `scripts/spike_static_scene.py` for each counted run is
 committed unchanged under `hardware/` (label only, no URI; scanned for IPv4, URLs, paths and `@`: none).
 Re-running `summarise()` of `scripts/spike_static_scene.py` on each file's `windows` reproduces its
 stored summary and the figures below exactly.
@@ -55,15 +55,16 @@ Run 1 of `webcam-rest` has no JSON: run 2 used the same label and overwrote it.
   limit); its JSON was overwritten by run 2 (same label), so this stays undetermined on hardware.
 - **Phone stream gaps** (from the JSON; the `.md` timeline prints one line per ~70 s and had
   suggested a single 35–40 s outage, which is wrong): the phone streams stall repeatedly for short
-  spells instead. `rtsp-textured`: 21 runs of windows without frames (17 after the 4 handshake
-  windows), mostly 1–3 windows, longest 6 (≈ 7 s) at 460 s and 500 s; `stream_down` confirmed at
+  spells instead. `rtsp-textured`: 20 runs of windows without frames after the 4 handshake
+  windows (43 windows), mostly 1–3 windows, longest 6 (≈ 6 s) at 460 s and 500 s; `stream_down` confirmed at
   464 s. `mjpeg-q80`: 16 runs, longest 21 windows (≈ 22 s) at 584–605 s and 11 (≈ 12 s) at
   468–478 s. `rtsp-wall`: 6 runs after the handshake, 1–2 windows each, never reaching `stream_down`.
   All recovered with `reconnects: 0`. Cause not established (phone or Wi-Fi); they are transport
   events, correctly not reported as `freeze`.
-- **One unconfirmed `fov_shift` window on `rtsp-wall`** at 988.9 s (4 frames, the tracker did not
-  confirm it) on a plain wall at rest. Single window, no incident, but it is a REAL HARDWARE
-  geometry false alarm on a smooth scene (ADR-006 risk) to keep in view for the walk-by trials.
+- **One unconfirmed `fov_shift` window on `rtsp-wall`** at 988.9 s (4 frames, `SUSPECT`, never
+  confirmed), coinciding with the run's only visual transient (`temporal_mse_p50` 27.2 vs a run
+  median of 0.24, `temporal_sigma_p50` 2.3 vs 0.6): something changed in the picture (light, the
+  phone touched, AE/AF); cause not established, so it is not counted as a geometry false alarm.
 - Live webcam noise: `noise_ratio_p50` ≈ 3.1 with `temporal_sigma_p50` ≈ 0.51 (run 2) — the ISP
   smooths spatially more than temporally, unlike the raw-sensor population of ADR-005 (≈ 1).
 
