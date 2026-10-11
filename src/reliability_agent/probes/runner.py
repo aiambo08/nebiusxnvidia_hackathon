@@ -55,6 +55,7 @@ class ProbeRunner:
         self._cal_seq: int | None = None
         self._cal_still = np.zeros(self.grid, np.int32)
         self._cal_stats: list[np.ndarray] = []
+        self._cal_rest: list[np.ndarray] = []
         self._n = 0
         self._last_geom: dict[str, float] = {}
         self._geom_quality = "no_reference"
@@ -63,11 +64,15 @@ class ProbeRunner:
         """Set the geometry reference now; start the per-cell occlusion calibration (ADR-008).
 
         A frame is not a baseline by itself: whatever moves through it (a person walking by)
-        would be learned as the scene. Each occlusion cell adopts its baseline once it has been
-        still for ``rest_frames`` consecutive frames (median of those frames' statistics); a cell
-        whose adopted baseline is untextured keeps calibrating, since what rested there may have
-        been a uniform foreground. After ``max_frames`` cells never at rest adopt the median of
-        every calibration frame. Until a cell has a baseline it is NaN and not judged.
+        would be learned as the scene. A cell adopts its baseline once it has been still for
+        ``rest_frames`` consecutive frames (median of those frames' statistics). A textured
+        adoption is final; an untextured one stays unjudgeable until ``max_frames`` and is then
+        replaced by the median over every frame in which the cell was at rest, so a foreground
+        that rested there briefly (a uniform or a textured person) is outvoted by the scene.
+        Cells never at rest stay NaN (not judged) unless most cells never rested, or without them
+        too few cells could be judged (a noisy, vibrating or flickering camera, where textured
+        cells are exactly the ones that never look still); then they adopt the median of all
+        frames, so occlusion is never left disabled by calibration.
         """
         gray = downscale(to_gray(frame.image))
         self.geometry.set_reference(cv2.equalizeHist(gray))
@@ -77,6 +82,7 @@ class ProbeRunner:
         self._cal_seq = None
         self._cal_still[:] = 0
         self._cal_stats = []
+        self._cal_rest = []
         self._calibrate_cells(gray, frame.seq)
 
     @property
@@ -96,8 +102,8 @@ class ProbeRunner:
         rest = int(c.get("rest_frames", 10))
         self._cal_seq = seq
         norm = normalise_brightness(gray)
-        stats = cell_stats(norm, self.grid)
-        self._cal_stats.append(stats)
+        self._cal_stats.append(cell_stats(norm, self.grid))
+        self._cal_rest.append(np.zeros(self.grid, bool))
         if self._cal_prev is not None and self._cal_prev.shape == norm.shape:
             delta = cv2.absdiff(norm, self._cal_prev)
             noise = 1.4826 * float(np.median(delta))
@@ -108,15 +114,28 @@ class ProbeRunner:
         self._cal_prev = norm
         ready = self._cal_open & (self._cal_still >= rest)
         if ready.any():
-            self.baseline_cells[ready] = np.median(np.stack(self._cal_stats[-rest:]), axis=0)[ready]
+            for m in self._cal_rest[-rest:]:
+                m |= ready
+            new = ready & np.isnan(self.baseline_cells[..., 1])
+            self.baseline_cells[new] = np.median(np.stack(self._cal_stats[-rest:]), axis=0)[new]
             textured = self.baseline_cells[..., 1] >= self.occlusion_cfg.get("std_max", 6.0)
-            self._cal_open &= ~(ready & textured)
+            self._cal_open &= ~(new & textured)
         if len(self._cal_stats) >= c.get("max_frames", 150):
-            never = np.isnan(self.baseline_cells[..., 1])
-            self.baseline_cells[never] = np.median(np.stack(self._cal_stats), axis=0)[never]
-            self._cal_open[:] = False
-            self._cal_stats = []
-            self._cal_prev = None
+            self._finish_calibration()
+
+    def _finish_calibration(self) -> None:
+        stats, at_rest = np.stack(self._cal_stats), np.stack(self._cal_rest)
+        rested = self._cal_open & at_rest.any(axis=0)
+        if rested.any():
+            masked = np.where(at_rest[..., None], stats, np.nan)[:, rested]
+            self.baseline_cells[rested] = np.nanmedian(masked, axis=0)
+        never = np.isnan(self.baseline_cells[..., 1])
+        judgeable = self.baseline_cells[..., 1] >= self.occlusion_cfg.get("std_max", 6.0)
+        if never.any() and (never.mean() > self.calibration_cfg.get("global_fallback_min", 0.5)
+                            or judgeable.mean() < self.occlusion_cfg.get("judgeable_min", 0.25)):
+            self.baseline_cells[never] = np.median(stats, axis=0)[never]
+        self._cal_open[:] = False
+        self._cal_stats, self._cal_rest, self._cal_prev = [], [], None
 
     def analyse(self, frame: Frame) -> dict[str, float]:
         gray = downscale(to_gray(frame.image))

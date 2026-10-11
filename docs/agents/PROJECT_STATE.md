@@ -28,7 +28,9 @@ Last update: 2026-10-09 · Current phase: **F3** (F1/F2: every box evidenced, in
   cells excluded, global/motion blur no longer counted as occlusion, hand-like occluders detected.
   Known new false positive: hard local shadow (TASKS). The walk-by false positive on a low-texture
   wall calibrated with a person in view is fixed by ADR-008 (each cell calibrates once it is still
-  for 2 s; a person standing still during calibration is still learned).
+  for 2 s; untextured cells take the median of their at-rest frames at 30 s; cells never at rest
+  stay unjudged unless calibration fails globally; a textured person standing still ≥ 2 s during
+  calibration is still learned).
 - F3 started: spurious `freeze` on dark/blurred live scenes fixed by causal suppression (ADR-003,
   `docs/evidence/f3/`); owner to confirm on the real clip replay. The absolute MSE floor that
   flagged a healthy σ=2 static scene was first replaced by a learned camera-relative noise floor
