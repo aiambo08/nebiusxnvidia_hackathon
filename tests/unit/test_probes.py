@@ -146,6 +146,7 @@ def _opaque(img):
         ("hand_full", lambda i: _hand(i, 1.0), 0.90, 1.0),
         ("opaque_half", _opaque, 0.40, 0.90),
         ("global_defocus", _blur, 0.0, 0.0),
+        ("motion_blur", lambda i: cv2.blur(i, (41, 1)), 0.0, 0.10),
         ("fully_clipped", _overexpose, 0.0, 0.0),
     ],
 )

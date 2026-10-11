@@ -29,7 +29,7 @@ probes:
     texture_drop: 0.8        # std ratio vs the cell's baseline under which its texture collapsed
     edge_loss_ratio_max: 0.25  # edge-density ratio vs baseline under which a cell lost its edges
     mean_shift_min: 1.0      # brightness move (baseline std units) that marks a textured occluder
-    global_loss_ratio_min: 0.9  # share of judgeable cells with lost edges = global defocus, not occlusion
+    global_loss_ratio_min: 0.75  # share of judgeable cells with lost edges = global defocus, not occlusion
     judgeable_min: 0.25      # minimum share of cells that can be judged (textured, not clipped)
   geometry:
     every_n_frames: 5
