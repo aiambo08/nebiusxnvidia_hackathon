@@ -177,6 +177,27 @@ What this does not show: REAL HARDWARE recall/precision (F4 clips), textured occ
 blur, slow drifts, walk-by or AGC negatives (freeze FPs are covered by `static-scene.md`), and
 the detection delay on a laptop whose live probe p95 is 248 ms (`docs/evidence/f1/README.md`).
 
+## Occlusion judged per cell against the calibration cells (ADR-007) — SIMULATION
+
+`occlusion_probe` now compares each 8×8 cell with the same cell at calibration, judges only cells
+that were textured then and are not clipped white now, and treats a frame where ≥ 75 % of those
+cells lost their edges while keeping contrast and brightness as global defocus
+(`global_texture_loss` 1, ratio 0). `fusion.classify_window` no longer hides `lens_occlusion` on
+a saturated window. Thresholds: `configs/default.yaml` → `probes.occlusion`;
+`faults.lens_occlusion.occluded_cell_ratio_min` unchanged (0.30). Per-case values (σ 1/2/3,
+seeds 1–3) are in ADR-007; the tests are `tests/unit/test_probes.py::test_occlusion_*`.
+
+- Smooth hand-like occluder over 40 % of the width: 0.40–0.42 (`main` 0.31); full frame 1.00.
+- Reviewer's i.i.d. textured occluder (mean 90, σ 10), 40–60 %: 0.24–0.38 (`main` 0.05).
+  Partial: a sharp high-frequency occluder keeps its Canny edges. A real near-lens occluder is
+  out of focus and smooth.
+- `gaussian_blur` 0.4–1.0 and `motion_blur_h` 1.0: 0.00 (`main` 0.14–0.30, which let the σ 3 /
+  seed 2 extreme blur be confirmed as `lens_occlusion`).
+- Clipped frame (`overexpose` 1.0): `unknown`, ratio 0; `overexpose` 0.5 + opaque band: 0.83–0.86,
+  so overexposure and occlusion are both reported.
+
+Still open: REAL HARDWARE (a hand in front of the webcam and the phone).
+
 ## Probe latency: isolated benchmark vs live spike — SIMULATION
 Box: probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS. The isolated number comes from
 `scripts/bench_probes.py` (default: 1280×720 synthetic frames, back-to-back, nothing else in the
