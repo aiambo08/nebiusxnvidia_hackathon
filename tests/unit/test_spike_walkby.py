@@ -67,6 +67,27 @@ def test_any_fov_shift_window_fails_even_unconfirmed(phase):
     assert "31.25 px" in s["verdict"] and s["verdict"].startswith("FAIL")
 
 
+@pytest.mark.parametrize("broken", ["rest", "bump", "reference"])
+def test_fov_shift_on_an_invalid_run_is_inconclusive(broken):
+    """Reviewer case: the owner sat still in front during CALIBRATE, so he is the reference;
+    the run's own REST/BUMP evidence says it cannot be trusted, so no FAIL."""
+    rows = _run(bump=broken != "bump")
+    next(w for w in rows if w["phase"] == "walk").update(faults=["fov_shift"])
+    if broken == "rest":
+        for w in rows:
+            if w["phase"] == "rest":
+                w.update(armed=False)
+    ref = "not_still" if broken == "reference" else "ok"
+    s = walk.summarise(rows, 3, bump=True, reference=ref)
+    assert s["exit_code"] == 3 and "finding only, the run is not valid" in s["verdict"]
+
+
+def test_fov_shift_on_a_valid_run_fails_even_with_too_few_trials():
+    rows = _set(_run(bump=True), 2, "walk", temporal_mse_p50=0.2)
+    next(w for w in rows if w["phase"] == "rest").update(faults=["fov_shift"])
+    assert walk.summarise(rows, 3, bump=True)["exit_code"] == 1
+
+
 def test_calibrate_fov_shift_is_reported_not_judged():
     """Before the reference is re-taken a person in the first frame can move the fit."""
     rows = _run()
