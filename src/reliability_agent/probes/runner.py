@@ -57,6 +57,7 @@ class ProbeRunner:
         self._cal_stats: list[np.ndarray] = []
         self._cal_rest: list[np.ndarray] = []
         self._n = 0
+        self._geom_stale = False
         self._last_geom: dict[str, float] = {}
         self._geom_quality = "no_reference"
 
@@ -140,7 +141,9 @@ class ProbeRunner:
     def set_geometry_reference(self, frame: Frame) -> bool:
         """Replace only the geometry reference (occlusion calibration is left running).
         False, and the old reference kept, if the frame has too few features."""
-        return self.geometry.set_reference(cv2.equalizeHist(downscale(to_gray(frame.image))))
+        ok = self.geometry.set_reference(cv2.equalizeHist(downscale(to_gray(frame.image))))
+        self._geom_stale = self._geom_stale or ok
+        return ok
 
     def analyse(self, frame: Frame) -> dict[str, float]:
         gray = downscale(to_gray(frame.image))
@@ -155,7 +158,8 @@ class ProbeRunner:
                               white_level=self.cfg["white_level"],
                               calibrating=self.occlusion_calibrating, **self.occlusion_cfg)
         out.update(occ.values)
-        if self._n % self.geometry_every == 1 or self.geometry_every == 1:
+        if self._n % self.geometry_every == 1 or self.geometry_every == 1 or self._geom_stale:
+            self._geom_stale = False
             g = self.geometry.measure(cv2.equalizeHist(gray))
             self._last_geom, self._geom_quality = g.values, g.quality
         out.update({f"geom_{k}": v for k, v in self._last_geom.items()})

@@ -27,7 +27,8 @@ overwritten without `--overwrite`; labels as in `spike_static_scene.py`):
 - spikes/walkby-<label>.md   summary with one row per trial (commit it as evidence)
 - spikes/walkby-<label>.json per-window series + worker `health()`
 
-Verdict: FAIL, exit 1, on any `fov_shift` window in a WALK or REST phase, confirmed or not.
+Verdict: FAIL, exit 1, on any `fov_shift` window in a WALK or REST phase, confirmed or not, on a
+valid run (still reference, armed REST, BUMP detected; otherwise those windows are findings).
 INCONCLUSIVE, exit 3, if fewer than `--min-observed` (20) trials were observed (WALK reaches
 `temporal_mse_p50` >= MOTION_MSE_MIN and >= 80 % of its windows are armed), if < 80 % of the
 REST windows with frames are armed, if the BUMP raised no `fov_shift`, or if CALIBRATE never got
@@ -153,22 +154,28 @@ def summarise(windows: list[dict[str, Any]], trials: int, *, min_observed: int |
         "bump": ({"windows": len(bump_rows), "fov_shift_detected": bump_hit} if bump else None),
         "other_fault_windows": findings, "per_trial": per_trial,
     }
-    why = []
+    invalid = []  # the run itself shows its reference or geometry cannot be trusted
     if reference != "ok":
-        why.append(f"no geometry reference: {REFERENCE.get(reference, reference)}")
+        invalid.append(f"no geometry reference: {REFERENCE.get(reference, reference)}")
+    if not rest or rest_armed < REST_ARMED_MIN * len(rest):
+        invalid.append(f"armed in {rest_armed}/{len(rest)} REST windows (needs >= "
+                       f"{REST_ARMED_MIN:.0%}: point the camera at a textured scene and keep "
+                       "out of the frame during CALIBRATE)")
+    if bump and not bump_hit:
+        invalid.append("the BUMP raised no `fov_shift`: the run could not see a real camera "
+                       "move")
+    why = list(invalid)
     if observed < need:
         why.append(f"{observed}/{need} trials observed (WALK temporal_mse_p50 >= "
                    f"{MOTION_MSE_MIN:g} and >= {WALK_ARMED_MIN:.0%} of its windows armed)")
-    if not rest or rest_armed < REST_ARMED_MIN * len(rest):
-        why.append(f"armed in {rest_armed}/{len(rest)} REST windows (needs >= "
-                   f"{REST_ARMED_MIN:.0%}: point the camera at a textured scene)")
-    if bump and not bump_hit:
-        why.append("the BUMP raised no `fov_shift`: the run could not see a real camera move")
     if fov:
         w = fov[0]
-        out["verdict"] = (f"FAIL: `fov_shift` in {len(fov)} window(s), first at "
-                          f"{w['t_s']:.0f} s (trial {w['trial']} {w['phase']}, translation "
-                          f"{_r(w['translation_px'])} px); the camera was fixed")
+        where = (f"`fov_shift` in {len(fov)} window(s), first at {w['t_s']:.0f} s (trial "
+                 f"{w['trial']} {w['phase']}, translation {_r(w['translation_px'])} px)")
+        if invalid:
+            why.append(where + " — finding only, the run is not valid")
+    if fov and not invalid:
+        out["verdict"] = f"FAIL: {where}; the camera was fixed"
         out["exit_code"] = 1
     elif why:
         out["verdict"] = "INCONCLUSIVE: " + "; ".join(why)
@@ -217,7 +224,8 @@ def render(label: str, kind: str, shape: str, sched: dict[str, float],
     return "\n".join(lines)
 
 
-CUES = {"calibrate": ("CALIBRATE {d:g} s: stay out of the frame, do not touch the camera", 1),
+CUES = {"calibrate": ("CALIBRATE {d:g} s: leave the frame (do not sit in front reading this), "
+                      "do not touch the camera", 1),
         "walk": ("[trial {k}/{n}] WALK now: cross the whole frame once ({d:g} s)", 2),
         "rest": ("[trial {k}/{n}] REST: stay out of the frame ({d:g} s)", 1),
         "bump": ("BUMP now: tilt or turn the camera a little and leave it ({d:g} s)", 3)}

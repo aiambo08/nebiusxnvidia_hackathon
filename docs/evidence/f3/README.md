@@ -125,12 +125,17 @@ and `homography_inlier_ratio` >= `inlier_ratio_min` (on a plain wall `equalizeHi
 quality `ok` with inliers near 0, so no real shift can be seen). Every window is logged with phase,
 trial, faults, `armed` and the geometry probe to `spikes/walkby-<tag>.md` / `.json` (no URI,
 `commit` stamped, no overwrite). Verdict: FAIL (exit 1) on any `fov_shift` window in WALK/REST,
-confirmed or not; INCONCLUSIVE (exit 3) if fewer than 20 trials were observed (WALK reaches
+confirmed or not, on a valid run (still reference, >= 80 % armed REST, BUMP detected; on an invalid
+run those windows are findings, because a person sitting still in front during CALIBRATE passes the
+stillness check and becomes the reference); INCONCLUSIVE (exit 3) if fewer than 20 trials were observed (WALK reaches
 `temporal_mse_p50` >= 10 and >= 80 % of its windows are armed), < 80 % of REST windows with frames
 are armed, the BUMP raised no `fov_shift` (positive control), or no still reference; PASS otherwise.
 Other faults (e.g. `lens_occlusion` with a person close) are findings; CALIBRATE windows are
-reported, not judged. Limit: "observed" means a large change during WALK, which a flickering light
-would also produce. The first version (PR #29) let a person in the first frame cause a FAIL, passed
+reported, not judged. Limits: "observed" means a large change during WALK, which a flickering light
+would also produce; a person close to the camera (more than about a third of the frame width, or a
+slow wide crossing) disarms the rule, so such a trial is not observed and the box only covers
+crossings a few metres away at a normal pace (reviewer, SIMULATION: 140-200 px wide 22/22 observed,
+520 px 0/22); a BUMP of about 15 px is not detected, it needs a clear tilt or turn (> 3 deg). The first version (PR #29) let a person in the first frame cause a FAIL, passed
 a plain wall with a real 40 px shift, and counted a WALK seen for 1 s (independent reviewer,
 SIMULATION). Dry runs: `--synthetic` (SIMULATION, PASS, BUMP detected) and `--synthetic-bump`
 (view shifted during trial 1, must FAIL), `tests/unit/test_spike_walkby.py`.
