@@ -141,6 +141,15 @@ def code_revision(root: Path = CODE_ROOT) -> str:
     return rev + ("+dirty" if git("status", "--porcelain", "--untracked-files=no") else "")
 
 
+def safe_label(ap: argparse.ArgumentParser, raw: str, default: str = "scene") -> str:
+    """File-name tag for a committed report; exits 2 on a URL, an IPv4 address or a path."""
+    if re.search(LABEL_DENY_RE, raw):
+        ap.error("--label must not contain a URL or an IP address (reports are committed)")
+    if re.search(r"[:\\]", raw):
+        ap.error("--label must not contain ':' or '\\' (a path would end up in the report)")
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-") or default
+
+
 def render(label: str, kind: str, minutes: float, fps: float, shape: str,
            summ: dict[str, Any], health: dict[str, Any], stalled_polls: int, polls: int,
            freeze_min: float, commit: str = "unknown") -> str:
@@ -181,11 +190,7 @@ def main() -> int:
     ap.add_argument("--overwrite", action="store_true",
                     help="replace an existing report with the same label")
     args = ap.parse_args()
-    if re.search(LABEL_DENY_RE, args.label):
-        ap.error("--label must not contain a URL or an IP address (reports are committed)")
-    if re.search(r"[:\\]", args.label):
-        ap.error("--label must not contain ':' or '\\' (a path would end up in the report)")
-    label = re.sub(r"[^A-Za-z0-9_-]+", "-", args.label).strip("-") or "scene"
+    label = safe_label(ap, args.label)
     out_dir = REPO_ROOT / "spikes"
     existing = [p for p in (out_dir / f"static-scene-{label}.md",
                             out_dir / f"static-scene-{label}.json") if p.exists()]

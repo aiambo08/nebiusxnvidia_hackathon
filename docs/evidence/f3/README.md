@@ -113,6 +113,20 @@ camera address on stderr when a connection fails, so stderr is not evidence to p
 Structural answer for compressed sources: transport-level freeze evidence (RTP timestamps / frame
 counters), later phase.
 
+Walk-by trials for the `fov_shift` box ("0 camera moved false positives across >= 20 person-walk-by
+trials"): `python scripts/spike_walkby.py --uri <uri> --trials 20 --label <tag>` runs the same
+production path on a camera that stays fixed, with console cues: CALIBRATE 30 s (scene empty), then
+per trial WALK 8 s (cross the frame once) and REST 12 s (out of frame), about 7 min in total. Every
+window is logged with phase, trial, faults and the geometry probe (`translation_px`, `rotation_deg`,
+inlier ratio, quality) to `spikes/walkby-<tag>.md` / `.json` (no URI, `commit` stamped, no
+overwrite). Verdict: FAIL (exit 1) on any `fov_shift` window, confirmed or not; INCONCLUSIVE
+(exit 3) if fewer trials were observed than requested (walk `temporal_mse_p50` >= 10 and frames in
+>= 50 % of the trial's windows) or the geometry probe was `ok` in < 80 % of the empty-scene windows
+(a low-texture scene cannot produce `fov_shift`, so it would prove nothing); PASS otherwise. Other
+faults (e.g. `lens_occlusion` with a person close to the lens) are findings. Dry runs: `--synthetic`
+(SIMULATION, PASS) and `--synthetic-bump` (view shifted during trial 1, must FAIL),
+`tests/unit/test_spike_walkby.py`.
+
 ## `fov_shift` false positive on a smooth wall at rest (ADR-006) — SIMULATION
 Finding of the 20-min static-scene run: every smooth `wall` scene and every walk-by case confirmed
 `fov_shift` with the camera at rest. `equalizeHist` amplifies sensor noise into ~210 spurious ORB
