@@ -114,18 +114,26 @@ Structural answer for compressed sources: transport-level freeze evidence (RTP t
 counters), later phase.
 
 Walk-by trials for the `fov_shift` box ("0 camera moved false positives across >= 20 person-walk-by
-trials"): `python scripts/spike_walkby.py --uri <uri> --trials 20 --label <tag>` runs the same
-production path on a camera that stays fixed, with console cues: CALIBRATE 30 s (scene empty), then
-per trial WALK 8 s (cross the frame once) and REST 12 s (out of frame), about 7 min in total. Every
-window is logged with phase, trial, faults and the geometry probe (`translation_px`, `rotation_deg`,
-inlier ratio, quality) to `spikes/walkby-<tag>.md` / `.json` (no URI, `commit` stamped, no
-overwrite). Verdict: FAIL (exit 1) on any `fov_shift` window, confirmed or not; INCONCLUSIVE
-(exit 3) if fewer trials were observed than requested (walk `temporal_mse_p50` >= 10 and frames in
->= 50 % of the trial's windows) or the geometry probe was `ok` in < 80 % of the empty-scene windows
-(a low-texture scene cannot produce `fov_shift`, so it would prove nothing); PASS otherwise. Other
-faults (e.g. `lens_occlusion` with a person close to the lens) are findings. Dry runs: `--synthetic`
-(SIMULATION, PASS) and `--synthetic-bump` (view shifted during trial 1, must FAIL),
-`tests/unit/test_spike_walkby.py`.
+trials"): `python scripts/spike_walkby.py --uri <uri> --label <tag>` runs the same production path on
+a fixed camera, with console cues and beeps: START 10 s (step out of the frame), CALIBRATE 30 s timed
+from the first frame (an RTSP handshake does not eat it), 22 trials of WALK 8 s (cross the frame
+once) + REST 12 s, then BUMP 10 s (tilt or turn the camera a little), about 8.5 min. The geometry
+reference is re-taken at the end of CALIBRATE from a still scene (last 5 windows with
+`temporal_mse_p50` < 10), so a person in the first frame is not the reference; otherwise the run
+stops INCONCLUSIVE. A window is *armed* when the `fov_shift` rule could fire on it: quality `ok`
+and `homography_inlier_ratio` >= `inlier_ratio_min` (on a plain wall `equalizeHist` keypoints keep
+quality `ok` with inliers near 0, so no real shift can be seen). Every window is logged with phase,
+trial, faults, `armed` and the geometry probe to `spikes/walkby-<tag>.md` / `.json` (no URI,
+`commit` stamped, no overwrite). Verdict: FAIL (exit 1) on any `fov_shift` window in WALK/REST,
+confirmed or not; INCONCLUSIVE (exit 3) if fewer than 20 trials were observed (WALK reaches
+`temporal_mse_p50` >= 10 and >= 80 % of its windows are armed), < 80 % of REST windows with frames
+are armed, the BUMP raised no `fov_shift` (positive control), or no still reference; PASS otherwise.
+Other faults (e.g. `lens_occlusion` with a person close) are findings; CALIBRATE windows are
+reported, not judged. Limit: "observed" means a large change during WALK, which a flickering light
+would also produce. The first version (PR #29) let a person in the first frame cause a FAIL, passed
+a plain wall with a real 40 px shift, and counted a WALK seen for 1 s (independent reviewer,
+SIMULATION). Dry runs: `--synthetic` (SIMULATION, PASS, BUMP detected) and `--synthetic-bump`
+(view shifted during trial 1, must FAIL), `tests/unit/test_spike_walkby.py`.
 
 ## `fov_shift` false positive on a smooth wall at rest (ADR-006) — SIMULATION
 Finding of the 20-min static-scene run: every smooth `wall` scene and every walk-by case confirmed

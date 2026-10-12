@@ -1,34 +1,41 @@
 """Gate F3 spike: person walk-by trials for `fov_shift` false positives (REAL HARDWARE).
 
-    python scripts/spike_walkby.py --uri 0 --trials 20 --label webcam-walkby
-    python scripts/spike_walkby.py --uri $env:RA_TEST_RTSP --trials 20 --label rtsp-walkby
+    python scripts/spike_walkby.py --uri 0 --label webcam-walkby
+    python scripts/spike_walkby.py --uri $env:RA_TEST_RTSP --label rtsp-walkby
 
 Gate box: 0 "camera moved" false positives across >= 20 person-walk-by trials. Same detection
 path as `spike_static_scene.py` (probes -> windows -> baseline -> IncidentTracker) on a camera
-that is fixed for the whole run. The console prints a cue (with a terminal bell) per phase:
+that stays fixed until the final BUMP. Phases, each announced on the console with a beep:
 
-1. CALIBRATE (`--calibrate-s`, 30 s): nobody in frame. The geometry reference is the first
-   frame and occlusion calibrates at rest (ADR-008), so the scene must be empty and still.
-2. Per trial: WALK (`--walk-s`, 8 s): cross the whole frame once at a normal pace; then REST
-   (`--rest-s`, 12 s): stay out of the frame.
+0. START (`--start-delay`, 10 s): step out of the frame before the capture opens.
+1. CALIBRATE (`--calibrate-s`, 30 s, timed from the first frame, so an RTSP handshake does not
+   eat it): nobody in frame. The geometry reference is re-taken at its end from a still scene
+   (the last STILL_WINDOWS windows below MOTION_MSE_MIN), so a person in the first frame is not
+   the reference; if the scene is not still, the run stops INCONCLUSIVE.
+2. Per trial (`--trials`, 22): WALK (`--walk-s`, 8 s) cross the whole frame once at a normal
+   pace, then REST (`--rest-s`, 12 s) out of the frame.
+3. BUMP (`--bump-s`, 10 s; 0 skips it): tilt or turn the camera a little and leave it. Positive
+   control: it must raise `fov_shift`, otherwise the run could not have seen a real move.
 
-Every analytic window is logged with its phase and trial, the tracker faults, the geometry
-probe (`translation_px`, `rotation_deg`, `homography_inlier_ratio`, `match_count`, `quality`)
-and `temporal_mse_p50` / `occluded_cell_ratio` as evidence that someone crossed. Reports:
+A window is *armed* when the `fov_shift` rule could fire on it: geometry quality `ok` and
+`homography_inlier_ratio` >= the rule's `inlier_ratio_min` (on a plain wall `equalizeHist`
+turns noise into keypoints, so quality alone says `ok` while no shift can ever be detected).
+Every window is logged with phase, trial, faults, `armed`, the geometry probe and
+`temporal_mse_p50` / `occluded_cell_ratio`. Reports (never the URI, `commit` stamped, never
+overwritten without `--overwrite`; labels as in `spike_static_scene.py`):
 
 - spikes/walkby-<label>.md   summary with one row per trial (commit it as evidence)
-- spikes/walkby-<label>.json per-window series + worker `health()` (never the URI)
+- spikes/walkby-<label>.json per-window series + worker `health()`
 
-Verdict: FAIL, exit 1, if any window of the run reports `fov_shift`, confirmed or not (the
-camera never moves, so every such window is a false positive). INCONCLUSIVE, exit 3, if fewer
-than `--trials` trials were observed (a trial counts when its WALK phase reaches
-`temporal_mse_p50` >= MOTION_MSE_MIN and >= 50 % of its windows carry frames), or if the
-geometry probe was not `ok` in >= 80 % of the empty-scene windows (a low-texture scene cannot
-produce `fov_shift` at all, so a PASS there would prove nothing). PASS, exit 0, otherwise.
-Other faults (e.g. `lens_occlusion` while a person is close) are reported as findings only.
-Labels follow `spike_static_scene.py`: no URL, IPv4 address or path; an existing report is
-never overwritten without `--overwrite`. FFmpeg may print `tcp://<ip>:<port>` on stderr.
+Verdict: FAIL, exit 1, on any `fov_shift` window in a WALK or REST phase, confirmed or not.
+INCONCLUSIVE, exit 3, if fewer than `--min-observed` (20) trials were observed (WALK reaches
+`temporal_mse_p50` >= MOTION_MSE_MIN and >= 80 % of its windows are armed), if < 80 % of the
+REST windows with frames are armed, if the BUMP raised no `fov_shift`, or if CALIBRATE never got
+a still reference. PASS, exit 0, otherwise. Other faults (e.g. `lens_occlusion` while a person is
+close) are findings. Limit: "observed" means a large change during WALK; a flickering light with
+nobody walking would also count. FFmpeg may print `tcp://<ip>:<port>` on stderr.
 """
+
 
 from __future__ import annotations
 
@@ -50,140 +57,203 @@ from reliability_agent.incidents.fusion import IncidentTracker
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 
 MOTION_MSE_MIN = 10.0  # walk evidence; the owner's cameras at rest stay below 0.4 (p95)
-TRIAL_VALID_MIN = 0.5  # share of a trial's windows that must carry frames
-GEOMETRY_OK_MIN = 0.8  # share of empty-scene windows with a usable geometry probe
+STILL_WINDOWS = 5  # end of CALIBRATE that must be still before the reference is re-taken
+WALK_ARMED_MIN = 0.8  # share of a WALK's windows that must be armed
+REST_ARMED_MIN = 0.8  # share of REST windows with frames that must be armed
+HANDSHAKE_MAX_S = 30.0
 VISUAL = ("temporal_mse_p50", "occluded_cell_ratio", "brightness_p50")
 GEOMETRY = ("translation_px", "rotation_deg", "homography_inlier_ratio", "match_count",
             "quality")
+REFERENCE = {"ok": "re-taken at the end of CALIBRATE on a still scene",
+             "no_frame": f"no frame within {HANDSHAKE_MAX_S:g} s",
+             "not_still": "the scene was not still at the end of CALIBRATE",
+             "no_features": "too few features in the empty scene for a geometry reference"}
 
 
 class WalkBySource(SyntheticSource):
-    """Dry-run source: a dark person-sized box crosses the frame while `walking` is set."""
+    """Dry-run source: a still scene (the base class's moving ball is held in place) that a
+    dark person-sized box crosses while `walking` is set, or while fewer than `walk_until_seq`
+    frames were produced (someone in front at start-up)."""
 
     walking = False
+    walk_until_seq = 0
 
     def _render(self) -> np.ndarray:
-        img = super()._render()
-        if self.walking:
+        seq, self._seq = self._seq, 0
+        try:
+            img = super()._render()
+        finally:
+            self._seq = seq
+        if self.walking or self._seq < self.walk_until_seq:
             x = int((self._seq % 40) / 40 * (self.w + 160)) - 80
             cv2.rectangle(img, (x, 40), (x + 120, self.h - 10), (25, 25, 25), -1)
         return img
 
 
-def schedule(trials: int, calibrate_s: float, walk_s: float,
-             rest_s: float) -> list[tuple[str, int, float]]:
+def schedule(trials: int, calibrate_s: float, walk_s: float, rest_s: float,
+             bump_s: float = 0.0) -> list[tuple[str, int, float]]:
     out = [("calibrate", 0, calibrate_s)]
     for k in range(1, trials + 1):
         out += [("walk", k, walk_s), ("rest", k, rest_s)]
-    return out
+    return out + ([("bump", 0, bump_s)] if bump_s > 0 else [])
+
+
+def is_armed(geometry: dict[str, Any], inlier_min: float) -> bool:
+    r = geometry.get("homography_inlier_ratio")
+    return geometry.get("quality") == "ok" and r is not None and r >= inlier_min
 
 
 def _r(v: float | None) -> float | None:
     return None if v is None else round(float(v), 3)
 
 
-def summarise(windows: list[dict[str, Any]], trials: int) -> dict[str, Any]:
+def _max(rows: list[dict[str, Any]], key: str) -> float | None:
+    return _r(max((w[key] for w in rows if w[key] is not None), default=None))
+
+
+def summarise(windows: list[dict[str, Any]], trials: int, *, min_observed: int | None = None,
+              bump: bool = False, reference: str = "ok") -> dict[str, Any]:
+    need = trials if min_observed is None else min_observed
     per_trial = []
     for k in range(1, trials + 1):
+        walk = [w for w in windows if w["trial"] == k and w["phase"] == "walk"]
         mine = [w for w in windows if w["trial"] == k]
-        mse = [w["temporal_mse_p50"] for w in mine
-               if w["phase"] == "walk" and w["temporal_mse_p50"] is not None]
-        valid = sum(w["frames"] > 0 for w in mine)
+        mse = [w["temporal_mse_p50"] for w in walk if w["temporal_mse_p50"] is not None]
+        armed = sum(w["armed"] for w in walk)
         per_trial.append({
-            "trial": k, "windows": len(mine), "valid_windows": valid,
+            "trial": k, "walk_windows": len(walk), "walk_armed": armed,
             "walk_mse_max": _r(max(mse)) if mse else None,
-            "observed": bool(mine) and bool(mse) and max(mse) >= MOTION_MSE_MIN
-            and valid >= TRIAL_VALID_MIN * len(mine),
+            "observed": bool(walk) and bool(mse) and max(mse) >= MOTION_MSE_MIN
+            and armed >= WALK_ARMED_MIN * len(walk),
             "fov_shift_windows": sum("fov_shift" in w["faults"] for w in mine),
-            "translation_px_max": _r(max((w["translation_px"] for w in mine
-                                          if w["translation_px"] is not None), default=None)),
+            "inlier_max": _max(mine, "homography_inlier_ratio"),
+            "translation_px_max_armed": _max([w for w in mine if w["armed"]], "translation_px"),
         })
-    empty = [w for w in windows if w["phase"] != "walk" and w["frames"] > 0]
-    geom_ok = sum(w["quality"] == "ok" for w in empty)
-    fov = [w for w in windows if "fov_shift" in w["faults"]]
+    judged = [w for w in windows if w["phase"] in ("walk", "rest")]
+    rest = [w for w in windows if w["phase"] == "rest" and w["frames"] > 0]
+    rest_armed = sum(w["armed"] for w in rest)
+    fov = [w for w in judged if "fov_shift" in w["faults"]]
+    bump_rows = [w for w in windows if w["phase"] == "bump"]
+    bump_hit = any("fov_shift" in w["faults"] for w in bump_rows)
     findings: dict[str, int] = {}
-    for w in windows:
+    for w in judged:
         for f in w["faults"]:
             if f != "fov_shift":
                 findings[f] = findings.get(f, 0) + 1
     observed = sum(t["observed"] for t in per_trial)
     out: dict[str, Any] = {
-        "trials": trials, "observed_trials": observed, "windows": len(windows),
+        "trials": trials, "min_observed": need, "observed_trials": observed,
+        "reference": reference, "windows": len(windows),
         "valid_windows": sum(w["frames"] > 0 for w in windows),
         "fov_shift_windows": len(fov),
-        "fov_shift_confirmed": sum("fov_shift" in (w["confirmed"] or []) for w in windows),
-        "geometry_ok_empty_windows": geom_ok, "empty_windows": len(empty),
+        "fov_shift_confirmed": sum("fov_shift" in (w["confirmed"] or []) for w in judged),
+        "calibrate_fov_shift_windows": sum("fov_shift" in w["faults"] for w in windows
+                                           if w["phase"] == "calibrate"),
+        "rest_armed_windows": rest_armed, "rest_windows": len(rest),
+        "bump": ({"windows": len(bump_rows), "fov_shift_detected": bump_hit} if bump else None),
         "other_fault_windows": findings, "per_trial": per_trial,
     }
+    why = []
+    if reference != "ok":
+        why.append(f"no geometry reference: {REFERENCE.get(reference, reference)}")
+    if observed < need:
+        why.append(f"{observed}/{need} trials observed (WALK temporal_mse_p50 >= "
+                   f"{MOTION_MSE_MIN:g} and >= {WALK_ARMED_MIN:.0%} of its windows armed)")
+    if not rest or rest_armed < REST_ARMED_MIN * len(rest):
+        why.append(f"armed in {rest_armed}/{len(rest)} REST windows (needs >= "
+                   f"{REST_ARMED_MIN:.0%}: point the camera at a textured scene)")
+    if bump and not bump_hit:
+        why.append("the BUMP raised no `fov_shift`: the run could not see a real camera move")
     if fov:
         w = fov[0]
-        where = f"trial {w['trial']} {w['phase']}" if w["trial"] else w["phase"]
         out["verdict"] = (f"FAIL: `fov_shift` in {len(fov)} window(s), first at "
-                          f"{w['t_s']:.0f} s ({where}, translation "
+                          f"{w['t_s']:.0f} s (trial {w['trial']} {w['phase']}, translation "
                           f"{_r(w['translation_px'])} px); the camera was fixed")
         out["exit_code"] = 1
-    elif observed < trials or not empty or geom_ok < GEOMETRY_OK_MIN * len(empty):
-        out["verdict"] = (f"INCONCLUSIVE: {observed}/{trials} trials observed (walk "
-                          f"temporal_mse_p50 >= {MOTION_MSE_MIN:g} and >= "
-                          f"{TRIAL_VALID_MIN:.0%} windows with frames); geometry `ok` in "
-                          f"{geom_ok}/{len(empty)} empty-scene windows (needs "
-                          f">= {GEOMETRY_OK_MIN:.0%}: point the camera at a textured scene)")
+    elif why:
+        out["verdict"] = "INCONCLUSIVE: " + "; ".join(why)
         out["exit_code"] = 3
     else:
-        out["verdict"] = f"PASS: 0 `fov_shift` windows across {observed} walk-by trials"
+        out["verdict"] = (f"PASS: 0 `fov_shift` windows across {observed} walk-by trials"
+                          + (", BUMP detected" if bump else ""))
         out["exit_code"] = 0
     return out
 
 
-def render(label: str, kind: str, shape: str, sched: tuple[float, float, float],
+def render(label: str, kind: str, shape: str, sched: dict[str, float],
            summ: dict[str, Any], health: dict[str, Any], commit: str) -> str:
     tr = health.get("transport", {})
     title = "REAL HARDWARE" if kind != "synthetic" else "SIMULATION (dry run)"
+    bump = summ["bump"]
     lines = [
         f"# Walk-by spike `{label}` (Gate F3, `fov_shift`) — {title}", "",
-        f"- source: {kind} | frame: {shape} | calibrate {sched[0]:g} s, then per trial "
-        f"walk {sched[1]:g} s + rest {sched[2]:g} s",
-        f"- trials observed: {summ['observed_trials']}/{summ['trials']} | windows: "
-        f"{summ['windows']}, valid: {summ['valid_windows']}",
-        f"- fov_shift windows: {summ['fov_shift_windows']} (confirmed: "
-        f"{summ['fov_shift_confirmed']}) | geometry ok in empty scene: "
-        f"{summ['geometry_ok_empty_windows']}/{summ['empty_windows']}",
-        f"- other faults (windows, findings only): {summ['other_fault_windows'] or 'none'}",
+        f"- source: {kind} | frame: {shape} | schedule (s): " + ", ".join(
+            f"{k} {v:g}" for k, v in sched.items()),
+        f"- geometry reference: {REFERENCE.get(summ['reference'], summ['reference'])}",
+        f"- trials observed: {summ['observed_trials']}/{summ['trials']} (needed "
+        f"{summ['min_observed']}) | windows: {summ['windows']}, valid: {summ['valid_windows']}",
+        f"- fov_shift windows in WALK/REST: {summ['fov_shift_windows']} (confirmed: "
+        f"{summ['fov_shift_confirmed']}) | in CALIBRATE (not judged): "
+        f"{summ['calibrate_fov_shift_windows']} | armed REST windows: "
+        f"{summ['rest_armed_windows']}/{summ['rest_windows']}",
+        "- BUMP (positive control): " + (
+            "skipped" if bump is None else
+            f"fov_shift {'detected' if bump['fov_shift_detected'] else 'NOT detected'} "
+            f"in {bump['windows']} windows"),
+        f"- other faults in WALK/REST (windows, findings only): "
+        f"{summ['other_fault_windows'] or 'none'}",
         f"- capture fps: {tr.get('capture_fps')}, decode errors: {tr.get('decode_errors')}, "
         f"reconnects: {tr.get('reconnect_count')}, dropped: {tr.get('dropped_frames')}",
         f"- result: {summ['verdict']}", "",
-        "| trial | walk temporal_mse_p50 max | windows with frames | observed | "
-        "fov_shift windows | translation_px max |",
-        "|---|---|---|---|---|---|",
+        "| trial | walk temporal_mse_p50 max | walk windows armed | observed | "
+        "fov_shift windows | inlier max | translation_px max (armed) |",
+        "|---|---|---|---|---|---|---|",
     ]
-    lines += [f"| {t['trial']} | {t['walk_mse_max']} | {t['valid_windows']}/{t['windows']} | "
+    lines += [f"| {t['trial']} | {t['walk_mse_max']} | {t['walk_armed']}/{t['walk_windows']} | "
               f"{'yes' if t['observed'] else 'no'} | {t['fov_shift_windows']} | "
-              f"{t['translation_px_max']} |" for t in summ["per_trial"]]
+              f"{t['inlier_max']} | {t['translation_px_max_armed']} |"
+              for t in summ["per_trial"]]
     lines += ["", f"commit: {commit} | generated: {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
     return "\n".join(lines)
 
 
-CUES = {"calibrate": "CALIBRATE {d:g} s: stay out of the frame, do not touch the camera",
-        "walk": "[trial {k}/{n}] WALK now: cross the whole frame once ({d:g} s)",
-        "rest": "[trial {k}/{n}] REST: stay out of the frame ({d:g} s)"}
+CUES = {"calibrate": ("CALIBRATE {d:g} s: stay out of the frame, do not touch the camera", 1),
+        "walk": ("[trial {k}/{n}] WALK now: cross the whole frame once ({d:g} s)", 2),
+        "rest": ("[trial {k}/{n}] REST: stay out of the frame ({d:g} s)", 1),
+        "bump": ("BUMP now: tilt or turn the camera a little and leave it ({d:g} s)", 3)}
+
+
+def beep(n: int) -> None:
+    try:
+        import winsound  # Windows: audible even where the terminal bell is muted
+
+        for _ in range(n):
+            winsound.Beep(1000, 150)
+    except (ImportError, RuntimeError):
+        print("\a" * n, end="", flush=True)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--uri", default="0")
-    ap.add_argument("--trials", type=int, default=20)
+    ap.add_argument("--trials", type=int, default=22)
+    ap.add_argument("--min-observed", type=int, default=20,
+                    help="trials that must be observed (spare trials absorb a missed cue)")
     ap.add_argument("--label", default="walkby", help="tag for the report file name (no IP/URL)")
+    ap.add_argument("--start-delay", type=float, default=10.0,
+                    help="seconds to step out of the frame before the capture opens")
     ap.add_argument("--calibrate-s", type=float, default=30.0)
     ap.add_argument("--walk-s", type=float, default=8.0)
     ap.add_argument("--rest-s", type=float, default=12.0)
+    ap.add_argument("--bump-s", type=float, default=10.0, help="final camera move; 0 skips it")
     ap.add_argument("--synthetic", action="store_true", help="dry run without hardware")
     ap.add_argument("--synthetic-bump", action="store_true",
                     help="dry run: shift the view during trial 1 (the run must FAIL)")
     ap.add_argument("--overwrite", action="store_true",
                     help="replace an existing report with the same label")
     args = ap.parse_args()
-    if args.trials < 1:
-        ap.error("--trials must be >= 1")
+    if not 1 <= args.min_observed <= args.trials:
+        ap.error("need 1 <= --min-observed <= --trials")
     label = safe_label(ap, args.label, "walkby")
     out_dir = REPO_ROOT / "spikes"
     existing = [p for p in (out_dir / f"walkby-{label}.md", out_dir / f"walkby-{label}.json")
@@ -198,8 +268,13 @@ def main() -> int:
     cfg = load_config()
     fps = cfg["camera"]["analytic_fps"]
     win_s = cfg["window"]["seconds"]
+    inlier_min = cfg["faults"]["fov_shift"]["inlier_ratio_min"]
     fu, b = cfg["fusion"], cfg["baseline"]
 
+    if args.start_delay > 0:
+        print(f"START in {args.start_delay:g} s: step out of the frame now", flush=True)
+        beep(1)
+        time.sleep(args.start_delay)
     synthetic = args.synthetic or args.synthetic_bump
     src = WalkBySource() if synthetic else OpenCVSource(args.uri)
     worker = CaptureWorker(src, cfg["camera"]["ring_buffer_size"],
@@ -210,62 +285,84 @@ def main() -> int:
         RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]))
     worker.start()
     windows: list[dict[str, Any]] = []
-    shape = "?"
-    last_seq = -1
-    calibrated = False
+    state: dict[str, Any] = {"shape": "?", "last_seq": -1, "frame": None}
     t_start = time.monotonic()
-    for phase, trial, dur in schedule(args.trials, args.calibrate_s, args.walk_s, args.rest_s):
-        print("\a" + CUES[phase].format(k=trial, n=args.trials, d=dur), flush=True)
-        if isinstance(src, WalkBySource):
-            src.walking = phase == "walk"
-            src.set_fault("shift" if args.synthetic_bump and trial == 1 else None)
-        for _ in range(max(1, round(dur / win_s))):
-            agg = WindowAggregator("spike", win_s)
-            t0 = time.monotonic()
-            while time.monotonic() - t0 < win_s:
-                time.sleep(1 / fps)
-                f = worker.buffer.latest()
-                if f is None or f.seq == last_seq:
-                    continue  # nothing new: never judge the same pixels twice
-                last_seq = f.seq
-                if not calibrated:
-                    runner.calibrate_reference(f)
-                    shape = f"{f.image.shape[1]}x{f.image.shape[0]}"
-                    calibrated = True
-                agg.add(runner.analyse(f))
-            now = round(time.monotonic() - t_start, 1)
-            tw = agg.emit(worker.meter.snapshot(), runner._geom_quality)
-            base = {"t_s": now, "phase": phase, "trial": trial}
-            if not calibrated:  # handshake: no frame yet, keep the tracker out of it
-                windows.append({**base, "frames": 0, "state": "handshake", "faults": [],
-                                "confirmed": None, **{m: None for m in VISUAL + GEOMETRY}})
-                continue
+
+    def window(phase: str, trial: int) -> dict[str, Any]:
+        agg = WindowAggregator("spike", win_s)
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < win_s:
+            time.sleep(1 / fps)
+            f = worker.buffer.latest()
+            if f is None or f.seq == state["last_seq"]:
+                continue  # nothing new: never judge the same pixels twice
+            state["last_seq"] = f.seq
+            if state["frame"] is None:
+                runner.calibrate_reference(f)
+                state["shape"] = f"{f.image.shape[1]}x{f.image.shape[0]}"
+            state["frame"] = f
+            agg.add(runner.analyse(f))
+        now = round(time.monotonic() - t_start, 1)
+        tw = agg.emit(worker.meter.snapshot(), runner._geom_quality)
+        base = {"t_s": now, "phase": phase, "trial": trial}
+        if state["frame"] is None:  # handshake: no frame yet, keep the tracker out of it
+            row = {**base, "frames": 0, "state": "handshake", "faults": [], "confirmed": None,
+                   "armed": False, **{m: None for m in VISUAL + GEOMETRY}}
+        else:
             st = tracker.step(tw, now_s=now)
+            geo = {g: getattr(tw.geometry, g) for g in GEOMETRY}
             row = {**base, "frames": tw.frames_analyzed, "state": st.state.value,
                    "faults": sorted(map(str, st.faults)),
                    "confirmed": ([str(x) for x in st.incident.candidate_faults]
                                  if st.incident else None),
-                   **{m: getattr(tw.visual, m) for m in VISUAL},
-                   **{g: getattr(tw.geometry, g) for g in GEOMETRY}}
-            windows.append(row)
-            if "fov_shift" in row["faults"] or row["confirmed"]:
-                print(f"t={now:5.0f}s {phase} {trial} faults={row['faults']} "
-                      f"confirmed={row['confirmed']} translation_px={row['translation_px']}",
-                      flush=True)
+                   "armed": tw.frames_analyzed > 0 and is_armed(geo, inlier_min),
+                   **{m: getattr(tw.visual, m) for m in VISUAL}, **geo}
+        windows.append(row)
+        if "fov_shift" in row["faults"] or row["confirmed"]:
+            print(f"t={now:5.0f}s {phase} {trial} faults={row['faults']} "
+                  f"confirmed={row['confirmed']} translation_px={row['translation_px']}",
+                  flush=True)
+        return row
+
+    while state["frame"] is None and time.monotonic() - t_start < HANDSHAKE_MAX_S:
+        window("handshake", 0)
+    reference = "no_frame" if state["frame"] is None else "ok"
+    plan = schedule(args.trials, args.calibrate_s, args.walk_s, args.rest_s, args.bump_s)
+    for phase, trial, dur in plan if reference == "ok" else []:
+        text, beeps = CUES[phase]
+        print(text.format(k=trial, n=args.trials, d=dur), flush=True)
+        beep(beeps)
+        if isinstance(src, WalkBySource):
+            src.walking = phase == "walk"
+            bumped = phase == "bump" or (args.synthetic_bump and trial == 1)
+            src.set_fault("shift" if bumped else None)
+        rows = [window(phase, trial) for _ in range(max(1, round(dur / win_s)))]
+        if phase == "calibrate":
+            tail = rows[-STILL_WINDOWS:]
+            still = len(tail) == STILL_WINDOWS and all(
+                w["frames"] > 0 and w["temporal_mse_p50"] is not None
+                and w["temporal_mse_p50"] < MOTION_MSE_MIN for w in tail)
+            if not still:
+                reference = "not_still"
+            elif not runner.set_geometry_reference(state["frame"]):
+                reference = "no_features"
+            if reference != "ok":
+                print(f"stopping: {REFERENCE[reference]}", flush=True)
+                break
     health = worker.health()
     worker.stop()
-    summ = summarise(windows, args.trials)
+    summ = summarise(windows, args.trials, min_observed=args.min_observed,
+                     bump=args.bump_s > 0, reference=reference)
     kind = "synthetic" if synthetic else src.kind
-    report = render(label, kind, shape, (args.calibrate_s, args.walk_s, args.rest_s), summ,
-                    health, commit)
+    sched = {"start_delay": args.start_delay, "calibrate": args.calibrate_s,
+             "walk": args.walk_s, "rest": args.rest_s, "bump": args.bump_s}
+    report = render(label, kind, state["shape"], sched, summ, health, commit)
     out_dir.mkdir(exist_ok=True)
     (out_dir / f"walkby-{label}.md").write_text(report, encoding="utf-8")
     (out_dir / f"walkby-{label}.json").write_text(
-        json.dumps({"label": label, "source_kind": kind, "frame": shape, "commit": commit,
-                    "schedule_s": {"calibrate": args.calibrate_s, "walk": args.walk_s,
-                                   "rest": args.rest_s},
-                    "summary": summ, "health": health, "windows": windows},
-                   indent=2) + "\n", encoding="utf-8")
+        json.dumps({"label": label, "source_kind": kind, "frame": state["shape"],
+                    "commit": commit, "schedule_s": sched, "summary": summ, "health": health,
+                    "windows": windows}, indent=2) + "\n", encoding="utf-8")
     print(report)
     return int(summ["exit_code"])
 

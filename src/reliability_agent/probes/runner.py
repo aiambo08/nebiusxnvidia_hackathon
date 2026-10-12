@@ -137,6 +137,11 @@ class ProbeRunner:
         self._cal_open[:] = False
         self._cal_stats, self._cal_rest, self._cal_prev = [], [], None
 
+    def set_geometry_reference(self, frame: Frame) -> bool:
+        """Replace only the geometry reference (occlusion calibration is left running).
+        False, and the old reference kept, if the frame has too few features."""
+        return self.geometry.set_reference(cv2.equalizeHist(downscale(to_gray(frame.image))))
+
     def analyse(self, frame: Frame) -> dict[str, float]:
         gray = downscale(to_gray(frame.image))
         self._n += 1
