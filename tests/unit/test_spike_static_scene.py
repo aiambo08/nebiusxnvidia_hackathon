@@ -116,6 +116,40 @@ def test_dry_run_writes_reports_without_the_uri(tmp_path, monkeypatch):
     assert js["windows"][-1]["exact_repeat_ratio"] == 0.0
     assert js["windows"][-1]["noise_ratio_p50"] is not None
     assert "uri" not in json.dumps(js).lower()
+    assert js["commit"] == spike.code_revision() != "unknown"
+    assert f"commit: {js['commit']} |" in md.read_text()
+
+
+def test_existing_report_is_not_overwritten_without_flag(tmp_path, monkeypatch):
+    monkeypatch.setattr(spike, "REPO_ROOT", tmp_path)
+    (tmp_path / "spikes").mkdir()
+    old = tmp_path / "spikes" / "static-scene-wall.json"
+    old.write_text("{}")
+    monkeypatch.setattr(sys, "argv", ["spike", "--synthetic", "--minutes", "0.05",
+                                      "--label", "wall"])
+    with pytest.raises(SystemExit) as exc:
+        spike.main()
+    assert exc.value.code == 2 and old.read_text() == "{}"
+    monkeypatch.setattr(sys, "argv", ["spike", "--synthetic", "--minutes", "0.05",
+                                      "--label", "wall", "--overwrite"])
+    assert spike.main() == 0
+    assert json.loads(old.read_text())["label"] == "wall"
+
+
+def test_code_revision_marks_dirty_and_unknown(tmp_path):
+    assert spike.code_revision(tmp_path) == "unknown"
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    env = ["-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    (tmp_path / "a.txt").write_text("1")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "a.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), *env, "commit", "-q", "-m", "x"], check=True)
+    rev = spike.code_revision(tmp_path)
+    assert re.fullmatch(r"[0-9a-f]{7,}", rev)
+    (tmp_path / "a.txt").write_text("2")
+    assert spike.code_revision(tmp_path) == rev + "+dirty"
+    (tmp_path / "untracked.txt").write_text("x")
+    (tmp_path / "a.txt").write_text("1")
+    assert spike.code_revision(tmp_path) == rev
 
 
 @pytest.mark.parametrize("label", ["rtsp://10.0.0.1:8080/x", "wall 192.168.1.20",

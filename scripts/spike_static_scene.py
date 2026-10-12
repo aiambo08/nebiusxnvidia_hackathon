@@ -11,6 +11,10 @@ fed by `CaptureWorker` from a real source. Logs per window the freeze telemetry 
 - spikes/static-scene-<label>.md   summary (commit it as evidence)
 - spikes/static-scene-<label>.json per-window series + worker `health()` (never the URI)
 
+Both carry the code revision (`git rev-parse --short HEAD`, `+dirty` when tracked files have
+local changes), so the evidence is traceable without asking. An existing report for the same
+label is never overwritten unless `--overwrite` is given: use a new label for every re-run.
+
 Verdict (same criterion as `docs/evidence/f3/static-scene.md`): FAIL, exit 1, if any window
 reports `freeze`; INCONCLUSIVE, exit 3, if the source did not deliver a steady picture (handshake
 before the first frame longer than 10 s, valid windows < 95 % or `stream_down` / `low_fps` in more
@@ -27,7 +31,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import time
+from pathlib import Path
 from typing import Any
 
 import _src_path  # noqa: F401  (adds src/ to sys.path)
@@ -38,6 +44,8 @@ from reliability_agent.capture import CaptureWorker, OpenCVSource, SyntheticSour
 from reliability_agent.config import REPO_ROOT, load_config
 from reliability_agent.incidents.fusion import IncidentTracker
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
+
+CODE_ROOT = Path(__file__).resolve().parent.parent
 
 VALID_MIN = 0.95  # share of judged windows with frames below which the run is INCONCLUSIVE
 TRANSPORT_FAULT_MAX = 0.05  # share of judged windows with stream_down/low_fps tolerated
@@ -109,9 +117,24 @@ def summarise(windows: list[dict[str, Any]], freeze_min: float) -> dict[str, Any
     return out
 
 
+def code_revision(root: Path = CODE_ROOT) -> str:
+    """Short HEAD SHA of the checkout that runs the spike, `+dirty` if tracked files changed."""
+    def git(*cmd: str) -> str | None:
+        try:
+            r = subprocess.run(["git", *cmd], cwd=root, capture_output=True, text=True,
+                               timeout=10, check=False)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return r.stdout.strip() if r.returncode == 0 else None
+    rev = git("rev-parse", "--short", "HEAD")
+    if not rev:
+        return "unknown"
+    return rev + ("+dirty" if git("status", "--porcelain", "--untracked-files=no") else "")
+
+
 def render(label: str, kind: str, minutes: float, fps: float, shape: str,
            summ: dict[str, Any], health: dict[str, Any], stalled_polls: int, polls: int,
-           freeze_min: float) -> str:
+           freeze_min: float, commit: str = "unknown") -> str:
     tr = health.get("transport", {})
     m = summ["metrics"]
     lines = [
@@ -135,7 +158,7 @@ def render(label: str, kind: str, minutes: float, fps: float, shape: str,
         "|---|---|---|---|---|",
     ]
     lines += [f"| {k} | {v['p50']} | {v['p95']} | {v['max']} | {v['n']} |" for k, v in m.items()]
-    lines += ["", f"generated: {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
+    lines += ["", f"commit: {commit} | generated: {time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
     return "\n".join(lines)
 
 
@@ -146,10 +169,19 @@ def main() -> int:
     ap.add_argument("--label", default="webcam-rest",
                     help="tag for the report file name (no IP/URL)")
     ap.add_argument("--synthetic", action="store_true", help="dry run without hardware")
+    ap.add_argument("--overwrite", action="store_true",
+                    help="replace an existing report with the same label")
     args = ap.parse_args()
     if re.search(LABEL_DENY_RE, args.label):
         ap.error("--label must not contain a URL or an IP address (reports are committed)")
     label = re.sub(r"[^A-Za-z0-9_-]+", "-", args.label).strip("-") or "scene"
+    out_dir = REPO_ROOT / "spikes"
+    existing = [p for p in (out_dir / f"static-scene-{label}.md",
+                            out_dir / f"static-scene-{label}.json") if p.exists()]
+    if existing and not args.overwrite:
+        ap.error(f"spikes/{existing[0].name} already exists: pick a new --label for this run "
+                 "(or pass --overwrite to replace it)")
+    commit = code_revision()
     cfg = load_config()
     fps = cfg["camera"]["analytic_fps"]
     win_s = cfg["window"]["seconds"]
@@ -209,12 +241,12 @@ def main() -> int:
     summ = summarise(windows, freeze_min)
     kind = "synthetic" if args.synthetic else src.kind
     report = render(label, kind, args.minutes, fps, shape, summ, health, stalled, polls,
-                    freeze_min)
-    out_dir = REPO_ROOT / "spikes"
+                    freeze_min, commit)
     out_dir.mkdir(exist_ok=True)
     (out_dir / f"static-scene-{label}.md").write_text(report, encoding="utf-8")
     (out_dir / f"static-scene-{label}.json").write_text(
-        json.dumps({"label": label, "source_kind": kind, "frame": shape, "summary": summ,
+        json.dumps({"label": label, "source_kind": kind, "frame": shape, "commit": commit,
+                    "summary": summ,
                     "health": health, "stalled_polls": stalled, "polls": polls,
                     "windows": windows},
                    indent=2) + "\n", encoding="utf-8")
