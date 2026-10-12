@@ -30,8 +30,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -118,16 +120,23 @@ def summarise(windows: list[dict[str, Any]], freeze_min: float) -> dict[str, Any
 
 
 def code_revision(root: Path = CODE_ROOT) -> str:
-    """Short HEAD SHA of the checkout that runs the spike, `+dirty` if tracked files changed."""
+    """Short HEAD SHA of the checkout that runs the spike, `+dirty` if tracked files changed.
+    `unknown` unless `root` is itself the top of a git work tree (a copy of the code inside
+    another repository must not inherit that repository's SHA)."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
     def git(*cmd: str) -> str | None:
         try:
             r = subprocess.run(["git", *cmd], cwd=root, capture_output=True, text=True,
-                               timeout=10, check=False)
+                               timeout=10, check=False, env=env)
         except (OSError, subprocess.SubprocessError):
             return None
         return r.stdout.strip() if r.returncode == 0 else None
+    top = git("rev-parse", "--show-toplevel")
+    if not top or Path(top).resolve() != Path(root).resolve():
+        return "unknown"
     rev = git("rev-parse", "--short", "HEAD")
-    if not rev:
+    if not rev or not re.fullmatch(r"[0-9a-f]{4,40}", rev):
         return "unknown"
     return rev + ("+dirty" if git("status", "--porcelain", "--untracked-files=no") else "")
 
@@ -174,6 +183,8 @@ def main() -> int:
     args = ap.parse_args()
     if re.search(LABEL_DENY_RE, args.label):
         ap.error("--label must not contain a URL or an IP address (reports are committed)")
+    if re.search(r"[:\\]", args.label):
+        ap.error("--label must not contain ':' or '\\' (a path would end up in the report)")
     label = re.sub(r"[^A-Za-z0-9_-]+", "-", args.label).strip("-") or "scene"
     out_dir = REPO_ROOT / "spikes"
     existing = [p for p in (out_dir / f"static-scene-{label}.md",
@@ -182,6 +193,9 @@ def main() -> int:
         ap.error(f"spikes/{existing[0].name} already exists: pick a new --label for this run "
                  "(or pass --overwrite to replace it)")
     commit = code_revision()
+    if commit == "unknown" or commit.endswith("+dirty"):
+        print(f"warning: code revision is {commit!r}: run from a clean git checkout of the repo "
+              "so the report is traceable", file=sys.stderr, flush=True)
     cfg = load_config()
     fps = cfg["camera"]["analytic_fps"]
     win_s = cfg["window"]["seconds"]

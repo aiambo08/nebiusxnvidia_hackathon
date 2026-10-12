@@ -150,6 +150,35 @@ def test_code_revision_marks_dirty_and_unknown(tmp_path):
     (tmp_path / "untracked.txt").write_text("x")
     (tmp_path / "a.txt").write_text("1")
     assert spike.code_revision(tmp_path) == rev
+    nested = tmp_path / "unzipped-copy"
+    nested.mkdir()
+    assert spike.code_revision(nested) == "unknown"
+
+
+def test_code_revision_ignores_git_env_and_bad_output(tmp_path, monkeypatch):
+    monkeypatch.setenv("GIT_DIR", str(spike.CODE_ROOT / ".git"))
+    assert spike.code_revision(tmp_path) == "unknown"
+    monkeypatch.delenv("GIT_DIR")
+
+    class Fake:
+        returncode = 0
+        stdout = "user@host /home/someone/secret\n"
+
+    def fake_run(cmd, **kw):
+        out = Fake()
+        if "--show-toplevel" in cmd:
+            out.stdout = str(tmp_path)
+        return out
+    monkeypatch.setattr(spike.subprocess, "run", fake_run)
+    assert spike.code_revision(tmp_path) == "unknown"
+
+
+@pytest.mark.parametrize("label", [r"C:\Users\someone\cam", "cam:1", r"..\..\x"])
+def test_label_with_a_path_is_rejected(label, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["spike", "--synthetic", "--label", label])
+    with pytest.raises(SystemExit) as exc:
+        spike.main()
+    assert exc.value.code == 2
 
 
 @pytest.mark.parametrize("label", ["rtsp://10.0.0.1:8080/x", "wall 192.168.1.20",
