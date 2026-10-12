@@ -100,7 +100,9 @@ logged, before the 20-min box is ticked (`docs/agents/TASKS.md`). Tool for that 
 path (`CaptureWorker` -> probes -> windows -> baseline -> `IncidentTracker`) on a live source and
 writes `spikes/static-scene-<tag>.md` (summary, quantiles of the three fields, verdict) and
 `spikes/static-scene-<tag>.json` (per-window series + worker `health()`); neither contains the URI,
-and a label with a URL or IP is rejected. Verdict with the same criterion as the table above: FAIL
+and a label with a URL or IP is rejected. Both carry the code revision (`commit`, `+dirty` when
+tracked files have local changes), and an existing report for the same label is not overwritten
+without `--overwrite`: every re-run takes a new label. Verdict with the same criterion as the table above: FAIL
 (exit 1) on any `freeze` window, INCONCLUSIVE (exit 3) when the source did not deliver a steady
 picture (first frame after more than 10 s, frames in < 95 % of the judged windows, or
 `stream_down`/`low_fps` in > 5 % of them), PASS otherwise. Windows before the first frame (RTSP
