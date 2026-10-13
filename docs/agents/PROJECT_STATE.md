@@ -1,6 +1,6 @@
 # Project state
 
-Last update: 2026-10-11 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 21
+Last update: 2026-10-13 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 19
 
 ## Snapshot
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust

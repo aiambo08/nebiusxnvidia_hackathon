@@ -19,7 +19,7 @@ every window, not only confirmations.
 | REST windows armed | 264/264; inlier ratio min 0.851 |
 | `fov_shift` windows in WALK/REST (confirmed) | **0** (0) |
 | `translation_px` max in WALK/REST (threshold 25) | 0.58 |
-| WALK `temporal_mse_p50` max per trial | 1057 – 2305 (REST p50 0.38) |
+| WALK `temporal_mse_p50` max per trial | 1057 – 2305 (REST median 0.38; 2 REST windows of trial 1 above 10, still armed, no fault) |
 | other faults in WALK/REST | none (`occluded_cell_ratio` max 0.058) |
 | BUMP positive control | `fov_shift` at 523.2 s (56 px / rotation 55.9°) and 525.3 s (144 px, inliers 0.65) |
 | capture | 29.881 fps, 0 decode errors, 0 reconnects, 0 dropped |
@@ -58,7 +58,8 @@ The per-window JSON written by the tool is committed unchanged as
 for IPv4, URLs and paths: none). Re-running `summarise()` of `scripts/spike_walkby.py` on its
 `windows` reproduces the stored summary exactly. The JSON's `commit` field is `unknown`:
 the owner's checkout was clean at `90cb5cb` (`main` after PR #31; `git rev-parse --short HEAD`
-and an empty `git status --porcelain --untracked-files=no`, reported by the owner after the run).
+and an empty `git status --porcelain --untracked-files=no`, reported by the owner after the run;
+owner-reported, not machine-recorded, and untracked files are not covered. `scripts/`, `src/` and `configs/` are identical at `90cb5cb` and on this branch).
 `code_revision()` returned `unknown` because `git rev-parse --show-toplevel` succeeded but its
 path did not compare equal to the script's own resolved root on the owner's Windows checkout
 (diagnostic: `rc 0`, `same False`). That is a tool defect, fixed in a separate PR; the JSON is
@@ -70,5 +71,7 @@ kept as written and the code revision `90cb5cb` is recorded here, not in the JSO
   disarmed and are not observed trials (independent reviewer, SIMULATION; see `README.md`), so this
   run does not claim them.
 - Phone RTSP/MJPEG walk-bys are not measured.
+- This closes only the walk-by box. F3 as a whole stays open: live probe p95 <= 40 ms/frame at 720p
+  is not met on the owner's laptop, and recall/precision on real clips belongs to F4.
 - Production still takes the geometry reference from the first frame (`runtime.py`, open in
   `docs/agents/TASKS.md`); this run used the tool's still reference re-taken after CALIBRATE.
