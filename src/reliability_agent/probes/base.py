@@ -27,6 +27,20 @@ def to_gray(img: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 
+def median(a: np.ndarray) -> float:
+    """``np.median`` with one single-pivot partition instead of two pivots (several times faster
+    on a full frame, same value); NaN for an empty array or one that contains NaN."""
+    v = a.ravel()
+    n = v.size
+    if n == 0 or (v.dtype.kind == "f" and np.isnan(v).any()):
+        return np.float64("nan") if n == 0 else np.array(np.nan, dtype=v.dtype)[()]
+    k = n // 2
+    part = np.partition(v, k)
+    if n % 2:
+        return np.mean(part[k : k + 1])
+    return np.mean(np.array([part[:k].max(), part[k]], dtype=v.dtype))
+
+
 def downscale(gray: np.ndarray, max_side: int = 640) -> np.ndarray:
     h, w = gray.shape[:2]
     s = max(h, w)

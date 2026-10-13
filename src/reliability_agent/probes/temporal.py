@@ -17,7 +17,7 @@ from collections import deque
 import cv2
 import numpy as np
 
-from reliability_agent.probes.base import ProbeResult
+from reliability_agent.probes.base import ProbeResult, median
 
 
 def dhash(gray: np.ndarray, size: int = 8) -> int:
@@ -44,13 +44,14 @@ def noise_sigmas(gray: np.ndarray, prev: np.ndarray) -> tuple[float, float]:
     gx = cv2.Sobel(g, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(g, cv2.CV_32F, 0, 1, ksize=3)
     mag = cv2.magnitude(gx, gy)[1:-1, 1:-1]
-    flat = mag <= float(np.median(mag))
+    flat = mag <= float(median(mag))
     if not flat.any():
         return float("nan"), float("nan")
+    mask = flat.view(np.uint8)
     lap = cv2.filter2D(g, cv2.CV_32F, _IMMERKAER)[1:-1, 1:-1]
-    sigma_s = _IMMERKAER_SCALE * float(np.mean(np.abs(lap[flat])))
+    sigma_s = _IMMERKAER_SCALE * cv2.mean(np.abs(lap), mask=mask)[0]
     d = (g - prev.astype(np.float32))[1:-1, 1:-1]
-    sigma_t = float(np.sqrt(np.mean(d[flat] ** 2) / 2.0))
+    sigma_t = float(np.sqrt(cv2.mean(d * d, mask=mask)[0] / 2.0))
     return sigma_t, sigma_s
 
 
@@ -76,6 +77,9 @@ class FreezeTracker:
         self._prev_full: np.ndarray | None = None
         self._frames: deque[np.ndarray] = deque(maxlen=2 * max_loop_period)
         self._full: deque[np.ndarray] = deque(maxlen=2 * max_loop_period)
+        self._keys: deque[int] = deque(maxlen=2 * max_loop_period)
+        self._pair_mse: dict[tuple[int, int], float] = {}
+        self._count = 0
         self._hashes: deque[int] = deque(maxlen=max(window, 2 * max_loop_period + 1))
         self._exact: deque[bool] = deque(maxlen=window)
         self._mse: deque[float] = deque(maxlen=window)
@@ -98,6 +102,10 @@ class FreezeTracker:
         self._prev_full = gray.copy()
         self._frames.append(small)
         self._full.append(self._prev_full)
+        self._keys.append(self._count)
+        self._count += 1
+        oldest = self._keys[0]
+        self._pair_mse = {k: v for k, v in self._pair_mse.items() if k[0] >= oldest}
         self._hashes.append(h)
         hs = list(self._hashes)
         rep = [hamming(a, b) <= self.hash_tol for a, b in zip(hs, hs[1:], strict=False)]
@@ -128,16 +136,22 @@ class FreezeTracker:
         a loop; a bit-exact repeat of one frame is a freeze, not a loop."""
         fr = list(self._frames)
         full = list(self._full)
+        keys = list(self._keys)
+        cache = self._pair_mse
 
-        def mse(a: np.ndarray, b: np.ndarray) -> float:
-            return float(np.mean((a.astype(np.float32) - b.astype(np.float32)) ** 2))
+        def mse(i: int, j: int) -> float:
+            key = (keys[i], keys[j])
+            if key not in cache:
+                a, b = fr[i], fr[j]
+                cache[key] = float(np.mean((a.astype(np.float32) - b.astype(np.float32)) ** 2))
+            return cache[key]
 
         for p in range(2, self.max_loop_period + 1):
             if len(fr) < 2 * p:
                 break
-            tail = fr[-2 * p :]
-            period = [mse(tail[i], tail[i + p]) for i in range(p)]
-            step = [mse(tail[i], tail[i + 1]) for i in range(p)]
+            t0 = len(fr) - 2 * p
+            period = [mse(t0 + i, t0 + i + p) for i in range(p)]
+            step = [mse(t0 + i, t0 + i + 1) for i in range(p)]
             if all(d <= self.loop_mse_max for d in period) and all(d > self.loop_mse_max
                                                                    for d in step):
                 return p
