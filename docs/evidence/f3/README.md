@@ -307,7 +307,7 @@ search of `FreezeTracker` (the same frame-pair MSEs recomputed every frame). Rew
 - `noise_sigmas`: masked means with `cv2.mean(mask=...)` (double accumulator) instead of boolean
   indexing; relative difference ≤ 1e-5 to the previous float32 means.
 - `blur_effect`: float32 pixels (exact for 8-bit input) with float64 sums; the score stays within
-  1e-6 of the float64 computation (measured ≤ 1e-7) against the 0.55 `blur_effect_max` threshold.
+  1e-6 of the float64 computation (measured ≤ 2e-7 absolute with the production `h_size` 11; up to 1.2e-6 with `h_size` 3, unused) against the 0.55 `blur_effect_max` threshold.
 - `FreezeTracker`: frame-pair MSEs cached by frame index within the 2×`max_loop_period` window;
   `loop_period` is identical to the uncached search on live, frozen, looped, jittered and mixed
   sequences.

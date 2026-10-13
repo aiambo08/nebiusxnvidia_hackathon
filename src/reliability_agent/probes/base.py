@@ -28,10 +28,12 @@ def to_gray(img: np.ndarray) -> np.ndarray:
 
 
 def median(a: np.ndarray) -> float:
-    """``np.median`` of a NaN-free array, with one single-pivot partition instead of two pivots
-    (several times faster on a full frame, same value)."""
+    """``np.median`` with one single-pivot partition instead of two pivots (several times faster
+    on a full frame, same value); NaN for an empty array or one that contains NaN."""
     v = a.ravel()
     n = v.size
+    if n == 0 or (v.dtype.kind == "f" and np.isnan(v).any()):
+        return np.float64("nan") if n == 0 else np.array(np.nan, dtype=v.dtype)[()]
     k = n // 2
     part = np.partition(v, k)
     if n % 2:

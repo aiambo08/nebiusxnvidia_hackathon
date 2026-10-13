@@ -91,6 +91,14 @@ def test_median_matches_numpy(dtype, n):
         assert m == np.median(a) and np.asarray(m).dtype == np.asarray(np.median(a)).dtype
 
 
+def test_median_and_noise_sigmas_on_empty_or_nan_input_match_numpy():
+    assert np.isnan(median(np.zeros(0, np.float32)))
+    a = np.array([1.0, np.nan, 3.0, 4.0], np.float32)
+    assert np.isnan(median(a)) and median(a).dtype == np.median(a).dtype
+    tiny = np.zeros((2, 5), np.uint8)
+    assert all(np.isnan(v) for v in noise_sigmas(tiny, tiny))
+
+
 def test_blur_effect_matches_the_float64_computation():
     for img in _scenes(np.random.default_rng(0)):
         assert blur_effect(img) == pytest.approx(_ref_blur_effect(img), abs=1e-6)
