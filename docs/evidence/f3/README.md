@@ -297,6 +297,36 @@ What the box still needs: the same commands on the owner's laptop (REAL HARDWARE
 what the agent runs on). `spike_capture.py` now prints frame size, p50 and machine facts next to
 its p95 so future live numbers are comparable. Tests: `tests/unit/test_bench_probes.py`.
 
+### Probe-cost reduction without threshold changes — SIMULATION
+A cProfile of 300 frames at 640×480 put most of the time in three places that recomputed or
+over-computed values: `blur_effect` (float64 copies of the frame), `noise_sigmas` (`np.median`
+uses a two-pivot partition, ~2.9 ms; boolean-index copies for the masked means) and the loop
+search of `FreezeTracker` (the same frame-pair MSEs recomputed every frame). Rewritten:
+- `probes.base.median`: one-pivot partition plus the maximum of the lower half — the same value
+  and dtype as `np.median` (tests on odd/even sizes, uint8/int32/float32).
+- `noise_sigmas`: masked means with `cv2.mean(mask=...)` (double accumulator) instead of boolean
+  indexing; relative difference ≤ 1e-5 to the previous float32 means.
+- `blur_effect`: float32 pixels (exact for 8-bit input) with float64 sums; the score stays within
+  1e-6 of the float64 computation (measured ≤ 1e-7) against the 0.55 `blur_effect_max` threshold.
+- `FreezeTracker`: frame-pair MSEs cached by frame index within the 2×`max_loop_period` window;
+  `loop_period` is identical to the uncached search on live, frozen, looped, jittered and mixed
+  sequences.
+
+Equivalence: `tests/unit/test_probe_speedups.py` compares every rewrite with the previous
+implementation; `scripts/bench_detectors.py` regenerates `detectors.md` byte-identical (156 runs,
+all PASS). Before → after, same sandbox, three interleaved passes of `main` and the branch,
+`--frames 150`:
+
+| condition | p50 ms main → branch | p95 ms main → branch |
+|---|---|---|
+| 1280×720 isolated (the box) | 16.8–16.9 → 12.7–13.0 | 24.3–25.3 → 20.4–21.2 |
+| 640×480 isolated | 27.5–27.7 → 16.6–17.2 | 37.6–40.3 → 25.4–28.4 |
+| 640×480 + capture thread + tracemalloc (= spike_capture) | 41.4–41.7 → 27.5–27.9 | 56.0–56.5 → 39.7–40.4 |
+
+Per-probe p95 at 640×480 isolated: sharpness 9.8–13.1 → 3.6–4.5 ms, freeze 11.7–12.6 → 4.6–6.9 ms;
+geometry (ORB + RANSAC, every 5th frame, 8.8–13.6 ms) is now the largest stage and is unchanged.
+The owner's laptop (REAL HARDWARE) has not been re-measured.
+
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
 The 20 walk-by trials for `fov_shift` pass on REAL HARDWARE (`walkby-hardware.md`): 22/22 trials observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected. The probe-set p95 ≤ 40 ms/frame box

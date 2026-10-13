@@ -17,7 +17,7 @@ from reliability_agent.contracts.models import (
     TransportMetrics,
     VisualMetrics,
 )
-from reliability_agent.probes.base import downscale, to_gray
+from reliability_agent.probes.base import downscale, median, to_gray
 from reliability_agent.probes.geometry import GeometryProbe
 from reliability_agent.probes.occlusion import (
     cell_slices,
@@ -107,7 +107,7 @@ class ProbeRunner:
         self._cal_rest.append(np.zeros(self.grid, bool))
         if self._cal_prev is not None and self._cal_prev.shape == norm.shape:
             delta = cv2.absdiff(norm, self._cal_prev)
-            noise = 1.4826 * float(np.median(delta))
+            noise = 1.4826 * float(median(delta))
             moving = delta > max(c.get("pixel_delta", 25), c.get("noise_k", 4.0) * noise)
             for r, col, sl in cell_slices(norm.shape, self.grid):
                 still = moving[sl].mean() <= c.get("moving_fraction_max", 0.01)
