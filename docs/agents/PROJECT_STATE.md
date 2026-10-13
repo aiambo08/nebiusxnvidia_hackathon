@@ -57,9 +57,9 @@ Last update: 2026-10-11 · Current phase: **F3** (F1/F2: every box evidenced, in
   and `run_live` no longer judges the same `Frame.seq` twice on a source slower than
   `analytic_fps` (`tests/unit/test_runtime.py`), and `fov_shift` no longer fires on a smooth wall at rest:
   `GeometryProbe` takes translation/rotation from a rigid similarity fit while the homography keeps
-  the inlier gate (ADR-006; SIMULATION, thresholds unchanged, `tests/unit/test_probes.py`; the 20 walk-by trials stay open, tool ready: `scripts/spike_walkby.py`, judging only armed trials on a still reference with a final BUMP positive control),
+  the inlier gate (ADR-006; SIMULATION, thresholds unchanged, `tests/unit/test_probes.py`; the 20 walk-by trials pass on REAL HARDWARE 2026-10-13 with `scripts/spike_walkby.py`: 22/22 observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected, `docs/evidence/f3/walkby-hardware.md`),
   transport-level freeze evidence for compressed sources (later phase),
-  recall/precision per detector, walk-by FOV trials, live probe p95 at 720p.
+  recall/precision per detector on real clips (F4), live probe p95 at 720p.
 
 ## Budget (update weekly from the Token Factory console)
 | Date | Ledger estimate (USD) | Console balance (USD) |
@@ -72,6 +72,6 @@ Last update: 2026-10-11 · Current phase: **F3** (F1/F2: every box evidenced, in
 
 ## Next 3 actions
 1. Webcam + phone RTSP contract passed on REAL HARDWARE (2026-10-08), closing the shared F1/F2 box. 10-min RTSP soak passed (533/536, 99.4 %). Next: independent F1/F2 gate review.
-1b. Devin: F3 — structure veto for hard shadows (ADR-007 follow-up), then the 20 walk-by protocol; owner runs `bench_probes.py` flags (the four 20-min static-scene checks are done, REAL HARDWARE 2026-10-11).
+1b. Devin: F3 — structure veto for hard shadows (ADR-007 follow-up), the 20 walk-by trials are done (REAL HARDWARE 2026-10-13); owner runs `bench_probes.py` flags (the four 20-min static-scene checks are done, REAL HARDWARE 2026-10-11).
 2. Ingestion: probe UVC exposure/autofocus on the integrated webcam (decides UVC vs pipeline action).
 3. Nebius (F6): golden set including the cases where the reasoning tier disagrees with the local top fault.

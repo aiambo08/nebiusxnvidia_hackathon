@@ -299,7 +299,7 @@ its p95 so future live numbers are comparable. Tests: `tests/unit/test_bench_pro
 
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
-The 20 walk-by trials for `fov_shift` are not measured yet. The probe-set p95 ≤ 40 ms/frame box
+The 20 walk-by trials for `fov_shift` pass on REAL HARDWARE (`walkby-hardware.md`): 22/22 trials observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected. The probe-set p95 ≤ 40 ms/frame box
 passes on the sandbox CPU in isolation (above); about 2× of the live gap is attributed in
 SIMULATION and the rest is unexplained until the owner's CPU numbers arrive. The 20-min static-scene freeze
 false-positive box passes on REAL HARDWARE (`static-scene-hardware.md`): PASS on the owner's webcam at rest (1057
