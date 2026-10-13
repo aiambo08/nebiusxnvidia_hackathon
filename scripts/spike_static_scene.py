@@ -128,12 +128,15 @@ def code_revision(root: Path = CODE_ROOT) -> str:
     def git(*cmd: str) -> str | None:
         try:
             r = subprocess.run(["git", *cmd], cwd=root, capture_output=True, text=True,
-                               timeout=10, check=False, env=env)
+                               encoding="utf-8", errors="replace", timeout=10, check=False,
+                               env=env)
         except (OSError, subprocess.SubprocessError):
             return None
         return r.stdout.strip() if r.returncode == 0 else None
-    top = git("rev-parse", "--show-toplevel")
-    if not top or Path(top).resolve() != Path(root).resolve():
+    # The prefix is empty only at the top of a work tree (and inside `.git/` or a bare repository,
+    # which `--is-inside-work-tree` rules out). Comparing `--show-toplevel` with `root` as paths
+    # failed on a Windows checkout whose path git and Python spell differently.
+    if git("rev-parse", "--is-inside-work-tree", "--show-prefix") != "true":
         return "unknown"
     rev = git("rev-parse", "--short", "HEAD")
     if not rev or not re.fullmatch(r"[0-9a-f]{4,40}", rev):
