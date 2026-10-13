@@ -153,6 +153,11 @@ def test_code_revision_marks_dirty_and_unknown(tmp_path):
     nested = tmp_path / "unzipped-copy"
     nested.mkdir()
     assert spike.code_revision(nested) == "unknown"
+    assert spike.code_revision(tmp_path / ".git") == "unknown"
+    assert spike.code_revision(tmp_path / ".git" / "objects") == "unknown"
+    bare = tmp_path.parent / (tmp_path.name + "-bare.git")
+    subprocess.run(["git", "clone", "-q", "--bare", str(tmp_path), str(bare)], check=True)
+    assert spike.code_revision(bare) == "unknown"
 
 
 def test_code_revision_ignores_git_env_and_bad_output(tmp_path, monkeypatch):
@@ -167,7 +172,7 @@ def test_code_revision_ignores_git_env_and_bad_output(tmp_path, monkeypatch):
     def fake_run(cmd, **kw):
         out = Fake()
         if "--show-prefix" in cmd:
-            out.stdout = "\n"
+            out.stdout = "true\n\n"
         return out
     monkeypatch.setattr(spike.subprocess, "run", fake_run)
     assert spike.code_revision(tmp_path) == "unknown"
@@ -182,7 +187,9 @@ def test_code_revision_does_not_compare_paths(tmp_path, monkeypatch):
     def fake_run(cmd, **kw):
         out = Out()
         if "--show-toplevel" in cmd:
-            out.stdout = "C:/Users/Ã\xadbo/elsewhere\n"
+            out.stdout = "C:/Users/Ã\xadsomeone/elsewhere\n"
+        elif "--show-prefix" in cmd:
+            out.stdout = "true\n\n"
         elif "--short" in cmd:
             out.stdout = "90cb5cb\n"
         return out
