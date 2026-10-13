@@ -132,8 +132,9 @@ def code_revision(root: Path = CODE_ROOT) -> str:
         except (OSError, subprocess.SubprocessError):
             return None
         return r.stdout.strip() if r.returncode == 0 else None
-    top = git("rev-parse", "--show-toplevel")
-    if not top or Path(top).resolve() != Path(root).resolve():
+    # `--show-prefix` is empty only at the top of the work tree; comparing `--show-toplevel` with
+    # `root` as paths fails on Windows checkouts whose path git and Python spell differently.
+    if git("rev-parse", "--show-prefix") != "":
         return "unknown"
     rev = git("rev-parse", "--short", "HEAD")
     if not rev or not re.fullmatch(r"[0-9a-f]{4,40}", rev):

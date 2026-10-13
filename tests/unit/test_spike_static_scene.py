@@ -166,11 +166,28 @@ def test_code_revision_ignores_git_env_and_bad_output(tmp_path, monkeypatch):
 
     def fake_run(cmd, **kw):
         out = Fake()
-        if "--show-toplevel" in cmd:
-            out.stdout = str(tmp_path)
+        if "--show-prefix" in cmd:
+            out.stdout = "\n"
         return out
     monkeypatch.setattr(spike.subprocess, "run", fake_run)
     assert spike.code_revision(tmp_path) == "unknown"
+
+
+def test_code_revision_does_not_compare_paths(tmp_path, monkeypatch):
+    """Owner's Windows checkout: git ran fine but its top-level path did not equal CODE_ROOT."""
+    class Out:
+        returncode = 0
+        stdout = ""
+
+    def fake_run(cmd, **kw):
+        out = Out()
+        if "--show-toplevel" in cmd:
+            out.stdout = "C:/Users/Ã\xadbo/elsewhere\n"
+        elif "--short" in cmd:
+            out.stdout = "90cb5cb\n"
+        return out
+    monkeypatch.setattr(spike.subprocess, "run", fake_run)
+    assert spike.code_revision(tmp_path) == "90cb5cb"
 
 
 @pytest.mark.parametrize("label", [r"C:\Users\someone\cam", "cam:1", r"..\..\x"])
