@@ -336,17 +336,27 @@ threshold, ORB setting, cadence or analysis size changed. Equivalence: a per-fra
 `analyse` from `main` and the branch (separate processes) over 15 injectors + clean ×
 1280×720/640×480/320×240, with a geometry re-reference and repeated/skipped seqs, is identical
 (task latency excluded); `tests/unit/test_geometry_parallel.py` checks the same against
-`parallel: false` plus failure paths. Sandbox (8 CPUs), 3 interleaved passes main → branch:
+`parallel: false` plus failure paths. The independent reviewer reproduced it with
+`cv2.setNumThreads(1)`; with 8 OpenCV threads `main` itself differs run to run on 2–5 of 3611
+frames (`noise_ratio`/`temporal_sigma` on blurred 320×240 frames), pre-existing and not from this
+change. `bench_detectors.py` regenerates a byte-identical 156-run table.
 
-| condition | p50 ms main → branch | p95 ms main → branch |
+Latency (SIMULATION, sandbox, 8 CPUs) is indicative only — cross-process runs on this box are noisy:
+
+| measurement | main | branch |
 |---|---|---|
-| 1280×720 isolated | 12.6–24.6 → 12.6–12.7 | 19.8–41.1 → 14.2–16.9 |
-| 1280×720 paced (the box's condition) | 13.6–19.9 → 13.4–13.5 | 20.7–38.2 → 15.9–17.2 |
-| 640×480 isolated | 16.2–17.0 → 16.0–16.1 | 25.3–30.5 → 18.2–19.8 |
-| 640×480 + capture thread + tracemalloc | 26.3–26.7 → 26.1–26.6 | 36.4–37.7 → 31.4–33.5 |
+| author, 3 interleaved passes, 1280×720 paced p95 | 20.7–38.2 ms | 15.9–17.2 ms |
+| author, 3 interleaved passes, 1280×720 isolated p95 | 19.8–41.1 ms | 14.2–16.9 ms |
+| author, 3 interleaved passes, 640×480 isolated p95 | 25.3–30.5 ms | 18.2–19.8 ms |
+| author, 3 interleaved passes, 640×480 + capture thread + tracemalloc p95 | 36.4–37.7 ms | 31.4–33.5 ms |
+| reviewer, 6 interleaved passes, 1280×720 paced p95 | 21–44 ms | 20–45 ms (overlaps) |
+| reviewer, same-process A/B `parallel` off/on, geometry-frame p50 | 19–21 ms | 12–17 ms |
+| reviewer, same-process A/B `parallel` off/on, overall p95 | — | 2.6–4.1 ms lower |
 
-The gain is in the tail (the frames that run geometry); p50 is unchanged because 4 of 5 frames do
-not run it. The box still needs ≥ 3 paced 720p repeats on the owner's laptop.
+The consistent effect is on the frames that run geometry (1 in 5); p50 over all frames is
+unchanged. With `--breakdown` the geometry stage is timed on the pool thread, overlapping the
+other stages, so the per-stage figures no longer sum to the total. The latency box stays
+unchecked: it needs ≥ 3 paced 720p repeats on the owner's laptop.
 
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
