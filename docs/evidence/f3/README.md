@@ -327,6 +327,37 @@ Per-probe p95 at 640×480 isolated: sharpness 9.8–13.1 → 3.6–4.5 ms, freez
 geometry (ORB + RANSAC, every 5th frame, 8.8–13.6 ms) is now the largest stage and is unchanged.
 The owner's laptop (REAL HARDWARE CPU) was re-measured after this change: `latency-hardware.md`.
 
+### Geometry on a pool thread — SIMULATION
+`ProbeRunner.analyse` now submits the geometry probe (ORB + RANSAC, the largest stage) to a
+process-wide 2-thread pool (`probes.geometry.parallel: true`) and runs exposure, sharpness, freeze,
+occlusion and the marker task on the calling thread meanwhile (OpenCV releases the GIL); the
+result is awaited before `analyse` returns, so it is published on the same frame as before. No
+threshold, ORB setting, cadence or analysis size changed. Equivalence: a per-frame dump of
+`analyse` from `main` and the branch (separate processes) over 15 injectors + clean ×
+1280×720/640×480/320×240, with a geometry re-reference and repeated/skipped seqs, is identical
+(task latency excluded); `tests/unit/test_geometry_parallel.py` checks the same against
+`parallel: false` plus failure paths. The independent reviewer reproduced it with
+`cv2.setNumThreads(1)`; with 8 OpenCV threads `main` itself differs run to run on 2–5 of 3611
+frames (`noise_ratio`/`temporal_sigma` on blurred 320×240 frames), pre-existing and not from this
+change. `bench_detectors.py` regenerates a byte-identical 156-run table.
+
+Latency (SIMULATION, sandbox, 8 CPUs) is indicative only — cross-process runs on this box are noisy:
+
+| measurement | main | branch |
+|---|---|---|
+| author, 3 interleaved passes, 1280×720 paced p95 | 20.7–38.2 ms | 15.9–17.2 ms |
+| author, 3 interleaved passes, 1280×720 isolated p95 | 19.8–41.1 ms | 14.2–16.9 ms |
+| author, 3 interleaved passes, 640×480 isolated p95 | 25.3–30.5 ms | 18.2–19.8 ms |
+| author, 3 interleaved passes, 640×480 + capture thread + tracemalloc p95 | 36.4–37.7 ms | 31.4–33.5 ms |
+| reviewer, 6 interleaved passes, 1280×720 paced p95 | 21–44 ms | 20–45 ms (overlaps) |
+| reviewer, same-process A/B `parallel` off/on, geometry-frame p50 | 19–21 ms | 12–17 ms |
+| reviewer, same-process A/B `parallel` off/on, overall p95 | — | 2.6–4.1 ms lower |
+
+The consistent effect is on the frames that run geometry (1 in 5); p50 over all frames is
+unchanged. With `--breakdown` the geometry stage is timed on the pool thread, overlapping the
+other stages, so the per-stage figures no longer sum to the total. The latency box stays
+unchecked: it needs ≥ 3 paced 720p repeats on the owner's laptop.
+
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
 The 20 walk-by trials for `fov_shift` pass on REAL HARDWARE (`walkby-hardware.md`): 22/22 trials observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected. The probe-set p95 ≤ 40 ms/frame box

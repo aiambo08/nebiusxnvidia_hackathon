@@ -43,6 +43,7 @@ probes:
     orb_features: 500
     min_matches: 12
     ransac_reproj_px: 5.0
+    parallel: true          # run on a pool thread alongside the other probes (same output)
 
 # Per-fault rules over a telemetry window (absolute + robust z-score vs baseline).
 faults:

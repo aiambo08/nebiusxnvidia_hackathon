@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import threading
 from collections import defaultdict
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from datetime import UTC, datetime
 from typing import Any
 
@@ -17,7 +20,7 @@ from reliability_agent.contracts.models import (
     TransportMetrics,
     VisualMetrics,
 )
-from reliability_agent.probes.base import downscale, median, to_gray
+from reliability_agent.probes.base import ProbeResult, downscale, median, to_gray
 from reliability_agent.probes.geometry import GeometryProbe
 from reliability_agent.probes.occlusion import (
     cell_slices,
@@ -29,6 +32,20 @@ from reliability_agent.probes.photometric import exposure_probe
 from reliability_agent.probes.sharpness import sharpness_probe
 from reliability_agent.probes.temporal import FreezeTracker
 from reliability_agent.tasks.marker import MarkerTask
+
+_POOL: ThreadPoolExecutor | None = None
+_POOL_PID: int | None = None
+_POOL_LOCK = threading.Lock()
+
+
+def _geometry_pool() -> ThreadPoolExecutor:
+    """Process-wide pool for the geometry probe; recreated in a forked child (dead threads)."""
+    global _POOL, _POOL_PID
+    with _POOL_LOCK:
+        if _POOL is None or _POOL_PID != os.getpid():
+            _POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="ra-geometry")
+            _POOL_PID = os.getpid()
+        return _POOL
 
 
 def _p(values: list[float], q: float) -> float | None:
@@ -46,6 +63,7 @@ class ProbeRunner:
         g = p["geometry"]
         self.geometry = GeometryProbe(g["orb_features"], g["min_matches"], g["ransac_reproj_px"])
         self.geometry_every = g["every_n_frames"]
+        self.geometry_parallel = bool(g.get("parallel", True))
         self.task = task or MarkerTask()
         self.occlusion_cfg: dict[str, float] = dict(p.get("occlusion", {}))
         self.baseline_cells: np.ndarray | None = None
@@ -146,26 +164,43 @@ class ProbeRunner:
         return ok
 
     def analyse(self, frame: Frame) -> dict[str, float]:
+        """Per-frame metrics. The geometry probe (ORB + RANSAC, the costliest stage) runs on a
+        pool thread while the other probes run here (OpenCV releases the GIL); its result is
+        awaited before returning, so the output is the same as running it in sequence."""
         gray = downscale(to_gray(frame.image))
         self._n += 1
-        out: dict[str, float] = {}
-        out.update(exposure_probe(gray, self.cfg["black_level"], self.cfg["white_level"]).values)
-        out.update(sharpness_probe(gray, self.cfg["blur_kernel"]).values)
-        out.update(self.freeze.update(gray).values)
-        if self.baseline_cells is not None:
-            self._calibrate_cells(gray, frame.seq)
-        occ = occlusion_probe(gray, self.grid, self.baseline_cells,
-                              white_level=self.cfg["white_level"],
-                              calibrating=self.occlusion_calibrating, **self.occlusion_cfg)
-        out.update(occ.values)
+        geom: Future[ProbeResult] | None = None
         if self._n % self.geometry_every == 1 or self.geometry_every == 1 or self._geom_stale:
             self._geom_stale = False
-            g = self.geometry.measure(cv2.equalizeHist(gray))
-            self._last_geom, self._geom_quality = g.values, g.quality
+            eq = cv2.equalizeHist(gray)
+            if self.geometry_parallel:
+                geom = _geometry_pool().submit(self.geometry.measure, eq)
+            else:
+                self._publish_geometry(self.geometry.measure(eq))
+        out: dict[str, float] = {}
+        try:
+            out.update(exposure_probe(gray, self.cfg["black_level"],
+                                      self.cfg["white_level"]).values)
+            out.update(sharpness_probe(gray, self.cfg["blur_kernel"]).values)
+            out.update(self.freeze.update(gray).values)
+            if self.baseline_cells is not None:
+                self._calibrate_cells(gray, frame.seq)
+            occ = occlusion_probe(gray, self.grid, self.baseline_cells,
+                                  white_level=self.cfg["white_level"],
+                                  calibrating=self.occlusion_calibrating, **self.occlusion_cfg)
+            out.update(occ.values)
+            t = self.task.run(gray)
+        finally:
+            if geom is not None:  # never leave the probe running into the next call
+                wait([geom])
+        if geom is not None:
+            self._publish_geometry(geom.result())
         out.update({f"geom_{k}": v for k, v in self._last_geom.items()})
-        t = self.task.run(gray)
         out.update({f"task_{k}": v for k, v in t.values.items()})
         return out
+
+    def _publish_geometry(self, g: ProbeResult) -> None:
+        self._last_geom, self._geom_quality = g.values, g.quality
 
 
 class WindowAggregator:
