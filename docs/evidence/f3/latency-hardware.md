@@ -4,8 +4,8 @@ Box: probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS (`docs/phases-and-gat
 **Not passed:** the closest condition (`--paced`, 1280×720, Windows power mode "Best performance")
 gives p95 41.4 ms.
 
-- Machine: owner's laptop, native Windows AMD64, 28 logical CPUs, Python 3.11.9, OpenCV 5.0.0.
-  The owner was asked to run plugged in; that was not confirmed back. Frames are `SyntheticSource` frames (no camera, no network), so this measures the
+- Machine: owner's laptop, native Windows AMD64, 28 logical CPUs, Python 3.11.9, OpenCV 5.0.0,
+  plugged in (confirmed by the owner after the runs). Frames are `SyntheticSource` frames (no camera, no network), so this measures the
   probe-set cost on the CPU the agent runs on, not a live stream.
 - Intended code: `main` after PR #34 (`f3be8a7`, probe-cost rewrite); not verified, the SHA was
   not pasted back.
