@@ -1,6 +1,6 @@
 # Project state
 
-Last update: 2026-10-13 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 19
+Last update: 2026-10-14 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 18
 
 ## Snapshot
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
@@ -16,8 +16,11 @@ Last update: 2026-10-13 · Current phase: **F3** (F1/F2: every box evidenced, in
   windows, heap +0.4%, 0 reconnects (`docs/evidence/f1/`). The live probe p95 (110 ms webcam, 248 ms RTSP) vs 20–25 ms isolated is
   only partly attributed in SIMULATION (`spike_capture.py` measures with tracemalloc + capture thread
   on raw 640×480; `bench_probes.py` flags reproduce ~2×); the probe-cost rewrite (no threshold
-  change) cuts sandbox p50 by 24 % at 720p and 33 % under spike conditions (p95 56 → 40 ms);
-  owner's CPU numbers pending.
+  change) cuts sandbox p50 by 24 % at 720p and 33 % under spike conditions (p95 56 → 40 ms).
+  Owner's laptop (REAL HARDWARE CPU, `docs/evidence/f3/latency-hardware.md`, synthetic frames): the paced tail is mostly Windows
+  power management — 720p paced p95 54–112 ms on "Balanced", 41.4 ms on "Best performance" (box
+  still 1.4 ms over); no OpenCV thread setting brought it below
+  54 ms under "Balanced" (single runs). Next: geometry cost.
 - F1 replay tooling: record a clean clip, inject seeded blur/dark/freeze, replay it through
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.

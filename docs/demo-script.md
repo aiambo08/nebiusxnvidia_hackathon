@@ -12,3 +12,7 @@
 | 2:40–2:55 | Results & cost | benchmark table from event files |
 
 Physical footage between 0:20 and 2:20 ≥ 1 minute (Physical AI requirement).
+
+Recording setup: laptop plugged in, Windows power mode "Best performance" — the 720p
+probe p95 at 5 FPS was 54–112 ms under "Balanced" vs 41.4 ms under "Best performance" on the
+owner's laptop (single runs) (`docs/evidence/f3/latency-hardware.md`).

@@ -325,13 +325,14 @@ all PASS). Before → after, same sandbox, three interleaved passes of `main` an
 
 Per-probe p95 at 640×480 isolated: sharpness 9.8–13.1 → 3.6–4.5 ms, freeze 11.7–12.6 → 4.6–6.9 ms;
 geometry (ORB + RANSAC, every 5th frame, 8.8–13.6 ms) is now the largest stage and is unchanged.
-The owner's laptop (REAL HARDWARE) has not been re-measured.
+The owner's laptop (REAL HARDWARE CPU) was re-measured after this change: `latency-hardware.md`.
 
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
 The 20 walk-by trials for `fov_shift` pass on REAL HARDWARE (`walkby-hardware.md`): 22/22 trials observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected. The probe-set p95 ≤ 40 ms/frame box
-passes on the sandbox CPU in isolation (above); about 2× of the live gap is attributed in
-SIMULATION and the rest is unexplained until the owner's CPU numbers arrive. The 20-min static-scene freeze
+is not passed: on the owner's laptop (REAL HARDWARE CPU, `latency-hardware.md`) the 720p paced p95
+is 54–112 ms under the Windows "Balanced" power plan and 41.4 ms under "Best performance"; under
+"Balanced" no OpenCV thread setting brought it below 54 ms (single runs). The 20-min static-scene freeze
 false-positive box passes on REAL HARDWARE (`static-scene-hardware.md`): PASS on the owner's webcam at rest (1057
 windows) and phone RTSP on a plain wall (980); phone RTSP textured PASS with a `stream_down` finding
 (987); MJPEG q80 INCONCLUSIVE (supporting only); 0 `freeze` windows in all five runs (5114 windows incl.
