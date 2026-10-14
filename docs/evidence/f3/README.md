@@ -331,8 +331,8 @@ The owner's laptop (REAL HARDWARE CPU) was re-measured after this change: `laten
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
 The 20 walk-by trials for `fov_shift` pass on REAL HARDWARE (`walkby-hardware.md`): 22/22 trials observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected. The probe-set p95 ≤ 40 ms/frame box
 is not passed: on the owner's laptop (REAL HARDWARE CPU, `latency-hardware.md`) the 720p paced p95
-is 54–112 ms under the Windows "Balanced" power plan and 41.4 ms under "Best performance"; the
-thread count does not change it. The 20-min static-scene freeze
+is 54–112 ms under the Windows "Balanced" power plan and 41.4 ms under "Best performance"; under
+"Balanced" no OpenCV thread setting brought it below 54 ms (single runs). The 20-min static-scene freeze
 false-positive box passes on REAL HARDWARE (`static-scene-hardware.md`): PASS on the owner's webcam at rest (1057
 windows) and phone RTSP on a plain wall (980); phone RTSP textured PASS with a `stream_down` finding
 (987); MJPEG q80 INCONCLUSIVE (supporting only); 0 `freeze` windows in all five runs (5114 windows incl.
