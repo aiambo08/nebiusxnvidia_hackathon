@@ -12,3 +12,6 @@
 | 2:40–2:55 | Results & cost | benchmark table from event files |
 
 Physical footage between 0:20 and 2:20 ≥ 1 minute (Physical AI requirement).
+
+Recording setup: laptop plugged in, Windows power mode "Best performance" — under "Balanced" the
+probe p95 at 5 FPS is 2–3× higher on the owner's laptop (`docs/evidence/f3/latency-hardware.md`).
