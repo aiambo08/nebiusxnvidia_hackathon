@@ -20,7 +20,9 @@ Last update: 2026-10-14 · Current phase: **F3** (F1/F2: every box evidenced, in
   Owner's laptop (REAL HARDWARE CPU, `docs/evidence/f3/latency-hardware.md`, synthetic frames): the paced tail is mostly Windows
   power management — 720p paced p95 54–112 ms on "Balanced", 41.4 ms on "Best performance" (box
   still 1.4 ms over); no OpenCV thread setting brought it below
-  54 ms under "Balanced" (single runs). Next: geometry cost.
+  54 ms under "Balanced" (single runs). Geometry now runs on a pool thread alongside the other
+  probes, same output (SIMULATION 720p paced p95 20.7–38.2 → 15.9–17.2 ms); next: owner re-measures
+  720p paced ×3.
 - F1 replay tooling: record a clean clip, inject seeded blur/dark/freeze, replay it through
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.

@@ -327,6 +327,27 @@ Per-probe p95 at 640×480 isolated: sharpness 9.8–13.1 → 3.6–4.5 ms, freez
 geometry (ORB + RANSAC, every 5th frame, 8.8–13.6 ms) is now the largest stage and is unchanged.
 The owner's laptop (REAL HARDWARE CPU) was re-measured after this change: `latency-hardware.md`.
 
+### Geometry on a pool thread — SIMULATION
+`ProbeRunner.analyse` now submits the geometry probe (ORB + RANSAC, the largest stage) to a
+process-wide 2-thread pool (`probes.geometry.parallel: true`) and runs exposure, sharpness, freeze,
+occlusion and the marker task on the calling thread meanwhile (OpenCV releases the GIL); the
+result is awaited before `analyse` returns, so it is published on the same frame as before. No
+threshold, ORB setting, cadence or analysis size changed. Equivalence: a per-frame dump of
+`analyse` from `main` and the branch (separate processes) over 15 injectors + clean ×
+1280×720/640×480/320×240, with a geometry re-reference and repeated/skipped seqs, is identical
+(task latency excluded); `tests/unit/test_geometry_parallel.py` checks the same against
+`parallel: false` plus failure paths. Sandbox (8 CPUs), 3 interleaved passes main → branch:
+
+| condition | p50 ms main → branch | p95 ms main → branch |
+|---|---|---|
+| 1280×720 isolated | 12.6–24.6 → 12.6–12.7 | 19.8–41.1 → 14.2–16.9 |
+| 1280×720 paced (the box's condition) | 13.6–19.9 → 13.4–13.5 | 20.7–38.2 → 15.9–17.2 |
+| 640×480 isolated | 16.2–17.0 → 16.0–16.1 | 25.3–30.5 → 18.2–19.8 |
+| 640×480 + capture thread + tracemalloc | 26.3–26.7 → 26.1–26.6 | 36.4–37.7 → 31.4–33.5 |
+
+The gain is in the tail (the frames that run geometry); p50 is unchanged because 4 of 5 frames do
+not run it. The box still needs ≥ 3 paced 720p repeats on the owner's laptop.
+
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
 The 20 walk-by trials for `fov_shift` pass on REAL HARDWARE (`walkby-hardware.md`): 22/22 trials observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected. The probe-set p95 ≤ 40 ms/frame box
