@@ -49,7 +49,8 @@ def check_session_id(sid: str) -> str:
 
 def check_public(text: str, what: str = "metadata") -> str:
     if PRIVATE_RE.search(text):
-        raise ValueError(f"{what} must not contain a URL, an IP address or a path")
+        raise ValueError(f"{what} must not contain a URL, an IP address or a path "
+                         "(no ':', '/', '\\' or '@')")
     return text
 
 
