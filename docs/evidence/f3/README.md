@@ -355,15 +355,17 @@ Latency (SIMULATION, sandbox, 8 CPUs) is indicative only — cross-process runs 
 
 The consistent effect is on the frames that run geometry (1 in 5); p50 over all frames is
 unchanged. With `--breakdown` the geometry stage is timed on the pool thread, overlapping the
-other stages, so the per-stage figures no longer sum to the total. The latency box stays
-unchecked: it needs ≥ 3 paced 720p repeats on the owner's laptop.
+other stages, so the per-stage figures no longer sum to the total. The owner then re-measured
+720p paced ×3 on his laptop (REAL HARDWARE CPU, "Best performance"): p95 23.2 / 32.6 / 34.5 ms,
+`latency-hardware.md`.
 
 ## Open F3 boxes
 Recall/precision per detector is measured in SIMULATION only (above; REAL HARDWARE clips are F4).
 The 20 walk-by trials for `fov_shift` pass on REAL HARDWARE (`walkby-hardware.md`): 22/22 trials observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected. The probe-set p95 ≤ 40 ms/frame box
-is not passed: on the owner's laptop (REAL HARDWARE CPU, `latency-hardware.md`) the 720p paced p95
-is 54–112 ms under the Windows "Balanced" power plan and 41.4 ms under "Best performance"; under
-"Balanced" no OpenCV thread setting brought it below 54 ms (single runs). The 20-min static-scene freeze
+passes on the owner's laptop (REAL HARDWARE CPU, synthetic frames, `latency-hardware.md`) under
+"Best performance" after geometry moved to a pool thread: 720p paced p95 23.2 / 32.6 / 34.5 ms in
+3 runs. Under the Windows "Balanced" power plan earlier runs were 54–112 ms, so the demo requires
+"Best performance". The 20-min static-scene freeze
 false-positive box passes on REAL HARDWARE (`static-scene-hardware.md`): PASS on the owner's webcam at rest (1057
 windows) and phone RTSP on a plain wall (980); phone RTSP textured PASS with a `stream_down` finding
 (987); MJPEG q80 INCONCLUSIVE (supporting only); 0 `freeze` windows in all five runs (5114 windows incl.
