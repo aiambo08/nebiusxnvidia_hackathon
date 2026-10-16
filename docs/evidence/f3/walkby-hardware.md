@@ -71,7 +71,7 @@ kept as written and the code revision `90cb5cb` is recorded here, not in the JSO
   disarmed and are not observed trials (independent reviewer, SIMULATION; see `README.md`), so this
   run does not claim them.
 - Phone RTSP/MJPEG walk-bys are not measured.
-- This closes only the walk-by box. F3 as a whole stays open: live probe p95 <= 40 ms/frame at 720p
-  is not met on the owner's laptop, and recall/precision on real clips belongs to F4.
+- This closes only the walk-by box. F3 as a whole stays open: recall/precision on real clips belongs to
+  F4 (the 720p probe p95 box passed later, `latency-hardware.md`).
 - Production still takes the geometry reference from the first frame (`runtime.py`, open in
   `docs/agents/TASKS.md`); this run used the tool's still reference re-taken after CALIBRATE.

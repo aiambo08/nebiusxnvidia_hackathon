@@ -1,8 +1,10 @@
 # Probe latency on the owner's laptop — REAL HARDWARE CPU, synthetic frames
 
 Box: probe set p95 ≤ 40 ms/frame at 720p, 5 analytic FPS (`docs/phases-and-gates.md`, F3).
-**Not passed:** the closest condition (`--paced`, 1280×720, Windows power mode "Best performance")
-gives p95 41.4 ms.
+**Passed** after geometry moved to a pool thread (see "Re-measurement after geometry on a pool
+thread" below): 720p paced p95 23.2 / 32.6 / 34.5 ms in 3 runs under Windows "Best performance"
+(synthetic frames). Before that change: p95 41.4 ms (single run, sections below). Under
+"Balanced": 54–112 ms. The sections up to "Consequences" describe the earlier runs.
 
 - Machine: owner's laptop, native Windows AMD64, 28 logical CPUs, Python 3.11.9, OpenCV 5.0.0,
   plugged in (confirmed by the owner after the runs). Frames are `SyntheticSource` frames (no camera, no network), so this measures the
