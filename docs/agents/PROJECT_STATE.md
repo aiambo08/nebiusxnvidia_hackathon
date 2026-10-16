@@ -21,8 +21,9 @@ Last update: 2026-10-14 · Current phase: **F3** (F1/F2: every box evidenced, in
   power management — 720p paced p95 54–112 ms on "Balanced", 41.4 ms on "Best performance" (box
   still 1.4 ms over); no OpenCV thread setting brought it below
   54 ms under "Balanced" (single runs). Geometry now runs on a pool thread alongside the other
-  probes, same output (SIMULATION, indicative: 720p p95 2.6–4.1 ms lower in a same-process A/B); next: owner re-measures
-  720p paced ×3.
+  probes, same output (SIMULATION, indicative: 720p p95 2.6–4.1 ms lower in a same-process A/B). Owner
+  re-measured 720p paced ×3 on "Best performance": p95 23.2 / 32.6 / 34.5 ms — latency box ticked
+  (demo requires plugged in + "Best performance").
 - F1 replay tooling: record a clean clip, inject seeded blur/dark/freeze, replay it through
   `OpenCVSource` + probes + tracker offline (no LLM). REAL HARDWARE clip s001 (SIMULATION faults):
   dark/blur/freeze detected in 2.9 s, 0 false alarms on the clean clip.

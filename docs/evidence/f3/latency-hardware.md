@@ -70,5 +70,27 @@ occlusion 5.9, geometry 11.0, task 2.8.
 ## Consequences
 - Demo and live runs: laptop plugged in and Windows power mode "Best performance"
   (`docs/demo-script.md`).
-- The box stays open until the 720p paced p95 is ≤ 40 ms on this laptop; next step: reduce the
-  geometry cost without threshold changes (`docs/agents/TASKS.md`).
+- The box stayed open until the 720p paced p95 was ≤ 40 ms on this laptop; the geometry probe was
+  then moved to a pool thread (see below).
+
+## Re-measurement after geometry on a pool thread (REAL HARDWARE CPU)
+Same laptop, plugged in, Windows power mode "Best performance", synthetic frames (no camera, no
+network), `main` after the parallel-geometry change (`probes.geometry.parallel: true`; no
+threshold, ORB setting, cadence or analysis size changed). The code SHA was not pasted by the
+owner and is unverified. Three consecutive runs of
+`uv run python scripts/bench_probes.py --size 1280x720 --frames 100 --paced --breakdown`:
+
+| run | p50 ms | p95 ms | gate ≤ 40 ms |
+|---|---:|---:|---|
+| 1 | 18.4 | 23.2 | PASS |
+| 2 | 30.3 | 32.6 | PASS |
+| 3 | 30.8 | 34.5 | PASS |
+
+Per-probe p95 ms (runs 1/2/3): sharpness 5.7/7.9/8.0, freeze 5.9/7.9/9.2, geometry 9.8/13.4/14.8,
+occlusion 3.6/5.5/5.5, exposure 1.3/1.6/1.5, task 2.4/3.0/3.1, downscale 0.1. With geometry on the
+pool thread its stage overlaps the others, so the stages do not sum to the total.
+
+All three runs pass with ≥ 5.5 ms margin (worst p95 34.5 ms vs 41.4 ms in the single run before
+the change). p50 rose from 18.4 to ~30 ms between run 1 and runs 2–3; the cause was not measured.
+The pass holds under "Best performance" only; under "Balanced" the earlier runs were 54–112 ms,
+so the demo requirement (plugged in, "Best performance") stays.
