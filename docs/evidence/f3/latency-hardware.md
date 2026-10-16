@@ -76,8 +76,9 @@ occlusion 5.9, geometry 11.0, task 2.8.
 ## Re-measurement after geometry on a pool thread (REAL HARDWARE CPU)
 Same laptop, plugged in, Windows power mode "Best performance", synthetic frames (no camera, no
 network), `main` after the parallel-geometry change (`probes.geometry.parallel: true`; no
-threshold, ORB setting, cadence or analysis size changed). The code SHA was not pasted by the
-owner and is unverified. Three consecutive runs of
+threshold, ORB setting, cadence or analysis size changed). Code SHA `ae918ae` (the merge of the
+parallel-geometry change), reported by the owner from `git rev-parse --short HEAD`; working-tree
+status not reported. Three consecutive runs of
 `uv run python scripts/bench_probes.py --size 1280x720 --frames 100 --paced --breakdown`:
 
 | run | p50 ms | p95 ms | gate ≤ 40 ms |
