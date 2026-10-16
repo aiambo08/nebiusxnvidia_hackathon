@@ -53,7 +53,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F3][eval] `bench_static_scene.py` report has no `commit:` field (only `generated:`); write it like `bench_detectors.py` for rule-6 traceability
 - [ ] [F3][contracts] Carry occlusion `quality`/`judgeable_cell_ratio`/`global_texture_loss` into `VisualMetrics` so "could not judge" (clipped, blank) is visible to the operator (ADR-007 reviewer; contract change, ADR needed)
 - [ ] [F3][vision] Day/night baselines + reference bank for geometry
-- [ ] [F4][evaluation] `scripts/run_benchmark.py` producing a markdown report from event files
+- [x] [F4][evaluation] `scripts/run_benchmark.py` producing a markdown + JSON report from the session index and manifests (`tests/unit/test_f4_benchmark.py`, SIMULATION)
+- [ ] [F4][human] Record ≥ 6 test sessions × 5 min (+ 1 dev) with `record_clip.py --split`, run `scripts/run_benchmark.py` on the owner's laptop, commit index + manifests + report (REAL HARDWARE clips)
 - [ ] [F5][architecture] Restore FSM + baseline from SQLite after restart
 - [ ] [F6][nebius] Golden set (20 cases × fault) + ambiguity cases
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)

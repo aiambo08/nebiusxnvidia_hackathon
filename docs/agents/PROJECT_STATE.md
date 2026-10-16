@@ -1,6 +1,6 @@
 # Project state
 
-Last update: 2026-10-16 · Current phase: **F3** (F1/F2: every box evidenced, independent gate review pending) · Days to deadline: 16
+Last update: 2026-10-16 · Current phase: **F4** (F3: every box evidenced except REAL HARDWARE recall/precision, moved to F4; F1–F3 independent gate review pending) · Days to deadline: 16
 
 ## Snapshot
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
@@ -68,6 +68,11 @@ Last update: 2026-10-16 · Current phase: **F3** (F1/F2: every box evidenced, in
   the inlier gate (ADR-006; SIMULATION, thresholds unchanged, `tests/unit/test_probes.py`; the 20 walk-by trials pass on REAL HARDWARE 2026-10-13 with `scripts/spike_walkby.py`: 22/22 observed on the owner's webcam, 0 `fov_shift` windows, BUMP detected, `docs/evidence/f3/walkby-hardware.md`),
   transport-level freeze evidence for compressed sources (later phase),
   recall/precision per detector on real clips (F4), live probe p95 at 720p.
+
+- F4 started (SIMULATION tooling): session index (`benchmarks/dataset.py`, `sessions.yaml`),
+  `record_clip.py --split/--conditions`, pre-registered manifests (`benchmarks/build_manifests.py`),
+  `make_degraded --all`, one-command report `scripts/run_benchmark.py` (gate boxes, macro F1,
+  false alarms/h with a re-armed tracker). Waiting for the owner's F4 recordings (REAL HARDWARE).
 
 ## Budget (update weekly from the Token Factory console)
 | Date | Ledger estimate (USD) | Console balance (USD) |

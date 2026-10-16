@@ -95,8 +95,8 @@ On ≥ 10 runs per fault:
 - [ ] ≥ 30 min of varied normal conditions
 - [ ] Split by session, never by random consecutive frames
 - [ ] Dataset versioned by manifest + hashes (`benchmarks/manifests`)
-- [ ] One command rebuilds every synthetic degradation
-- [ ] One command produces the benchmark report
+- [x] One command rebuilds every synthetic degradation (`python -m benchmarks.make_degraded --all`, hash-checked; CI `tests/unit/test_f4_benchmark.py::test_make_degraded_all_rebuilds_every_manifest_and_checks_hashes`, `::test_segment_frames_equal_the_fault_applied_to_the_full_clip`, SIMULATION clips)
+- [x] One command produces the benchmark report (`python scripts/run_benchmark.py`; CI `tests/unit/test_f4_benchmark.py::test_run_benchmark_end_to_end_report`, SIMULATION clips)
 - [ ] Macro F1 ≥ 0.85 on the 5 MVP faults
 - [ ] ≤ 1 false alarm / hour in normal conditions
 - [ ] No published metric comes from training data reused as test
