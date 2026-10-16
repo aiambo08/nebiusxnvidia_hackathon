@@ -44,17 +44,27 @@ class ReplayResult:
     windows: list[WindowResult] = field(default_factory=list)
     confirmed_window: int | None = None
     confirmed_faults: list[str] = field(default_factory=list)
+    # every SUSPECT -> CONFIRMED edge as (window index, t_end_s, ranked faults); with
+    # `rearm=False` there is at most one, since the tracker stays CONFIRMED without the orchestrator
+    confirmations: list[tuple[int, float, list[str]]] = field(default_factory=list)
 
 
-def replay(frames: Iterable[np.ndarray], clip_fps: float, cfg: dict) -> ReplayResult:
-    """Sample `analytic_fps` frames/s from a clip and run the local detection path on them."""
+def replay(frames: Iterable[np.ndarray], clip_fps: float, cfg: dict, *,
+           rearm: bool = False) -> ReplayResult:
+    """Sample `analytic_fps` frames/s from a clip and run the local detection path on them.
+
+    `rearm=True` counts every confirmation (false alarms per hour on long normal clips): after
+    each one the tracker is replaced by a fresh HEALTHY tracker that keeps the learned baseline,
+    as if an operator had closed the incident."""
     afps = cfg["camera"]["analytic_fps"]
     step = max(1, round(clip_fps / afps))
     per_window = max(1, round(afps * cfg["window"]["seconds"]))
     fu, b = cfg["fusion"], cfg["baseline"]
-    tracker = IncidentTracker(
-        "replay", cfg["faults"], fu["enter_windows"], fu["exit_windows"], fu["cooldown_s"],
-        RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]))
+    def new_tracker(baseline: RobustBaseline) -> IncidentTracker:
+        return IncidentTracker("replay", cfg["faults"], fu["enter_windows"], fu["exit_windows"],
+                               fu["cooldown_s"], baseline)
+
+    tracker = new_tracker(RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]))
     runner = ProbeRunner(cfg)
     meter = TransportMeter()
     meter.connected = True
@@ -80,9 +90,14 @@ def replay(frames: Iterable[np.ndarray], clip_fps: float, cfg: dict) -> ReplayRe
         st = tracker.step(tw, now_s=t)
         idx = len(res.windows)
         res.windows.append(WindowResult(idx, round(t, 3), st.state, sorted(map(str, st.faults))))
-        if st.incident is not None and res.confirmed_window is None:
-            res.confirmed_window = idx
-            res.confirmed_faults = [str(f) for f in st.incident.candidate_faults]
+        if st.incident is not None:
+            ranked = [str(f) for f in st.incident.candidate_faults]
+            res.confirmations.append((idx, round(t, 3), ranked))
+            if res.confirmed_window is None:
+                res.confirmed_window = idx
+                res.confirmed_faults = ranked
+            if rearm:
+                tracker = new_tracker(tracker.baseline)
         agg = WindowAggregator("replay", cfg["window"]["seconds"])
         n = 0
     return res
