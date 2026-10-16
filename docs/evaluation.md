@@ -13,11 +13,15 @@ semi-transparent occlusion, legitimate lighting change, static scene (negatives)
 - **Split by session, never by random consecutive frames** (WoodScape leakage lesson).
 
 ## F4 protocol (pre-registered before any F4 recording)
-- Sessions: `python scripts/record_clip.py --uri 0 --seconds 300 --session s0NN --split test
-  --conditions "<scene, light, people>"` adds the clip's sha256, frames, FPS and conditions to
+- Sessions: `python scripts/record_clip.py --uri 0 --session s0NN --split test
+  --conditions "<scene, light, people>"` records 330 s (≥ 180 s enforced) and adds the clip's
+  sha256, frames, FPS measured over the recording itself, duration and conditions to
   `benchmarks/manifests/sessions.yaml` (committed; clips stay in git-ignored `benchmarks/data/`,
-  never overwritten). `dev` sessions are never scored; `s001` and every clip hash in the F1/F3
-  manifests count as development data.
+  never overwritten; URLs, IPs and paths refused in any metadata). `dev` sessions are never
+  scored; every session id and clip hash in the top-level F1/F3 manifests (e.g. `s001`) is
+  development data: `record_clip --split` refuses those ids and the report fails the box.
+  Nobody in frame unless the session's conditions say so (a person in front of the lens is a
+  legitimate `lens_occlusion` and would count as a false alarm).
 - Runs: `python -m benchmarks.build_manifests` writes `benchmarks/manifests/f4/` — per test
   session × MVP fault, three runs of 30 s healthy lead-in + 30 s fault, one per non-overlapping
   slot of the session, strengths `dark` 0.9/0.95/1.0, `gaussian_blur` 0.7/0.85/1.0, `freeze` 1.0,
@@ -28,8 +32,12 @@ semi-transparent occlusion, legitimate lighting change, static scene (negatives)
   test session is also replayed in full with `rearm=True` (each confirmation counted) for false
   alarms per hour. TP/FP rules as `scripts/bench_detectors.py`; F1 per MVP detector, macro F1 over
   the five (a detector with no TP scores 0). Exit 0 only if every box it judges passes.
-- Limits: 30 min of normal clips means a single false alarm is already 2 / h; three runs per
-  session share the session's scene, so "independent" means ≥ 5 sessions per fault.
+- Independence: three runs per session share the session's scene, so the runs box also needs
+  ≥ 5 sessions per fault.
+- Reading the result: every strength is strong (≥ 0.7, freeze 1.0), so macro F1 is about strong
+  faults only; fault runs score the first confirmation only (precision may read high); normal
+  sessions re-arm, so a persisting condition is counted again. 33 min of normal clips means a
+  single false alarm is already 1.8 / h.
 
 ## Metrics
 Per fault precision/recall/F1, false alarms per hour, time to detect, time to recover, % actions

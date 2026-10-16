@@ -11,6 +11,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+import cv2
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,7 @@ INDEX = ROOT / "benchmarks" / "manifests" / "sessions.yaml"
 DATA = ROOT / "benchmarks" / "data"
 SESSION_RE = re.compile(r"^s\d{3}$")
 SPLITS = ("dev", "test")
+PRIVATE_RE = re.compile(r"[:\\/@]|\d+\.\d+\.\d+\.\d+")
 
 
 @dataclass
@@ -43,6 +45,35 @@ def check_session_id(sid: str) -> str:
     if not SESSION_RE.match(sid):
         raise ValueError(f"session id must look like s001, got {sid!r}")
     return sid
+
+
+def check_public(text: str, what: str = "metadata") -> str:
+    if PRIVATE_RE.search(text):
+        raise ValueError(f"{what} must not contain a URL, an IP address or a path")
+    return text
+
+
+def development(manifests: Path | None = None) -> tuple[set[str], set[str]]:
+    """Session ids and clip sha256 used while building the detectors (top-level F1/F3 manifests)."""
+    ids, hashes = set(), set()
+    for p in (manifests or INDEX.parent).glob("*.yaml"):
+        if p.name == INDEX.name:
+            continue
+        m = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        if m.get("session"):
+            ids.add(str(m["session"]))
+        sha = (m.get("source") or {}).get("sha256")
+        if sha and sha != "TBD":
+            hashes.add(sha)
+    return ids, hashes
+
+
+def frame_count(path: Path) -> int:
+    cap = cv2.VideoCapture(str(path))
+    try:
+        return int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    finally:
+        cap.release()
 
 
 def sha256(path: Path) -> str:
@@ -72,6 +103,9 @@ def validate(sessions: list[Session]) -> None:
         seen.add(s.id)
         if s.split not in SPLITS:
             raise ValueError(f"session {s.id}: split must be one of {SPLITS}, got {s.split!r}")
+        texts = [s.conditions, s.notes, *(str(v) for v in s.extra.values()), *map(str, s.extra)]
+        for t in texts:
+            check_public(t, f"session {s.id} metadata")
 
 
 def save(sessions: list[Session], index: Path | None = None) -> None:
@@ -80,7 +114,7 @@ def save(sessions: list[Session], index: Path | None = None) -> None:
     index.parent.mkdir(parents=True, exist_ok=True)
     body = {"sessions": [asdict(s) for s in sorted(sessions, key=lambda s: s.id)]}
     index.write_text("# F4 session index (clips stay local in benchmarks/data/, never committed)\n"
-                     + yaml.safe_dump(body, sort_keys=False), encoding="utf-8")
+                     + yaml.safe_dump(body, sort_keys=False), encoding="utf-8", newline="\n")
 
 
 def add(session: Session, index: Path | None = None) -> None:
@@ -92,7 +126,7 @@ def add(session: Session, index: Path | None = None) -> None:
 
 
 def verify(sessions: list[Session], data: Path | None = None) -> list[str]:
-    """Problems found (missing clip or hash mismatch); empty when the dataset is intact."""
+    """Problems found (missing clip, hash or frame-count mismatch); empty when intact."""
     data = data or DATA
     problems = []
     for s in sessions:
@@ -101,4 +135,6 @@ def verify(sessions: list[Session], data: Path | None = None) -> list[str]:
             problems.append(f"{s.id}: clip missing")
         elif sha256(clip) != s.sha256:
             problems.append(f"{s.id}: sha256 mismatch (dataset changed)")
+        elif (n := frame_count(clip)) != s.frames:
+            problems.append(f"{s.id}: decoder reports {n} frames, index says {s.frames}")
     return problems

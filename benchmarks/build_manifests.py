@@ -38,8 +38,9 @@ def seed_of(*parts: object) -> int:
 
 
 def slot_starts(frames: int, run_frames: int) -> list[int]:
-    if frames < run_frames:
-        raise ValueError(f"session has {frames} frames, a run needs {run_frames}")
+    if frames < SLOTS * run_frames:
+        raise ValueError(f"session has {frames} frames, {SLOTS} non-overlapping runs need "
+                         f"{SLOTS * run_frames}")
     span = frames - run_frames
     return [round(k * span / (SLOTS - 1)) for k in range(SLOTS)]
 
@@ -75,7 +76,7 @@ def build(sessions: list[dataset.Session], out: Path | None = None) -> list[dict
         old.unlink()
     for m in runs:
         (out / f"{m['id']}.yaml").write_text(yaml.safe_dump(m, sort_keys=False),
-                                             encoding="utf-8")
+                                             encoding="utf-8", newline="\n")
     return runs
 
 

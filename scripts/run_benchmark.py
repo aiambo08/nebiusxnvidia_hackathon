@@ -26,7 +26,6 @@ from collections import defaultdict
 from pathlib import Path
 
 import _src_path  # noqa: F401  (adds src/ to sys.path)
-import yaml
 from spike_static_scene import code_revision
 
 from benchmarks import build_manifests, dataset
@@ -46,15 +45,12 @@ def config_digest(cfg: dict) -> str:
     return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:12]
 
 
-def dev_hashes() -> set[str]:
-    """sha256 of every clip used while building the detectors (F1/F3 manifests)."""
-    out = set()
-    for p in (ROOT / "benchmarks" / "manifests").glob("*.yaml"):
-        m = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-        sha = (m.get("source") or {}).get("sha256")
-        if sha and sha != "TBD":
-            out.add(sha)
-    return out
+SESSIONS_PER_FAULT_MIN = 5
+
+
+def development() -> tuple[set[str], set[str]]:
+    """Session ids and clip sha256 used while building the detectors (F1/F3 manifests)."""
+    return dataset.development(ROOT / "benchmarks" / "manifests")
 
 
 def run_manifest(m: dict, cfg: dict) -> dict:
@@ -108,7 +104,8 @@ def aggregate(runs: list[dict], normals: list[dict]) -> dict[str, dict]:
     return out
 
 
-def gate_boxes(sessions, runs, normals, stats, problems, devs) -> list[tuple[str, bool, str]]:
+def gate_boxes(sessions, runs, normals, stats, problems, dev) -> list[tuple[str, bool, str]]:
+    dev_ids, dev_hashes = dev
     test = [s for s in sessions if s.split == "test"]
     normal_min = sum(s.seconds for s in test) / 60
     hours = sum(n["seconds"] for n in normals) / 3600
@@ -116,14 +113,18 @@ def gate_boxes(sessions, runs, normals, stats, problems, devs) -> list[tuple[str
     fa_h = alarms / hours if hours else float("inf")
     macro = sum(stats[f]["f1"] for f in MVP) / len(MVP)
     per_fault = min(stats[f]["runs"] for f in MVP)
+    sessions_per_fault = min(stats[f]["sessions"] for f in MVP)
     hashes = [s.sha256 for s in sessions]
-    leaked = sorted(s.id for s in test if s.sha256 in devs)
+    leaked = sorted(s.id for s in test if s.sha256 in dev_hashes or s.id in dev_ids)
     run_sessions = {r["session"] for r in runs}
     split_ok = (len(set(hashes)) == len(hashes)
                 and run_sessions <= {s.id for s in test} and bool(test))
     return [
-        (f">= {RUNS_PER_FAULT_MIN} independent runs per MVP fault", per_fault >= RUNS_PER_FAULT_MIN,
-         ", ".join(f"{f} {stats[f]['runs']} runs / {stats[f]['sessions']} sessions" for f in MVP)),
+        (f">= {RUNS_PER_FAULT_MIN} independent runs per MVP fault",
+         per_fault >= RUNS_PER_FAULT_MIN and sessions_per_fault >= SESSIONS_PER_FAULT_MIN,
+         f"needs >= {SESSIONS_PER_FAULT_MIN} sessions per fault; "
+         + ", ".join(f"{f} {stats[f]['runs']} runs / {stats[f]['sessions']} sessions"
+                     for f in MVP)),
         (f">= {NORMAL_MINUTES_MIN:g} min of normal conditions",
          normal_min >= NORMAL_MINUTES_MIN, f"{normal_min:.1f} min in {len(test)} test sessions"),
         ("Split by session", split_ok,
@@ -137,7 +138,7 @@ def gate_boxes(sessions, runs, normals, stats, problems, devs) -> list[tuple[str
          hours > 0 and fa_h <= FALSE_ALARMS_PER_HOUR_MAX,
          f"{alarms} confirmations in {hours * 60:.1f} min = {fa_h:.2f} / h"),
         ("No published metric from data reused as test", not leaked and bool(test),
-         "test clips sharing a hash with F1/F3 development manifests: "
+         "test sessions sharing a clip hash or a session id with F1/F3 development manifests: "
          f"{', '.join(leaked) or 'none'}"),
     ]
 
@@ -152,8 +153,17 @@ def render(meta: dict, sessions, stats, boxes, runs, normals) -> str:
              "report). Local detection path only: no Nemotron calls, no cost.", "",
              "## Gate F4", "", "| box | result | evidence |", "|---|---|---|"]
     lines += [f"| {b} | {'PASS' if ok else 'FAIL'} | {ev} |" for b, ok, ev in boxes]
-    lines += ["", "Not judged here: one command rebuilds every degradation "
+    lines += ["", "Not judged here: one command rebuilds every F4 degradation "
               "(`python -m benchmarks.make_degraded --all`).", "",
+              "Reading the numbers:",
+              "- Every fault strength is strong (>= 0.7, freeze 1.0): macro F1 measures detection "
+              "of strong faults only.",
+              "- Fault runs score the first confirmation only; a wrong detector confirmed after "
+              "the right one is not counted, so fault-run precision may read high.",
+              "- Normal sessions re-arm after every confirmation: a condition that persists is "
+              "counted again (errs towards more false alarms).",
+              "- Runs are scored on the degraded frames in memory, the same frames "
+              "`make_degraded` writes before AVI encoding.", "",
               "## Per detector", "",
               "| detector | runs | sessions | TP | FN | FP | recall | precision | F1 | "
               "delay p50 s |", "|---|---|---|---|---|---|---|---|---|---|"]
@@ -216,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[normal] {s.id}: {len(n['confirmations'])} confirmations in "
               f"{s.seconds / 60:.1f} min", flush=True)
     stats = aggregate(runs, normals)
-    boxes = gate_boxes(sessions, runs, normals, stats, problems, dev_hashes())
+    boxes = gate_boxes(sessions, runs, normals, stats, problems, development())
     ok = all(b[1] for b in boxes)
     labels = sorted({s.label for s in sessions if s.split == "test"})
     meta = {"label": f"SIMULATION faults on {' + '.join(labels)} clips",
@@ -224,12 +234,14 @@ def main(argv: list[str] | None = None) -> int:
             "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
             "wall_s": time.perf_counter() - t0, "overall": "PASS" if ok else "FAIL"}
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render(meta, sessions, stats, boxes, runs, normals), encoding="utf-8")
+    out.write_text(render(meta, sessions, stats, boxes, runs, normals), encoding="utf-8",
+                   newline="\n")
     out.with_suffix(".json").write_text(json.dumps(
         {"meta": meta, "gate": [{"box": b, "passed": ok_, "evidence": ev}
                                 for b, ok_, ev in boxes],
          "detectors": stats, "sessions": [vars(s) for s in sessions],
-         "normals": normals, "runs": runs}, indent=2, default=str), encoding="utf-8")
+         "normals": normals, "runs": runs}, indent=2, default=str), encoding="utf-8",
+        newline="\n")
     print(f"wrote {out.name} (+ .json) overall={meta['overall']}")
     for b, ok_, ev in boxes:
         print(f"  {'PASS' if ok_ else 'FAIL'}  {b}: {ev}")

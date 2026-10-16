@@ -47,7 +47,7 @@ def sandbox(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _session(sid, split="test", seconds=40, seed=0):
+def _session(sid, split="test", seconds=100, seed=0):
     n = _clip(dataset.DATA / f"{sid}_clean.avi", seconds, seed)
     clip = dataset.DATA / f"{sid}_clean.avi"
     s = dataset.Session(id=sid, split=split, sha256=dataset.sha256(clip),
@@ -88,6 +88,22 @@ def test_verify_reports_missing_clip_and_changed_clip(sandbox):
                                       "s011: sha256 mismatch (dataset changed)"]
 
 
+@pytest.mark.parametrize("field, value", [
+    ("conditions", "rtsp://192.168.1.20:8080/h264"), ("notes", "C:\\Users\\x\\clip.avi"),
+    ("extra", {"uri": "http://x"}), ("extra", {"host": "10.0.0.2"})])
+def test_index_rejects_uri_ip_or_path_in_any_metadata(field, value):
+    s = dataset.Session("s011", "test", "x", 1, 5.0, [1, 1], 1.0, **{field: value})
+    with pytest.raises(ValueError, match="URL"):
+        dataset.validate([s])
+
+
+def test_verify_reports_a_frame_count_that_differs_from_the_index(sandbox):
+    s = _session("s010", seconds=2)
+    s.frames += 1
+    assert dataset.verify([s]) == [f"s010: decoder reports {s.frames - 1} frames, "
+                                   f"index says {s.frames}"]
+
+
 def test_index_holds_no_path_or_uri(sandbox):
     _session("s010", seconds=2)
     text = dataset.INDEX.read_text(encoding="utf-8")
@@ -97,7 +113,7 @@ def test_index_holds_no_path_or_uri(sandbox):
 # --- manifests -------------------------------------------------------------------------------
 
 def test_manifests_are_deterministic_and_only_for_test_sessions(sandbox):
-    sessions = [_session("s010", "dev", seconds=61), _session("s011", seconds=61, seed=1),
+    sessions = [_session("s010", "dev", seconds=61), _session("s011", seconds=180, seed=1),
                 _session("s012", seconds=200, seed=2)]
     first = build_manifests.build(sessions)
     files = {p.name: p.read_text() for p in build_manifests.OUT.glob("*.yaml")}
@@ -132,23 +148,25 @@ def test_strengths_are_three_per_mvp_fault_and_map_to_mvp_detectors():
     assert all(k not in EXPECTED for k in build_manifests.NEGATIVES)
 
 
-def test_short_session_is_refused(sandbox):
-    s = _session("s010", seconds=30)
-    with pytest.raises(ValueError, match="frames"):
+@pytest.mark.parametrize("seconds", [30, 90, 179])
+def test_session_too_short_for_three_non_overlapping_runs_is_refused(sandbox, seconds):
+    s = _session("s010", seconds=seconds)
+    with pytest.raises(ValueError, match="non-overlapping"):
         build_manifests.manifests_for(s)
+    assert len(build_manifests.manifests_for(_session("s011", seconds=180))) > 0
 
 
 def test_stale_manifests_are_removed(sandbox):
     build_manifests.OUT.mkdir(parents=True)
     (build_manifests.OUT / "f4-s099-dark-0.yaml").write_text("id: old\n")
-    build_manifests.build([_session("s010", seconds=61)])
+    build_manifests.build([_session("s010", seconds=180)])
     assert not (build_manifests.OUT / "f4-s099-dark-0.yaml").exists()
 
 
 # --- degraded clips --------------------------------------------------------------------------
 
 def test_segment_frames_equal_the_fault_applied_to_the_full_clip(sandbox):
-    s = _session("s010", seconds=70)
+    s = _session("s010", seconds=180)
     m = build_manifests.manifests_for(s)[-1]  # last slot: segment starts mid-clip
     seg, fz = m["segment"], m["fault"]
     assert seg["start_frame"] > 0
@@ -165,7 +183,7 @@ def test_segment_frames_equal_the_fault_applied_to_the_full_clip(sandbox):
 def test_make_degraded_all_rebuilds_every_manifest_and_checks_hashes(sandbox, monkeypatch,
                                                                     capsys):
     _small_protocol(monkeypatch)
-    build_manifests.build([_session("s010", seconds=40)])
+    build_manifests.build([_session("s010", seconds=100)])
     assert make_degraded.main(["--all"]) == 0
     built = sorted(p.stem for p in make_degraded.OUT_DIR.glob("*.avi"))
     assert built == sorted(p.stem for p in build_manifests.OUT.glob("*.yaml"))
@@ -202,7 +220,7 @@ def test_rearm_counts_every_confirmation_of_a_persistent_fault():
 def test_run_benchmark_end_to_end_report(sandbox, monkeypatch, capsys):
     _small_protocol(monkeypatch)
     _session("s010", "dev", seconds=2)
-    _session("s011", seconds=40, seed=3)
+    _session("s011", seconds=100, seed=3)
     rc = run_benchmark.main(["--out-dir", str(sandbox / "reports"), "--name", "t"])
     out = capsys.readouterr().out
     assert rc == 1  # 3 runs per fault and < 30 normal minutes cannot pass the gate
@@ -226,7 +244,7 @@ def test_run_benchmark_end_to_end_report(sandbox, monkeypatch, capsys):
 
 def test_run_benchmark_flags_a_test_clip_used_during_development(sandbox, monkeypatch):
     _small_protocol(monkeypatch)
-    s = _session("s011", seconds=40)
+    s = _session("s011", seconds=100)
     (sandbox / "benchmarks" / "manifests" / "f1-s001-dark.yaml").write_text(
         yaml.safe_dump({"id": "f1", "source": {"sha256": s.sha256}}))
     run_benchmark.main(["--out-dir", str(sandbox / "reports")])
@@ -235,11 +253,30 @@ def test_run_benchmark_flags_a_test_clip_used_during_development(sandbox, monkey
     assert leak["passed"] is False and "s011" in leak["evidence"]
 
 
+def test_run_benchmark_flags_a_test_session_reusing_a_development_session_id(sandbox, monkeypatch):
+    _small_protocol(monkeypatch)
+    _session("s001", seconds=100)
+    (sandbox / "benchmarks" / "manifests" / "f1-s001-dark.yaml").write_text(
+        yaml.safe_dump({"id": "f1", "session": "s001", "source": {"sha256": "other"}}))
+    run_benchmark.main(["--out-dir", str(sandbox / "reports")])
+    js = json.loads(next((sandbox / "reports").glob("*.json")).read_text(encoding="utf-8"))
+    leak = next(g for g in js["gate"] if g["box"].startswith("No published"))
+    assert leak["passed"] is False and "s001" in leak["evidence"]
+
+
+def test_runs_box_needs_five_sessions_per_fault():
+    stats = {f: {"runs": 18, "sessions": 4, "f1": 1.0} for f in run_benchmark.MVP}
+    boxes = run_benchmark.gate_boxes([], [], [], stats, [], (set(), set()))
+    assert boxes[0][1] is False and "sessions per fault" in boxes[0][2]
+    stats = {f: {"runs": 15, "sessions": 5, "f1": 1.0} for f in run_benchmark.MVP}
+    assert run_benchmark.gate_boxes([], [], [], stats, [], (set(), set()))[0][1] is True
+
+
 def test_run_benchmark_refuses_a_changed_dataset_and_an_existing_report(sandbox, monkeypatch,
                                                                         capsys):
     _small_protocol(monkeypatch)
     assert run_benchmark.main(["--out-dir", str(sandbox / "r")]) == 2  # no test sessions
-    _session("s011", seconds=40)
+    _session("s011", seconds=100)
     (dataset.DATA / "s011_clean.avi").unlink()
     assert run_benchmark.main(["--out-dir", str(sandbox / "r")]) == 2
     assert "clip missing" in capsys.readouterr().err
@@ -268,7 +305,10 @@ def test_aggregate_counts_normal_confirmations_as_false_positives():
 @pytest.mark.parametrize("extra, msg", [
     (["--session", "s1", "--split", "test"], "session id"),
     (["--session", "s010", "--split", "test", "--conditions", "cam at 192.168.1.20"], "IP"),
+    (["--session", "s010", "--split", "test", "--conditions", "desk C:\\x"], "path"),
     (["--session", "s010", "--split", "test", "--conditions", "rtsp://x"], "URL"),
+    (["--session", "s001", "--split", "test"], "building the detectors"),
+    (["--session", "s010", "--split", "test", "--seconds", "179"], "--seconds must be"),
 ])
 def test_record_clip_rejects_bad_session_metadata_before_opening_a_camera(extra, msg, monkeypatch,
                                                                           capsys):
