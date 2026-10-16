@@ -120,8 +120,9 @@ def main() -> int:
         try:
             build_manifests.manifests_for(session)
         except ValueError as e:
-            print(f"not added to the F4 index: {e}; record again with a longer --seconds",
-                  file=sys.stderr)
+            out.unlink()
+            print(f"not added to the F4 index and clip deleted: {e}; record again with a longer "
+                  "--seconds", file=sys.stderr)
             return 1
         dataset.add(session)
         print(f"added {args.session} ({args.split}) to {dataset.INDEX.relative_to(REPO_ROOT)}")

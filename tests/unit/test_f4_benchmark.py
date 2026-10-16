@@ -377,3 +377,4 @@ def test_record_clip_indexes_only_a_recording_long_enough_for_three_runs(
         assert rc == 0 and ids == ["s010"]
     else:
         assert rc == 1 and ids == [] and "not added" in capsys.readouterr().err
+        assert not (sandbox / "benchmarks" / "data" / "s010_clean.avi").exists()
