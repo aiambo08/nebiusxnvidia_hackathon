@@ -22,7 +22,7 @@ import cv2
 
 from benchmarks import build_manifests, dataset
 from reliability_agent.capture import OpenCVSource
-from reliability_agent.capture.sources import parse_uri
+from reliability_agent.capture.sources import NETWORK_SCHEMES, parse_uri
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SPLIT_SECONDS = 330.0  # 6 test sessions give 33 normal minutes, margin over the 30-min box
@@ -68,6 +68,9 @@ def main() -> int:
         need = build_manifests.SLOTS * (build_manifests.LEAD_S + build_manifests.FAULT_S)
         if args.seconds < need:
             ap.error(f"--seconds must be >= {need:g} for {build_manifests.SLOTS} runs per fault")
+        uri = parse_uri(args.uri)
+        if not isinstance(uri, int) and not str(uri).lower().startswith(NETWORK_SCHEMES):
+            ap.error("--split needs a live camera (webcam index or stream URL), not a file")
     if out.exists() and not args.overwrite:
         ap.error(f"{out.name} exists; use a new --session or --overwrite")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -110,10 +113,18 @@ def main() -> int:
         print(f"warning: recorded at {info['fps']} FPS, warm-up measured {fps} FPS",
               file=sys.stderr)
     if args.split:
-        dataset.add(dataset.Session(
+        session = dataset.Session(
             id=args.session, split=args.split, sha256=info["sha256"], frames=written,
             fps=info["fps"], resolution=[w, h], seconds=info["seconds"],
-            conditions=args.conditions))
+            conditions=args.conditions)
+        try:
+            build_manifests.manifests_for(session)
+        except ValueError as e:
+            out.unlink()
+            print(f"not added to the F4 index and clip deleted: {e}; record again with a longer "
+                  "--seconds", file=sys.stderr)
+            return 1
+        dataset.add(session)
         print(f"added {args.session} ({args.split}) to {dataset.INDEX.relative_to(REPO_ROOT)}")
     return 0
 

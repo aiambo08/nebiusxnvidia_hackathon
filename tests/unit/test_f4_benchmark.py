@@ -1,6 +1,7 @@
 """F4 dataset + benchmark tooling: session index, manifests, degraded clips, one-command report."""
 
 import json
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -11,6 +12,7 @@ import yaml
 from benchmarks import build_manifests, dataset, make_degraded
 from benchmarks.injectors.faults import apply_stream
 from benchmarks.replay import replay
+from reliability_agent.capture.base import Frame
 from reliability_agent.capture.sources import SyntheticSource
 from reliability_agent.config import load_config
 
@@ -317,3 +319,62 @@ def test_record_clip_rejects_bad_session_metadata_before_opening_a_camera(extra,
     with pytest.raises(SystemExit):
         record_clip.main()
     assert msg in capsys.readouterr().err
+
+
+def test_record_clip_split_refuses_a_file_source(monkeypatch, capsys):
+    import record_clip
+    monkeypatch.setattr("sys.argv", ["record_clip.py", "--uri", "clip.avi", "--session", "s010",
+                                     "--split", "test"])
+    with pytest.raises(SystemExit):
+        record_clip.main()
+    assert "live camera" in capsys.readouterr().err
+
+
+def test_public_metadata_error_names_the_refused_characters():
+    with pytest.raises(ValueError, match="no ':'"):
+        dataset.check_public("10:30 daylight")
+
+
+class _FakeCamera:
+    kind = "webcam"
+
+    def __init__(self, uri):
+        self.seq = 0
+
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
+    def read(self):
+        self.seq += 1
+        return Frame(np.zeros((48, 64, 3), np.uint8), self.seq, 0.0)
+
+
+def _fake_clock(step):
+    t = [0.0]
+
+    def monotonic():
+        t[0] += step
+        return t[0]
+    return monotonic
+
+
+@pytest.mark.parametrize("seconds, indexed", [("180", False), ("200", True)])
+def test_record_clip_indexes_only_a_recording_long_enough_for_three_runs(
+        sandbox, monkeypatch, capsys, seconds, indexed):
+    import record_clip
+    monkeypatch.setattr(record_clip, "REPO_ROOT", sandbox)
+    monkeypatch.setattr(record_clip, "OpenCVSource", _FakeCamera)
+    # ~9.65 FPS: 180 s give 1739 frames, but three runs at that rate need 1740
+    monkeypatch.setattr(record_clip, "time", SimpleNamespace(monotonic=_fake_clock(0.1035)))
+    monkeypatch.setattr("sys.argv", ["record_clip.py", "--uri", "0", "--session", "s010",
+                                     "--split", "test", "--seconds", seconds])
+    rc = record_clip.main()
+    ids = [s.id for s in dataset.load()]
+    if indexed:
+        assert rc == 0 and ids == ["s010"]
+    else:
+        assert rc == 1 and ids == [] and "not added" in capsys.readouterr().err
+        assert not (sandbox / "benchmarks" / "data" / "s010_clean.avi").exists()
