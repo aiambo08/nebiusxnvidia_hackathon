@@ -118,13 +118,16 @@ def classify_window(
     return faults, ev
 
 
+_NON_VISUAL = {F.STREAM_DOWN, F.LOW_FPS, F.PIPELINE_SATURATION}
+
+
 @dataclass
 class TrackerStep:
     state: IncidentState
     faults: dict[FaultType, float]
     incident: Incident | None = None   # set only on the SUSPECT -> CONFIRMED edge
     baseline_learned: bool = False
-    calibration_reset: bool = False    # a fault before the baseline was ready discarded it
+    calibration_discarded: int = 0     # samples dropped by a fault before the baseline was ready
 
 
 @dataclass
@@ -138,6 +141,7 @@ class IncidentTracker:
     cooldown_s: float = 20.0
     baseline: RobustBaseline = field(default_factory=RobustBaseline)
     fsm: IncidentStateMachine = field(default_factory=IncidentStateMachine)
+    calibration_discard: int = 3
     _bad: int = 0
     _good: int = 0
     _suppressed: dict[FaultType, float] = field(default_factory=dict)
@@ -157,16 +161,16 @@ class IncidentTracker:
         faults = {f: s for f, s in faults.items()
                   if f not in self._suppressed or self._suppressed[f] <= now_s}
         state = self.fsm.state
-        learned = reset = False
+        learned = False
+        discarded = 0
         incident = None
 
         if state is IncidentState.HEALTHY:
             if faults:
-                if not self.baseline.ready and self.baseline.updates:
-                    # Calibration needs a clean run: the windows next to a fault may already be
-                    # degraded, so a fault during calibration restarts it from scratch.
-                    self.baseline.reset()
-                    reset = True
+                if not self.baseline.ready and not faults.keys() <= _NON_VISUAL:
+                    # Calibration learns clean windows only: the ones just before a visual fault
+                    # may already be degraded. Transport faults say nothing about the image.
+                    discarded = self.baseline.drop_last(self.calibration_discard)
                 self.fsm.to(IncidentState.SUSPECT, ",".join(faults))
                 self._bad, self._good = 1, 0
                 self._scores, self._evidence = dict(faults), list(ev)
@@ -195,7 +199,7 @@ class IncidentTracker:
                     self.fsm.to(IncidentState.HEALTHY, "hysteresis exit")
                     self._bad = 0
         # Other states are driven by the orchestrator (MAPE-K Plan/Execute/Verify).
-        return TrackerStep(self.fsm.state, faults, incident, learned, reset)
+        return TrackerStep(self.fsm.state, faults, incident, learned, discarded)
 
     def export_state(self, now_s: float) -> dict[str, Any]:
         """Everything ``step`` depends on, as JSON; cooldowns as seconds left (no clock)."""

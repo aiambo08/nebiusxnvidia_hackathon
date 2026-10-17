@@ -87,7 +87,8 @@ class ReliabilityAgent:
         f, b = cfg["fusion"], cfg["baseline"]
         self.tracker = IncidentTracker(
             cfg["camera"]["id"], cfg["faults"], f["enter_windows"], f["exit_windows"],
-            f["cooldown_s"], RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]))
+            f["cooldown_s"], RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]),
+            calibration_discard=int(b.get("calibration_discard", 3)))
         self.executor = Executor(device, store, restart_cb,
                                  ticket_cb=lambda t: store.append("ticket", t,
                                                                   t["incident_id"]))
@@ -135,11 +136,11 @@ class ReliabilityAgent:
         calibrated = False
         if st in (S.HEALTHY, S.SUSPECT):
             b = self.tracker.baseline
-            was_ready, samples = b.ready, b.updates
+            was_ready = b.ready
             step = self.tracker.step(tw, now_s=self.clock())
-            if step.calibration_reset:
-                self.store.append("calibration_restarted",
-                                  {"discarded_samples": samples,
+            if step.calibration_discarded:
+                self.store.append("calibration_samples_discarded",
+                                  {"discarded": step.calibration_discarded,
                                    "faults": sorted(map(str, step.faults))})
             b = self.tracker.baseline
             if not was_ready and b.ready:
@@ -279,7 +280,8 @@ class ReliabilityAgent:
             else:
                 state, incident_id = self.state, saved.get("incident_id")
                 info.update(restored=True, state=state, downtime_s=round(down, 1),
-                            baseline_version=self.tracker.baseline.version)
+                            baseline_version=self.tracker.baseline.version,
+                            baseline_ready=self.tracker.baseline.ready)
         for p in pending:
             info["rolled_back"].append(self._rollback_pending(p, now))
         if open_ or state not in (S.HEALTHY, S.SUSPECT) or pending:

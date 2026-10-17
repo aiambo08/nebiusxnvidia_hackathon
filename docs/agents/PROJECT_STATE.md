@@ -9,8 +9,9 @@ Last update: 2026-10-17 · Current phase: **F5** (F4 open: tooling merged, REAL 
   a new plan (also across a second restart); a heartbeat lease refuses a second live agent with the same
   camera id (`RA_CAMERA_ID`).
 - F5 automatic calibration (SIMULATION, `tests/unit/test_calibration.py`): the baseline learns only
-  fault-free HEALTHY windows; a fault before `min_samples` restarts calibration (`calibration_restarted`);
-  readiness logs `baseline_calibrated` with `baseline_version` once and checkpoints at once.
+  fault-free HEALTHY windows; before `min_samples`, a visual fault also drops the 3 windows just before it
+  (`calibration_samples_discarded`); readiness logs `baseline_calibrated` with `baseline_version` once and
+  checkpoints at once; the `restore` event carries `baseline_version` and `baseline_ready`.
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
   baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
   event store, orchestrator, CLI, read-only API, injectors, CI.
