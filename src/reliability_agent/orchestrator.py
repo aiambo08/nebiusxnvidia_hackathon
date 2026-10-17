@@ -100,8 +100,18 @@ class ReliabilityAgent:
         st = cfg.get("storage", {})
         self._checkpoint_every = max(1, int(st.get("checkpoint_windows", 10)))
         self._windows = 0
-        self._lease_stale_s = float(st.get("lease_stale_s", 10.0))
+        self._lease_stale_s = float(st.get("lease_stale_s", 60.0))
+        p = cfg["planner"]
+        action_s = max((s.timeout_s for s in self.gate.registry.values()), default=0.0)
+        busy_s = (float(p.get("timeout_s", 0)) * int(p.get("max_calls_per_incident", 1))
+                  + action_s + float(win))
+        if self._lease_stale_s <= busy_s:
+            # the heartbeat is not refreshed while the planner or an action runs
+            raise ValueError(f"storage.lease_stale_s ({self._lease_stale_s:g}) must exceed the "
+                             f"longest gap between heartbeats ({busy_s:g}s: planner timeout x "
+                             f"calls + action timeout + one window)")
         self._owner = uuid.uuid4().hex
+        self._lease_lost = False
         self._acquire_lease()
         if st.get("restore_on_start", True):
             self.restore()
@@ -118,6 +128,8 @@ class ReliabilityAgent:
 
     # ------------------------------------------------------------------ main entry
     def on_window(self, tw: TelemetryWindow) -> IncidentState:
+        if not self._heartbeat():  # another agent owns this camera now: observe nothing, act never
+            return self.state
         self._recent.append(tw)
         st = self.state
         if st in (S.HEALTHY, S.SUSPECT):
@@ -132,7 +144,8 @@ class ReliabilityAgent:
         elif st is S.NEEDS_HUMAN:
             self._await_human(tw)
         self._windows += 1
-        self._heartbeat()
+        if self._lease_lost:
+            return self.state
         # SUSPECT checkpoints every window: its hysteresis counters change on each one
         if (self.state is not st or self.state is S.SUSPECT
                 or self._windows % self._checkpoint_every == 0):
@@ -161,11 +174,30 @@ class ReliabilityAgent:
                     f"on this event store (heartbeat {max(age, 0.0):.1f}s ago); give each "
                     f"camera its own id (RA_CAMERA_ID) or wait {self._lease_stale_s:.0f}s "
                     f"if that agent has crashed")
-        self._heartbeat()
+        self._write_lease()
 
-    def _heartbeat(self) -> None:
+    def _write_lease(self) -> None:
         self.store.put_state(lease_key(self.tracker.camera_id),
                              {"owner": self._owner, "heartbeat": self.wall_clock()})
+
+    def _heartbeat(self) -> bool:
+        """Refresh the lease; False (and the agent stops acting for good) if another agent
+        took it over, e.g. after this one stalled for longer than ``lease_stale_s``."""
+        if self._lease_lost:
+            return False
+        try:
+            cur = self.store.get_state(lease_key(self.tracker.camera_id))
+        except ValueError:
+            cur = None
+        if isinstance(cur, dict) and cur.get("owner") != self._owner:
+            self._lease_lost = True
+            log.error("lease of camera %s taken over by another agent; this agent stops acting",
+                      self.tracker.camera_id)
+            inc = self.active.incident.incident_id if self.active else None
+            self.store.append("lease_lost", {"camera_id": self.tracker.camera_id}, inc)
+            return False
+        self._write_lease()
+        return True
 
     def release_lease(self) -> None:
         """Clean shutdown: the next start of this camera need not wait for the lease."""
@@ -177,6 +209,8 @@ class ReliabilityAgent:
     def checkpoint(self) -> None:
         """Persist what the next window depends on: FSM state, hysteresis counters, cooldowns,
         the policy gate's execution history and the baseline."""
+        if self._lease_lost:  # never overwrite the new owner's checkpoint
+            return
         now = self.clock()
         self.store.put_state(state_key(self.tracker.camera_id), {
             "schema": STATE_SCHEMA,
@@ -308,6 +342,7 @@ class ReliabilityAgent:
         self.store.append("incident", incident, incident.incident_id)
 
         self._to(S.DIAGNOSING, "incident confirmed")
+        self._heartbeat()
         out = self.planner.plan(incident)
         self.active.plan = out
         u = out.usage
@@ -317,6 +352,9 @@ class ReliabilityAgent:
                                    "error": out.error, "plan": out.plan, "usage": u},
                           incident.incident_id)
         plan = out.plan
+        if not self._heartbeat():
+            self._to(S.NEEDS_HUMAN, "lease taken over by another agent during planning")
+            return
         if plan.action.name is ActionName.NEEDS_HUMAN:
             self._to(S.NEEDS_HUMAN, plan.human_message or "planner escalated")
             return
@@ -332,6 +370,10 @@ class ReliabilityAgent:
         if not self.cfg["planner"].get("auto_execute", True) and not decision.ticket_only:
             self._to(S.REJECTED, "auto_execute disabled: recommendation only")
             self._to(S.NEEDS_HUMAN, "recommendation only")
+            return
+        if not self._heartbeat():
+            self._to(S.REJECTED, "lease taken over by another agent")
+            self._to(S.NEEDS_HUMAN, "lease lost: no action")
             return
         self._to(S.ACTING, str(decision.action))
         rec = self.executor.execute(incident.incident_id, decision)

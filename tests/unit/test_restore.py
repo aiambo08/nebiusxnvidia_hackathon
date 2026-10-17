@@ -435,7 +435,7 @@ def test_a_second_live_agent_with_the_same_camera_id_refuses_to_start(cfg, windo
     assert a.agent.state is S.VERIFYING
 
 
-@pytest.mark.parametrize("gap, refused", [(9.0, True), (11.0, False)])
+@pytest.mark.parametrize("gap, refused", [(59.0, True), (61.0, False)])
 def test_a_crashed_agents_lease_expires(cfg, window, gap, refused):
     rig = Rig(cfg)
     warm(rig, window)
@@ -475,3 +475,71 @@ def test_camera_id_has_an_env_override(monkeypatch):
     from reliability_agent.config import load_config
     monkeypatch.setenv("RA_CAMERA_ID", "phone_rtsp")
     assert load_config()["camera"]["id"] == "phone_rtsp"
+
+
+class SlowPlanner(CountingPlanner):
+    """Valid but slow planner call; another agent tries to start while it runs."""
+
+    def __init__(self, rig, intruder):
+        super().__init__()
+        self.rig, self.intruder = rig, intruder
+
+    def plan(self, incident):
+        self.rig.wall[0] += 25.0                         # longer than the old 10 s lease
+        self.intruder()
+        return super().plan(incident)
+
+
+def test_a_slow_plan_keeps_the_lease_and_a_second_agent_is_refused(cfg, window, tmp_path):
+    db = tmp_path / "agent.sqlite"
+    a = Rig(cfg, store=EventStore(db))
+    warm(a, window)
+    phone = SyntheticSource(width=64, height=48)
+    phone.apply_settings({"exposure": 1.5})
+    refused = []
+
+    def intruder():
+        try:
+            ReliabilityAgent(cfg, phone, CountingPlanner(), EventStore(db),
+                             clock=lambda: a.t[0], wall_clock=lambda: a.wall[0])
+        except CameraInUseError:
+            refused.append(True)
+    a.agent.planner = a.planner = SlowPlanner(a, intruder)
+    for _ in range(cfg_enter(a)):
+        a.feed(window(visual=DARK))
+    assert refused == [True] and phone.settings["exposure"] == 1.5
+    assert a.agent.state is S.VERIFYING
+
+
+def test_an_agent_whose_lease_was_taken_over_stops_acting(cfg, window):
+    rig = Rig(cfg)
+    warm(rig, window)
+    rig.store.put_state(lease_key("cam_01"), {"owner": "other", "heartbeat": rig.wall[0]})
+    saved = rig.store.get_state(KEY)
+    for _ in range(cfg_enter(rig) + 3):
+        rig.feed(window(visual=DARK))
+    assert rig.agent.state is S.HEALTHY and rig.planner.calls == 0
+    assert rig.store.events(kind="execution") == []
+    assert len(rig.store.events(kind="lease_lost")) == 1
+    assert rig.store.get_state(KEY) == saved             # the new owner's checkpoint is kept
+    assert rig.store.get_state(lease_key("cam_01"))["owner"] == "other"
+
+
+def test_a_lease_taken_over_during_planning_runs_no_action(cfg, window):
+    rig = Rig(cfg)
+    warm(rig, window)
+
+    def steal():
+        rig.store.put_state(lease_key("cam_01"), {"owner": "other", "heartbeat": rig.wall[0]})
+    rig.agent.planner = rig.planner = SlowPlanner(rig, steal)
+    for _ in range(cfg_enter(rig)):
+        rig.feed(window(visual=DARK))
+    assert rig.planner.calls == 1 and rig.agent.state is S.NEEDS_HUMAN
+    assert rig.store.events(kind="execution") == [] and rig.store.pending_snapshots() == []
+
+
+def test_a_lease_shorter_than_a_planner_call_is_a_config_error(cfg):
+    bad = copy.deepcopy(cfg)
+    bad.setdefault("storage", {})["lease_stale_s"] = 10
+    with pytest.raises(ValueError, match="lease_stale_s"):
+        ReliabilityAgent(bad, SyntheticSource(width=64, height=48), CountingPlanner(), EventStore())
