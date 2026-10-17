@@ -7,8 +7,12 @@ Last update: 2026-10-17 · Current phase: **F5** (F4 open: tooling merged, REAL 
   over the same windows of the real probe path, the tracker flaps 66–100 % less than a memoryless
   per-window detector in every (MVP fault, glitch rate) cell and changes alert 67.7 % less overall,
   while alerting on all 180 sustained faults. Alert (CONFIRMED) flapping only: internal HEALTHY↔SUSPECT
-  moves drop just 9–36 %; every sustained alert closes; glitches are 1–2 windows (< `enter_windows`). Remaining F5 box: all 5 faults CONFIRMED and a legitimate
-  lighting change back to HEALTHY without Nemotron (F5 PR4).
+  moves drop just 9–36 %; every sustained alert closes; glitches are 1–2 windows (< `enter_windows`).
+- F5 end to end (SIMULATION, `tests/e2e/test_confirm_and_return.py`): with the default config, each of the
+  5 MVP faults is confirmed once with the expected fault after calibration (one planner call) and closes
+  once it clears; a legitimate lighting change (82.5 % / 65 % brightness, transient or persistent) never
+  leaves HEALTHY; a 2-window transient of each MVP fault (freeze: 3, first flagged in its third frozen window) goes SUSPECT and back to HEALTHY; the planner is
+  never called in either case. All six F5 boxes are evidenced in SIMULATION.
 - F5 restart persistence (SIMULATION, `tests/unit/test_restore.py`): FSM, hysteresis counters, cooldowns,
   gate rate-limit history and baseline restored from SQLite, one checkpoint per camera id; uncommitted
   actions of this camera rolled back on restart, its never-closed incident resumes as NEEDS_HUMAN without
