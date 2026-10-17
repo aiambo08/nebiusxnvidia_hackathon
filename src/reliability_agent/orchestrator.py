@@ -139,7 +139,10 @@ class ReliabilityAgent:
         """Resume after a restart. An action whose outcome was never committed is rolled back
         and never repeated; an incident that was open escalates to NEEDS_HUMAN (no new plan,
         no LLM call) and closes once the camera is healthy again."""
-        saved = self.store.get_state(STATE_KEY)
+        try:
+            saved = self.store.get_state(STATE_KEY)
+        except ValueError:  # unreadable JSON: start fresh, never refuse to start
+            saved = {"schema": None}
         pending = self.store.pending_snapshots()
         if saved is None and not pending:
             return False
@@ -147,16 +150,24 @@ class ReliabilityAgent:
         info: dict[str, Any] = {"restored": False, "rolled_back": []}
         incident_id = None
         state = S.HEALTHY
-        if saved is not None and (saved.get("schema") != STATE_SCHEMA
+        if saved is not None and (not isinstance(saved, dict)
+                                  or saved.get("schema") != STATE_SCHEMA
                                   or saved.get("camera_id") != self.tracker.camera_id):
-            info["reason"] = "saved state has another schema or camera; starting fresh"
+            info["reason"] = "saved state is unreadable or for another schema or camera"
         elif saved is not None:
-            down = max(0.0, self.wall_clock() - float(saved["saved_at"]))
-            self.tracker.import_state(saved["tracker"], now, down)
-            self.gate.import_history(saved["gate"], now, down)
-            state, incident_id = self.state, saved.get("incident_id")
-            info.update(restored=True, state=state, downtime_s=round(down, 1),
-                        baseline_version=self.tracker.baseline.version)
+            try:
+                down = max(0.0, self.wall_clock() - float(saved["saved_at"]))
+                self.tracker.import_state(saved["tracker"], now, down)
+                self.gate.import_history(saved["gate"], now, down)
+            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                self._fresh_tracker()
+                self.gate._last.clear()
+                self.gate._hist.clear()
+                info["reason"] = f"saved state is malformed ({type(exc).__name__})"
+            else:
+                state, incident_id = self.state, saved.get("incident_id")
+                info.update(restored=True, state=state, downtime_s=round(down, 1),
+                            baseline_version=self.tracker.baseline.version)
         for p in pending:
             info["rolled_back"].append(self._rollback_pending(p, now))
             incident_id = incident_id or p["incident_id"]
@@ -174,6 +185,13 @@ class ReliabilityAgent:
         self.store.append("restore", info, incident_id)
         log.info("restore: %s", info)
         return bool(info["restored"])
+
+    def _fresh_tracker(self) -> None:
+        b, t = self.cfg["baseline"], self.tracker
+        t.baseline = RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"])
+        t.fsm.state = S.HEALTHY
+        t._suppressed.clear()
+        t.reset_healthy()
 
     def _rollback_pending(self, p: dict[str, Any], now: float) -> dict[str, Any]:
         action = ActionName(p["action"])
