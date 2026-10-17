@@ -34,6 +34,9 @@ from reliability_agent.verification.verifier import Verifier
 log = logging.getLogger(__name__)
 S = IncidentState
 
+STATE_KEY = "agent_state"
+STATE_SCHEMA = 1
+
 
 @dataclass
 class ActiveIncident:
@@ -57,8 +60,10 @@ class ReliabilityAgent:
         restart_cb: Callable[[], None] | None = None,
         gate: PolicyGate | None = None,
         clock: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], float] = time.time,
     ) -> None:
         self.cfg = cfg
+        self.wall_clock = wall_clock
         self.device = device
         self.planner = planner
         self.store = store
@@ -78,6 +83,11 @@ class ReliabilityAgent:
         self._verify_windows = max(
             cfg["verification"]["healthy_windows_required"],
             math.ceil(cfg["verification"]["window_seconds"] / win))
+        st = cfg.get("storage", {})
+        self._checkpoint_every = max(1, int(st.get("checkpoint_windows", 10)))
+        self._windows = 0
+        if st.get("restore_on_start", True):
+            self.restore()
 
     @property
     def state(self) -> IncidentState:
@@ -104,7 +114,91 @@ class ReliabilityAgent:
             self._verify(tw)
         elif st is S.NEEDS_HUMAN:
             self._await_human(tw)
+        self._windows += 1
+        # SUSPECT checkpoints every window: its hysteresis counters change on each one
+        if (self.state is not st or self.state is S.SUSPECT
+                or self._windows % self._checkpoint_every == 0):
+            self.checkpoint()
         return self.state
+
+    # ------------------------------------------------------------------ persistence (F5)
+    def checkpoint(self) -> None:
+        """Persist what the next window depends on: FSM state, hysteresis counters, cooldowns,
+        the policy gate's execution history and the baseline."""
+        now = self.clock()
+        self.store.put_state(STATE_KEY, {
+            "schema": STATE_SCHEMA,
+            "camera_id": self.tracker.camera_id,
+            "saved_at": self.wall_clock(),
+            "incident_id": self.active.incident.incident_id if self.active else None,
+            "tracker": self.tracker.export_state(now),
+            "gate": self.gate.export_history(now),
+        })
+
+    def restore(self) -> bool:
+        """Resume after a restart. An action whose outcome was never committed is rolled back
+        and never repeated; an incident that was open escalates to NEEDS_HUMAN (no new plan,
+        no LLM call) and closes once the camera is healthy again."""
+        saved = self.store.get_state(STATE_KEY)
+        pending = self.store.pending_snapshots()
+        if saved is None and not pending:
+            return False
+        now = self.clock()
+        info: dict[str, Any] = {"restored": False, "rolled_back": []}
+        incident_id = None
+        state = S.HEALTHY
+        if saved is not None and (saved.get("schema") != STATE_SCHEMA
+                                  or saved.get("camera_id") != self.tracker.camera_id):
+            info["reason"] = "saved state has another schema or camera; starting fresh"
+        elif saved is not None:
+            down = max(0.0, self.wall_clock() - float(saved["saved_at"]))
+            self.tracker.import_state(saved["tracker"], now, down)
+            self.gate.import_history(saved["gate"], now, down)
+            state, incident_id = self.state, saved.get("incident_id")
+            info.update(restored=True, state=state, downtime_s=round(down, 1),
+                        baseline_version=self.tracker.baseline.version)
+        for p in pending:
+            info["rolled_back"].append(self._rollback_pending(p, now))
+            incident_id = incident_id or p["incident_id"]
+        if state not in (S.HEALTHY, S.SUSPECT) or info["rolled_back"]:
+            incident = self._load_incident(incident_id)
+            self.tracker.fsm.state = S.HEALTHY
+            self.tracker.reset_healthy()
+            if incident is not None:
+                self.active = ActiveIncident(incident, before=[])
+                self.tracker.fsm.state = S.NEEDS_HUMAN
+                self.store.append("state", {"from": state, "to": S.NEEDS_HUMAN,
+                                            "reason": "restarted with an open incident"},
+                                  incident.incident_id)
+            info["state"] = self.state
+        self.store.append("restore", info, incident_id)
+        log.info("restore: %s", info)
+        return bool(info["restored"])
+
+    def _rollback_pending(self, p: dict[str, Any], now: float) -> dict[str, Any]:
+        action = ActionName(p["action"])
+        rec = ExecutionRecord(p["execution_id"], p["incident_id"], action, {}, p["snapshot"],
+                              status="success")
+        try:
+            ok = self.executor.rollback(rec)
+        except Exception as exc:  # noqa: BLE001 - the snapshot stays pending for the next start
+            log.error("restart rollback of %s failed: %s", action, type(exc).__name__)
+            ok = False
+        if ok:
+            self.store.mark_restored(p["execution_id"])
+        # it ran before the restart: count it against cooldowns and hourly limits
+        self.gate.record_execution(action, now)
+        self.store.append("rollback", {"ok": ok, "restored": p["snapshot"],
+                                       "reason": "restart with an uncommitted action"},
+                          p["incident_id"])
+        return {"execution_id": p["execution_id"], "action": action, "ok": ok}
+
+    def _load_incident(self, incident_id: str | None) -> Incident | None:
+        if not incident_id:
+            return None
+        for e in self.store.events(incident_id=incident_id, kind="incident"):
+            return Incident.model_validate(e["payload"])
+        return None
 
     # ------------------------------------------------------------------ plan + execute
     def _handle_confirmed(self, incident: Incident) -> None:

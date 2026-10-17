@@ -153,7 +153,8 @@ class IncidentTracker:
     def step(self, tw: TelemetryWindow, now_s: float = 0.0) -> TrackerStep:
         faults, ev = classify_window(tw, self.baseline if self.baseline.ready else None,
                                      self.rules)
-        faults = {f: s for f, s in faults.items() if self._suppressed.get(f, -1) <= now_s}
+        faults = {f: s for f, s in faults.items()
+                  if f not in self._suppressed or self._suppressed[f] <= now_s}
         state = self.fsm.state
         learned = False
         incident = None
@@ -189,6 +190,33 @@ class IncidentTracker:
                     self._bad = 0
         # Other states are driven by the orchestrator (MAPE-K Plan/Execute/Verify).
         return TrackerStep(self.fsm.state, faults, incident, learned)
+
+    def export_state(self, now_s: float) -> dict[str, Any]:
+        """Everything ``step`` depends on, as JSON; cooldowns as seconds left (no clock)."""
+        return {
+            "state": self.fsm.state.value,
+            "bad": self._bad,
+            "good": self._good,
+            "scores": {f.value: s for f, s in self._scores.items()},
+            "evidence": [e.model_dump(mode="json") for e in self._evidence],
+            "suppressed_s": {f.value: until - now_s for f, until in self._suppressed.items()
+                             if until > now_s},
+            "baseline": self.baseline.to_dict(),
+        }
+
+    def import_state(self, d: dict[str, Any], now_s: float, downtime_s: float = 0.0) -> None:
+        """Restore ``export_state``; the baseline keeps this tracker's configured window and
+        thresholds, and cooldowns lose the time the agent was down."""
+        b = self.baseline
+        self.baseline = RobustBaseline.from_dict(
+            {**d["baseline"], "window": b.window, "min_samples": b.min_samples, "eps": b.eps,
+             "mode": b.mode})
+        self.fsm.state = IncidentState(d["state"])
+        self._bad, self._good = int(d["bad"]), int(d["good"])
+        self._scores = {FaultType(f): float(s) for f, s in d["scores"].items()}
+        self._evidence = [Evidence.model_validate(e) for e in d["evidence"]]
+        self._suppressed = {FaultType(f): now_s + left - downtime_s
+                            for f, left in d["suppressed_s"].items() if left - downtime_s > 0}
 
     def reset_healthy(self) -> None:
         """Called by the orchestrator once an incident is closed and the camera is healthy."""

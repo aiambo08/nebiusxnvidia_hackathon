@@ -1,8 +1,11 @@
 # Project state
 
-Last update: 2026-10-16 · Current phase: **F4** (F3: every box evidenced except REAL HARDWARE recall/precision, moved to F4; F1–F3 independent gate review pending) · Days to deadline: 16
+Last update: 2026-10-17 · Current phase: **F5** (F4 open: tooling merged, REAL HARDWARE test sessions pending from the owner; F3: every box evidenced except REAL HARDWARE recall/precision, moved to F4; F1–F3 independent gate review pending) · Days to deadline: 16
 
 ## Snapshot
+- F5 restart persistence (SIMULATION, `tests/unit/test_restore.py`): FSM, hysteresis counters, cooldowns,
+  gate rate-limit history and baseline restored from SQLite; uncommitted actions rolled back on restart,
+  open incidents resume as NEEDS_HUMAN without a new plan.
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
   baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
   event store, orchestrator, CLI, read-only API, injectors, CI.

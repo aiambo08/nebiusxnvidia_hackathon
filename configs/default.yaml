@@ -115,3 +115,5 @@ verification:
 
 storage:
   db_path: runs/agent.sqlite
+  restore_on_start: true   # F5: resume FSM, baseline, cooldowns and rate limits after a restart
+  checkpoint_windows: 10   # checkpoint every N windows, and on every state change
