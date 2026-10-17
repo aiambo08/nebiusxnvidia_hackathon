@@ -18,7 +18,7 @@ recalibrated with real camera data.
 | F2 | Ingestion & observability | 1 | Ingestion | in progress |
 | F3 | Visual monitors | 2 | Vision | in progress |
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
-| F5 | Adaptive baseline & temporal fusion | 2 | Architecture | scaffolded |
+| F5 | Adaptive baseline & temporal fusion | 2 | Architecture | passed |
 | F6 | Nemotron integration | 3 | Nebius | scaffolded |
 | F7 | Executor & safety | 3 | Safety | scaffolded |
 | F8 | Verification & rollback | 3 | Safety + Evaluation | scaffolded |
@@ -108,6 +108,8 @@ On ≥ 10 runs per fault:
 - [x] Same events → same state sequence (determinism unit test)
 - [x] Hysteresis cuts state flapping ≥ 50% vs frame-by-frame detector (SIMULATION, `scripts/bench_hysteresis.py` → `docs/evidence/f5/hysteresis.md`: 60 runs, 5 MVP faults × glitch rate 0.1/0.2/0.3, reference = memoryless per-window detector, alert (CONFIRMED) flaps cut 66–100 % per cell, all alert changes 67.7 % overall; internal HEALTHY↔SUSPECT moves are cut only 9–36 %, freeze ≈ 0; every sustained alert closes before the next sustained fault; glitches are 1–2 windows, shorter than `enter_windows`)
 - [x] All 5 faults reach CONFIRMED; legitimate changes return to HEALTHY without calling Nemotron (`tests/e2e/test_confirm_and_return.py`, SIMULATION: synthetic scene through the production probes and `ReliabilityAgent` with the default config; after calibration each MVP fault (dark, gaussian_blur, freeze, occlude_opaque, overexpose; 2 seeds) is confirmed once with the expected fault, the planner is called once and the incident closes after the fault clears; a global lighting change to 82.5 % / 65 % brightness, transient or persistent, never leaves HEALTHY (0 SUSPECT windows) and the counting planner is called 0 times; each MVP fault lasting `enter_windows` − 1 windows (freeze: `enter_windows`, it is first flagged in its third frozen window) goes SUSPECT and back to HEALTHY with 0 planner calls)
+
+Gate review (independent, 2026-10-17, main d425c03): passed 6/6 in SIMULATION — https://app.devin.ai/sessions/c1aa643e3af84547a6933d377bba2fd0.
 
 ## F6 — Nemotron integration
 - [ ] ≥ 98% schema-valid responses after ≤ 1 retry
