@@ -8,11 +8,14 @@ import pytest
 from reliability_agent.capture.sources import SyntheticSource
 from reliability_agent.contracts.models import ActionName, FaultType, IncidentState
 from reliability_agent.nemotron.planner import RuleBasedPlanner
-from reliability_agent.orchestrator import STATE_KEY, ReliabilityAgent
+from reliability_agent.orchestrator import ReliabilityAgent, state_key
+from reliability_agent.policy.gate import PolicyGate
 from reliability_agent.storage import EventStore
 
 S = IncidentState
 DARK = {"brightness_p50": 5.0, "black_pixel_ratio": 0.95}
+
+KEY = state_key("cam_01")
 
 
 class CountingPlanner:
@@ -175,11 +178,11 @@ def test_a_crash_between_checkpoints_still_rolls_back_the_action(cfg, window):
     warm(rig, window)
     for _ in range(cfg_enter(rig) - 1):
         rig.feed(window(visual=DARK))
-    stale = rig.store.get_state(STATE_KEY)          # last checkpoint: SUSPECT
+    stale = rig.store.get_state(KEY)          # last checkpoint: SUSPECT
     assert stale["tracker"]["state"] == "SUSPECT"
     rig.feed(window(visual=DARK))
     assert rig.agent.state is S.VERIFYING
-    rig.store.put_state(STATE_KEY, stale)           # the crash lost the newer checkpoint
+    rig.store.put_state(KEY, stale)           # the crash lost the newer checkpoint
 
     agent = rig.start()
     assert agent.state is S.NEEDS_HUMAN and agent.active is not None
@@ -227,9 +230,11 @@ def test_state_from_another_camera_or_schema_is_ignored(cfg, window, change):
     other = copy.deepcopy(cfg)
     if change == "camera":
         other["camera"]["id"] = "another-cam"
+        # cam_01's checkpoint under the other camera's key (e.g. a copied DB)
+        rig.store.put_state(state_key("another-cam"), rig.store.get_state(KEY))
     else:
-        saved = rig.store.get_state(STATE_KEY)
-        rig.store.put_state(STATE_KEY, {**saved, "schema": 999})
+        saved = rig.store.get_state(KEY)
+        rig.store.put_state(KEY, {**saved, "schema": 999})
     agent = rig.start(other)
     assert agent.state is S.HEALTHY and not agent.tracker.baseline.ready
     assert rig.store.events(kind="restore")[-1]["payload"]["restored"] is False
@@ -298,18 +303,18 @@ def test_a_monotonic_clock_below_zero_does_not_suppress_faults(cfg, window):
 def test_unreadable_or_malformed_state_starts_fresh(cfg, window, bad):
     rig = Rig(cfg)
     warm(rig, window)
-    saved = rig.store.get_state(STATE_KEY)
+    saved = rig.store.get_state(KEY)
     if bad == "json":
-        rig.store._db.execute("UPDATE kv SET value='{not json' WHERE key=?", (STATE_KEY,))
+        rig.store._db.execute("UPDATE kv SET value='{not json' WHERE key=?", (KEY,))
         rig.store._db.commit()
     elif bad == "tracker":
         saved["tracker"]["state"] = "EXPLODED"
-        rig.store.put_state(STATE_KEY, saved)
+        rig.store.put_state(KEY, saved)
     elif bad == "baseline":
         del saved["tracker"]["baseline"]["data"]
-        rig.store.put_state(STATE_KEY, saved)
+        rig.store.put_state(KEY, saved)
     else:
-        rig.store.put_state(STATE_KEY, [1, 2, 3])
+        rig.store.put_state(KEY, [1, 2, 3])
     agent = rig.start()
     assert agent.state is S.HEALTHY and not agent.tracker.baseline.ready
     assert agent.tracker.baseline.updates == 0
@@ -317,3 +322,91 @@ def test_unreadable_or_malformed_state_starts_fresh(cfg, window, bad):
     assert rig.store.events(kind="restore")[-1]["payload"]["restored"] is False
     rig.feed(window(visual=DARK))
     assert agent.state is S.SUSPECT
+
+
+def test_a_second_camera_on_the_same_db_leaves_the_first_cameras_action_alone(
+        cfg, window, tmp_path):
+    db = tmp_path / "agent.sqlite"
+    a = Rig(cfg, store=EventStore(db))
+    drive_to_verifying(a, window)                       # cam_01 crashes mid-action
+    exposure_a = a.device.settings["exposure"]
+    other = copy.deepcopy(cfg)
+    other["camera"]["id"] = "phone_rtsp"
+    dev_b = SyntheticSource(width=64, height=48)
+    dev_b.apply_settings({"exposure": 1.5})
+    b = Rig(other, store=EventStore(db), device=dev_b)
+    warm(b, window, seed=3)
+    assert b.agent.state is S.HEALTHY and b.agent.active is None
+    assert dev_b.settings["exposure"] == 1.5
+    assert len(a.store.pending_snapshots()) == 1
+    assert a.device.settings["exposure"] == exposure_a
+    a2 = a.start()                                      # cam_01 restarts: its own state
+    assert a2.state is S.NEEDS_HUMAN and a.store.pending_snapshots() == []
+    assert a.device.settings["exposure"] != exposure_a  # rolled back on its own device
+    assert a2.tracker.baseline.ready
+
+
+def test_a_second_restart_before_any_window_does_not_repeat_the_action(cfg, window):
+    rig = Rig(cfg)
+    warm(rig, window)
+    for _ in range(cfg_enter(rig) - 1):
+        rig.feed(window(visual=DARK))
+    stale = rig.store.get_state(KEY)                    # SUSPECT
+    rig.feed(window(visual=DARK))
+    assert rig.agent.state is S.VERIFYING
+    rig.store.put_state(KEY, stale)                     # the crash lost the newer checkpoint
+    calls = rig.planner.calls
+    assert rig.start().state is S.NEEDS_HUMAN
+    ag = rig.start()                                    # crash again before any window
+    assert ag.state is S.NEEDS_HUMAN
+    assert ActionName.SET_EXPOSURE_BOUNDED.value in ag.gate.export_history()
+    rig.feed(window(visual=DARK))
+    assert rig.planner.calls == 0 and calls == 1
+    assert len(rig.store.events(kind="execution")) == 1
+
+
+def test_a_crash_right_after_a_ticket_keeps_waiting_without_a_new_plan(cfg, window):
+    rig = Rig(cfg)
+    warm(rig, window)
+    occ = {"occluded_cell_ratio": 0.8}
+    for _ in range(cfg_enter(rig) - 1):
+        rig.feed(window(visual=occ))
+    stale = rig.store.get_state(KEY)
+    rig.feed(window(visual=occ))
+    assert rig.agent.state is S.NEEDS_HUMAN
+    rig.store.put_state(KEY, stale)
+    assert rig.start().state is S.NEEDS_HUMAN
+    rig.feed(window(visual=occ))
+    assert rig.planner.calls == 0 and len(rig.store.events(kind="ticket")) == 1
+
+
+def test_a_stale_checkpoint_does_not_reopen_a_closed_incident(cfg, window):
+    rig = Rig(cfg)
+    drive_to_verifying(rig, window)
+    stale = rig.store.get_state(KEY)                    # VERIFYING
+    rng = np.random.default_rng(2)
+    while rig.agent.state is S.VERIFYING:
+        rig.feed(healthy(window, rng))
+    assert rig.agent.state is S.HEALTHY
+    rig.store.put_state(KEY, stale)
+    ag = rig.start()
+    assert ag.state is S.HEALTHY and ag.active is None
+    assert rig.store.events(kind="rollback") == []
+
+
+def test_pending_snapshots_of_unknown_incidents_or_actions_do_not_crash_start(cfg, window):
+    rig = Rig(cfg)
+    drive_to_verifying(rig, window)
+    inc = rig.store.events(kind="incident")[0]["incident_id"]
+    rig.store.save_snapshot("x1", "no-such-incident", "rm_rf", {})
+    rig.store.save_snapshot("x2", inc, "rm_rf", {})
+    ag = rig.start()
+    assert ag.state is S.NEEDS_HUMAN
+    left = {p["execution_id"] for p in rig.store.pending_snapshots()}
+    assert left == {"x1", "x2"}
+
+
+def test_a_negative_saved_age_is_clamped_not_a_permanent_block():
+    g = PolicyGate(clock=lambda: 10_000.0)
+    g.import_history({"set_exposure_bounded": [-1e9]})
+    assert g.export_history() == {"set_exposure_bounded": [0.0]}

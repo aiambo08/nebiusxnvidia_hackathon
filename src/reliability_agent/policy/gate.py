@@ -168,7 +168,9 @@ class PolicyGate:
                 name = ActionName(raw)
             except ValueError:
                 continue
-            ts = [now - (float(a) + downtime_s) for a in values if float(a) + downtime_s <= 3600]
+            # a negative (corrupt) age would block the action for ever: clamp it to now
+            ages_s = [max(0.0, float(a)) + downtime_s for a in values]
+            ts = [now - a for a in ages_s if a <= 3600]
             if not ts:
                 continue
             merged = sorted([*self._hist[name], *ts])

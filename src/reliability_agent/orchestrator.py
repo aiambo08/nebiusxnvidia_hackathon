@@ -38,6 +38,11 @@ STATE_KEY = "agent_state"
 STATE_SCHEMA = 1
 
 
+def state_key(camera_id: str) -> str:
+    """One checkpoint per camera: several cameras may share one event store."""
+    return f"{STATE_KEY}:{camera_id}"
+
+
 @dataclass
 class ActiveIncident:
     incident: Incident
@@ -126,7 +131,7 @@ class ReliabilityAgent:
         """Persist what the next window depends on: FSM state, hysteresis counters, cooldowns,
         the policy gate's execution history and the baseline."""
         now = self.clock()
-        self.store.put_state(STATE_KEY, {
+        self.store.put_state(state_key(self.tracker.camera_id), {
             "schema": STATE_SCHEMA,
             "camera_id": self.tracker.camera_id,
             "saved_at": self.wall_clock(),
@@ -136,15 +141,18 @@ class ReliabilityAgent:
         })
 
     def restore(self) -> bool:
-        """Resume after a restart. An action whose outcome was never committed is rolled back
-        and never repeated; an incident that was open escalates to NEEDS_HUMAN (no new plan,
-        no LLM call) and closes once the camera is healthy again."""
+        """Resume after a restart. An action of this camera whose outcome was never committed
+        is rolled back and never repeated; an incident of this camera that was never closed
+        escalates to NEEDS_HUMAN (no new plan, no LLM call) and closes once the camera is
+        healthy again. The event log, not the checkpoint, decides what is still open, so a
+        checkpoint older than the last action cannot reopen or repeat anything."""
         try:
-            saved = self.store.get_state(STATE_KEY)
+            saved = self.store.get_state(state_key(self.tracker.camera_id))
         except ValueError:  # unreadable JSON: start fresh, never refuse to start
             saved = {"schema": None}
-        pending = self.store.pending_snapshots()
-        if saved is None and not pending:
+        mine, open_ = self._camera_incidents()
+        pending = [p for p in self.store.pending_snapshots() if p["incident_id"] in mine]
+        if saved is None and not pending and not open_:
             return False
         now = self.clock()
         info: dict[str, Any] = {"restored": False, "rolled_back": []}
@@ -170,20 +178,25 @@ class ReliabilityAgent:
                             baseline_version=self.tracker.baseline.version)
         for p in pending:
             info["rolled_back"].append(self._rollback_pending(p, now))
-            incident_id = incident_id or p["incident_id"]
-        if state not in (S.HEALTHY, S.SUSPECT) or info["rolled_back"]:
-            incident = self._load_incident(incident_id)
+        if open_ or state not in (S.HEALTHY, S.SUSPECT) or pending:
             self.tracker.fsm.state = S.HEALTHY
             self.tracker.reset_healthy()
-            if incident is not None:
+            incident_id = None
+            if open_:
+                for old in open_[:-1]:
+                    self.store.append("closed", {"reason": "superseded on restart"},
+                                      old.incident_id)
+                incident = open_[-1]
+                incident_id = incident.incident_id
                 self.active = ActiveIncident(incident, before=[])
                 self.tracker.fsm.state = S.NEEDS_HUMAN
                 self.store.append("state", {"from": state, "to": S.NEEDS_HUMAN,
                                             "reason": "restarted with an open incident"},
-                                  incident.incident_id)
+                                  incident_id)
             info["state"] = self.state
         self.store.append("restore", info, incident_id)
         log.info("restore: %s", info)
+        self.checkpoint()  # a second restart must not resume the older checkpoint
         return bool(info["restored"])
 
     def _fresh_tracker(self) -> None:
@@ -194,7 +207,13 @@ class ReliabilityAgent:
         t.reset_healthy()
 
     def _rollback_pending(self, p: dict[str, Any], now: float) -> dict[str, Any]:
-        action = ActionName(p["action"])
+        try:
+            action = ActionName(p["action"])
+        except ValueError:  # not an action this build knows: leave it for a human
+            log.error("restart: pending snapshot with unknown action; left pending")
+            self.store.append("rollback", {"ok": False, "reason": "unknown action"},
+                              p["incident_id"])
+            return {"execution_id": p["execution_id"], "action": p["action"], "ok": False}
         rec = ExecutionRecord(p["execution_id"], p["incident_id"], action, {}, p["snapshot"],
                               status="success")
         try:
@@ -211,12 +230,22 @@ class ReliabilityAgent:
                           p["incident_id"])
         return {"execution_id": p["execution_id"], "action": action, "ok": ok}
 
-    def _load_incident(self, incident_id: str | None) -> Incident | None:
-        if not incident_id:
-            return None
-        for e in self.store.events(incident_id=incident_id, kind="incident"):
-            return Incident.model_validate(e["payload"])
-        return None
+    def _camera_incidents(self) -> tuple[set[str], list[Incident]]:
+        """Ids of this camera's incidents, and those never closed (oldest first)."""
+        closed = {e["incident_id"] for e in self.store.events(kind="closed")}
+        mine: set[str] = set()
+        open_: list[Incident] = []
+        for e in self.store.events(kind="incident"):
+            try:
+                inc = Incident.model_validate(e["payload"])
+            except ValueError:
+                continue
+            if inc.camera_id != self.tracker.camera_id:
+                continue
+            mine.add(inc.incident_id)
+            if inc.incident_id not in closed:
+                open_.append(inc)
+        return mine, open_
 
     # ------------------------------------------------------------------ plan + execute
     def _handle_confirmed(self, incident: Incident) -> None:
