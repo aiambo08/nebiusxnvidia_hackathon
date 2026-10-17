@@ -7,6 +7,10 @@ Last update: 2026-10-17 · Current phase: **F5** (F4 open: tooling merged, REAL 
   `tests/adversarial/test_frozen_pipeline.py`): a confirmed blackout on a bit-exact frozen pipeline
   plans `restart_capture` first when supported; exposure and autofocus are withheld, and a device
   without restart escalates to NEEDS_HUMAN.
+- The frozen check sees only the confirming window; freeze onset can miss that window due to timing,
+  and frozen `overexposure`/`focus_drift` cases remain outside the BLACKOUT-only shortcut. They may
+  receive one exposure/autofocus action, then snapshot-backed rollback and NEEDS_HUMAN, preserving
+  the prior one-action behavior. Checking recent windows is open work (TASKS.md).
 - F5 hysteresis (SIMULATION, `scripts/bench_hysteresis.py` → `docs/evidence/f5/hysteresis.md`, ~33 min):
   over the same windows of the real probe path, the tracker flaps 66–100 % less than a memoryless
   per-window detector in every (MVP fault, glitch rate) cell and changes alert 67.7 % less overall,

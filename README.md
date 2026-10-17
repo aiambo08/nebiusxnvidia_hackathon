@@ -107,6 +107,7 @@ Without `NEBIUS_API_KEY` the agent starts in **local mode** (rule-based planner)
 | `dark` | blackout → raise exposure (bounded) → task recovers → **commit** |
 | `defocus` | focus drift → autofocus → task recovers → **commit** |
 | `freeze` | bit-exact repeated frames → restart capture → **commit** |
+| `frozen_black` | `restart_capture` → **committed** → **HEALTHY** |
 | `overexposure` | clipping → lower exposure → **commit** |
 | `occlusion` | covered lens → maintenance **ticket** → waits for human → closes when clean |
 | `bad_action` | a deliberately harmful plan → verification fails → **exact rollback** → human |

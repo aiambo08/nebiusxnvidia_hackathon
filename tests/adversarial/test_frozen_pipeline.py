@@ -7,6 +7,7 @@ from reliability_agent.capture.sources import SyntheticSource
 from reliability_agent.contracts.models import (
     ActionName,
     FaultType,
+    IncidentState,
     NemotronPlan,
     PlanAction,
     TokenUsage,
@@ -86,3 +87,59 @@ def test_frozen_black_without_restart_rejects_scripted_exposure(monkeypatch):
     assert any(event["payload"]["approved"] is False for event in _events(res, "policy"))
     assert not _events(res, "execution")
     assert "NEEDS_HUMAN" in res.states
+
+
+def _restart_policy(res):
+    return next(
+        event["payload"]
+        for event in _events(res, "policy")
+        if str(event["payload"]["action"]) == ActionName.RESTART_CAPTURE.value
+    )
+
+
+def test_frozen_black_restart_is_rejected_during_cooldown():
+    planner = SpyPlanner()
+
+    def record_recent_restart(tw, agent):
+        if agent.state is IncidentState.SUSPECT:
+            agent.gate.record_execution(ActionName.RESTART_CAPTURE)
+
+    res = run_scenario(
+        "frozen_black",
+        planner=planner,
+        on_window=record_recent_restart,
+    )
+
+    policy = _restart_policy(res)
+    assert policy["approved"] is False
+    assert any("cooldown" in reason for reason in policy["reasons"])
+    assert not _events(res, "execution")
+    assert "NEEDS_HUMAN" in res.states
+    assert planner.calls == 0
+
+
+def test_frozen_black_restart_is_rejected_at_hourly_limit():
+    planner = SpyPlanner()
+    seeded = False
+
+    def record_hourly_history(tw, agent):
+        nonlocal seeded
+        if not seeded and agent.state is IncidentState.SUSPECT:
+            seeded = True
+            timestamp = agent.clock() - 60.0
+            for _ in range(12):
+                agent.gate.record_execution(ActionName.RESTART_CAPTURE, now=timestamp)
+
+    res = run_scenario(
+        "frozen_black",
+        planner=planner,
+        on_window=record_hourly_history,
+    )
+
+    policy = _restart_policy(res)
+    assert policy["approved"] is False
+    assert any("hourly rate limit" in reason for reason in policy["reasons"])
+    assert not any("cooldown" in reason for reason in policy["reasons"])
+    assert not _events(res, "execution")
+    assert "NEEDS_HUMAN" in res.states
+    assert planner.calls == 0

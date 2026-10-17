@@ -51,6 +51,14 @@ after rollback, which would require an FSM change, an ADR, and two actions per i
 without restart capability escalates to NEEDS_HUMAN. SIMULATION coverage is in
 `tests/e2e/test_scenarios.py` and `tests/adversarial/test_frozen_pipeline.py`.
 
+The frozen check reads only the confirming window, not the incident's recent windows. A freeze
+starting 1–3 windows after the dark frame, or a few frozen frames preceding it because of window
+alignment, may therefore be absent from that check. Frozen overexposed or defocused frames can be
+classified as `overexposure` or `focus_drift`, so the BLACKOUT-only shortcut does not apply and the
+ordinary planner may still choose one exposure or autofocus action. This preserves the prior
+one-action behavior: the executor snapshots settings and rolls back if verification fails, then
+escalates to NEEDS_HUMAN. Looking across recent windows remains open work.
+
 ## Consequences
 - Ranking: freeze is evaluated after blackout/overexposure/focus drift, so `rank_faults` gives it
   priority among equal scores; otherwise a real freeze co-occurring with overexposure ranked second
