@@ -64,6 +64,10 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F5][evaluation] Hysteresis gate fails a tracker that latches on (`bench_hysteresis.closed`: every sustained alert must switch off before the next sustained fault); report commit via `code_revision` (repo root, `+dirty`)
 - [x] [F5][evaluation] End-to-end box: 5 MVP faults reach CONFIRMED once, a lighting change stays HEALTHY and a 2-window transient (freeze: 3) goes SUSPECT and back, both with 0 planner calls (`tests/e2e/test_confirm_and_return.py`)
 - [ ] [F5][architecture] Per-mode baselines (day/night/profile): `RobustBaseline.mode` exists but is always `default`; calibration is per camera only
+- [ ] [F5][architecture] Make `RobustBaseline.version` reproducible across processes for identical frames: exclude wall-clock `task.latency_ms_p95` from baseline inputs or the version hash (`dark-11` produced `default-38-7c8101b03bd3` vs `default-38-ec90e09366fc` with identical state sequences; independent review)
+- [ ] [F5][architecture] Add a unit test proving the baseline does not learn in CONFIRMED, ACTING or VERIFYING (current unit coverage checks SUSPECT only)
+- [ ] [F5][architecture] Record in `DECISIONS.md` that a crash before the first 10-window checkpoint loses baseline samples (32 vs 38 updates) without changing state sequences
+- [ ] [F5][evaluation] Add a legitimate non-fault scenario that reaches SUSPECT and returns to HEALTHY; currently only short MVP fault transients exercise SUSPECT → HEALTHY
 - [ ] [F6][nebius] Golden set (20 cases × fault) + ambiguity cases
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
 - [ ] [F8][safety] Persist pending VERIFYING decisions across restarts
