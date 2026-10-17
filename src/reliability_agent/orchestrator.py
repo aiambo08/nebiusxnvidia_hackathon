@@ -27,7 +27,7 @@ from reliability_agent.contracts.models import (
     VerificationStatus,
 )
 from reliability_agent.incidents.fusion import IncidentTracker, classify_window
-from reliability_agent.nemotron.planner import Planner, PlanOutcome
+from reliability_agent.nemotron.planner import Planner, PlanOutcome, frozen_blackout_plan
 from reliability_agent.policy.gate import PolicyGate
 from reliability_agent.storage.event_store import EventStore
 from reliability_agent.verification.verifier import Verifier
@@ -35,6 +35,8 @@ from reliability_agent.verification.verifier import Verifier
 log = logging.getLogger(__name__)
 S = IncidentState
 
+# image settings whose effect cannot show on a bit-exact frozen pipeline
+FROZEN_UNVERIFIABLE = frozenset({ActionName.SET_EXPOSURE_BOUNDED, ActionName.TRIGGER_AUTOFOCUS})
 STATE_KEY = "agent_state"
 STATE_SCHEMA = 1
 
@@ -378,6 +380,10 @@ class ReliabilityAgent:
             else []
         incident.capabilities = caps
         incident.allowed_actions = self.gate.allowed_for(caps)
+        frozen = self._frozen(incident)
+        if frozen:
+            incident.allowed_actions = [a for a in incident.allowed_actions
+                                        if a not in FROZEN_UNVERIFIABLE]
         incident.current_config = {k: v for k, v in self.device.get_settings().items()
                                    if isinstance(v, (int, float, bool, str))}
         budget = getattr(self.planner, "budget", None)
@@ -389,7 +395,9 @@ class ReliabilityAgent:
         if not self._heartbeat():
             self._to(S.NEEDS_HUMAN, "lease taken over by another agent: no plan")
             return
-        out = self.planner.plan(incident)
+        frozen_black = (frozen and incident.candidate_faults[:1] == [FaultType.BLACKOUT]
+                        and ActionName.RESTART_CAPTURE in incident.allowed_actions)
+        out = frozen_blackout_plan(incident) if frozen_black else self.planner.plan(incident)
         self.active.plan = out
         u = out.usage
         self.store.record_usage(u.model, u.prompt_version, u.input_tokens, u.output_tokens,
@@ -438,6 +446,11 @@ class ReliabilityAgent:
             self._rollback("execution failed")
             return
         self._to(S.VERIFYING, "observing effect")
+
+    def _frozen(self, incident: Incident) -> bool:
+        tw = incident.telemetry
+        ratio = tw.visual.exact_repeat_ratio if tw is not None else None
+        return ratio is not None and ratio >= self.cfg["faults"]["freeze"]["exact_repeat_ratio_min"]
 
     # ------------------------------------------------------------------ verify
     def _verify(self, tw: TelemetryWindow) -> None:

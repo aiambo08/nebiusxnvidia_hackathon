@@ -3,6 +3,10 @@
 Last update: 2026-10-17 · Current phase: **F5** (F4 open: tooling merged, REAL HARDWARE test sessions pending from the owner; F3: every box evidenced except REAL HARDWARE recall/precision, moved to F4; F1–F3 independent gate review pending) · Days to deadline: 16
 
 ## Snapshot
+- Frozen-black handling (SIMULATION, `tests/e2e/test_scenarios.py` and
+  `tests/adversarial/test_frozen_pipeline.py`): a confirmed blackout on a bit-exact frozen pipeline
+  plans `restart_capture` first when supported; exposure and autofocus are withheld, and a device
+  without restart escalates to NEEDS_HUMAN.
 - F5 hysteresis (SIMULATION, `scripts/bench_hysteresis.py` → `docs/evidence/f5/hysteresis.md`, ~33 min):
   over the same windows of the real probe path, the tracker flaps 66–100 % less than a memoryless
   per-window detector in every (MVP fault, glitch rate) cell and changes alert 67.7 % less overall,

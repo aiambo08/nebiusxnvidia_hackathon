@@ -42,6 +42,15 @@ to measure motion is not in the image.
 3. A frozen pipeline that is also black is reported as `blackout` only. This is a documented
    limitation, covered by `test_frozen_dark_pipeline_is_attributed_to_blackout`.
 
+## Follow-up (2026-10-17)
+
+When a confirming window is bit-exact frozen and blackout is the leading fault, plan
+`restart_capture` immediately if the source supports it. Exposure and autofocus settings cannot be
+verified on an unchanged pipeline. The owner chose this first-plan restart over a second action
+after rollback, which would require an FSM change, an ADR, and two actions per incident. A source
+without restart capability escalates to NEEDS_HUMAN. SIMULATION coverage is in
+`tests/e2e/test_scenarios.py` and `tests/adversarial/test_frozen_pipeline.py`.
+
 ## Consequences
 - Ranking: freeze is evaluated after blackout/overexposure/focus drift, so `rank_faults` gives it
   priority among equal scores; otherwise a real freeze co-occurring with overexposure ranked second

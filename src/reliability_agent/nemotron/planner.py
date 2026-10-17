@@ -68,6 +68,21 @@ def needs_human_plan(incident: Incident, why: str) -> NemotronPlan:
                         human_message=f"Escalated without automatic action: {why}"[:400])
 
 
+def frozen_blackout_plan(incident: Incident) -> PlanOutcome:
+    """A bit-exact frozen black frame is reported as blackout (ADR-003), but no image setting can
+    show on a frozen pipeline: reconnect the capture (deterministic, no LLM call)."""
+    return PlanOutcome(
+        NemotronPlan(
+            diagnosis=F.BLACKOUT, confidence=0.5,
+            evidence_refs=[e.metric for e in incident.evidence][:6],
+            action=PlanAction(name=A.RESTART_CAPTURE),
+            verification=VerificationSpec(),
+            human_message="Rule-based: frozen black frame -> restart_capture",
+        ),
+        TokenUsage(model="local-rules"), "rules",
+    )
+
+
 class RuleBasedPlanner:
     name = "rules"
 
