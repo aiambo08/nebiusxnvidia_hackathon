@@ -62,4 +62,6 @@ def run_live(cfg: dict | None = None, *, duration_s: float | None = None,
                 on_window(tw, agent)
     finally:
         worker.stop()
+        agent.checkpoint()
+        agent.release_lease()
         store.close()

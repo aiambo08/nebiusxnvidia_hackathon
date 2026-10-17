@@ -152,6 +152,31 @@ class PolicyGate:
         self._last[name] = now
         self._hist[name].append(now)
 
+    def export_history(self, now: float | None = None) -> dict[str, list[float]]:
+        """Age in seconds of each execution in the last hour, so cooldowns and hourly limits
+        survive a restart (the monotonic clock does not)."""
+        now = self.clock() if now is None else now
+        out = {n.value: [now - t for t in h if now - t <= 3600] for n, h in self._hist.items()}
+        return {n: ages for n, ages in out.items() if ages}
+
+    def import_history(self, ages: dict[str, list[float]], now: float | None = None,
+                       downtime_s: float = 0.0) -> None:
+        """Merge ``export_history`` into this gate; time spent down counts as elapsed."""
+        now = self.clock() if now is None else now
+        for raw, values in ages.items():
+            try:
+                name = ActionName(raw)
+            except ValueError:
+                continue
+            # a negative (corrupt) age would block the action for ever: clamp it to now
+            ages_s = [max(0.0, float(a)) + downtime_s for a in values]
+            ts = [now - a for a in ages_s if a <= 3600]
+            if not ts:
+                continue
+            merged = sorted([*self._hist[name], *ts])
+            self._hist[name] = deque(merged)
+            self._last[name] = max(merged[-1], self._last.get(name, merged[-1]))
+
     @staticmethod
     def _check_args(spec: ActionSpec, args: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         errors: list[str] = []

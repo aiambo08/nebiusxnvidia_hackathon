@@ -166,6 +166,11 @@ class EventStore:
             self._db.execute("INSERT OR REPLACE INTO kv VALUES (?,?)", (key, _dumps(value)))
             self._db.commit()
 
+    def delete_state(self, key: str) -> None:
+        with self._lock:
+            self._db.execute("DELETE FROM kv WHERE key=?", (key,))
+            self._db.commit()
+
     def get_state(self, key: str, default: Any = None) -> Any:
         row = self._db.execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
         return json.loads(row[0]) if row else default

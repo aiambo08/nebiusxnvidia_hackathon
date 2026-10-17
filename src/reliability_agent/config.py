@@ -13,6 +13,7 @@ DEFAULT_CONFIG = REPO_ROOT / "configs" / "default.yaml"
 
 _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
     "RA_CAMERA_URI": ("camera", "uri"),
+    "RA_CAMERA_ID": ("camera", "id"),
     "NEBIUS_BASE_URL": ("nebius", "base_url"),
     "RA_MODEL_FAST": ("nebius", "models", "fast"),
     "RA_MODEL_REASONING": ("nebius", "models", "reasoning"),

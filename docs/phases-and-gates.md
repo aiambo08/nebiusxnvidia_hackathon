@@ -104,7 +104,7 @@ On ≥ 10 runs per fault:
 ## F5 — Adaptive baseline & temporal fusion
 - [ ] Calibration on clean data is automatic and yields a baseline version
 - [x] Baseline frozen during SUSPECT / CONFIRMED / ACTING / VERIFYING (unit test)
-- [ ] State and baseline restored from persistence after restart
+- [x] State and baseline restored from persistence after restart (`tests/unit/test_restore.py`, SIMULATION: per-camera SQLite checkpoint, one live agent per camera id enforced by a lease; a clean restart continues the uninterrupted state sequence; after a crash this camera's uncommitted action is rolled back and its open incident escalates to NEEDS_HUMAN without a new plan, also across a second restart)
 - [x] Same events → same state sequence (determinism unit test)
 - [ ] Hysteresis cuts state flapping ≥ 50% vs frame-by-frame detector
 - [ ] All 5 faults reach CONFIRMED; legitimate changes return to HEALTHY without calling Nemotron
