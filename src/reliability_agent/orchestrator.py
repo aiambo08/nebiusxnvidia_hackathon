@@ -132,8 +132,21 @@ class ReliabilityAgent:
             return self.state
         self._recent.append(tw)
         st = self.state
+        calibrated = False
         if st in (S.HEALTHY, S.SUSPECT):
+            b = self.tracker.baseline
+            was_ready, samples = b.ready, b.updates
             step = self.tracker.step(tw, now_s=self.clock())
+            if step.calibration_reset:
+                self.store.append("calibration_restarted",
+                                  {"discarded_samples": samples,
+                                   "faults": sorted(map(str, step.faults))})
+            b = self.tracker.baseline
+            if not was_ready and b.ready:
+                calibrated = True
+                self.store.append("baseline_calibrated",
+                                  {"baseline_version": b.version, "samples": b.updates,
+                                   "mode": b.mode})
             if step.state is not st:
                 self.store.append("state", {"from": st, "to": step.state,
                                             "faults": sorted(map(str, step.faults))})
@@ -147,7 +160,7 @@ class ReliabilityAgent:
         if self._lease_lost:
             return self.state
         # SUSPECT checkpoints every window: its hysteresis counters change on each one
-        if (self.state is not st or self.state is S.SUSPECT
+        if (calibrated or self.state is not st or self.state is S.SUSPECT
                 or self._windows % self._checkpoint_every == 0):
             self.checkpoint()
         return self.state

@@ -34,6 +34,10 @@ class RobustBaseline:
         self.updates += 1
         return True
 
+    def reset(self) -> None:
+        self._data.clear()
+        self.updates = 0
+
     def count(self, metric: str) -> int:
         return len(self._data.get(metric, ()))
 

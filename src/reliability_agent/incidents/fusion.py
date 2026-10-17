@@ -124,6 +124,7 @@ class TrackerStep:
     faults: dict[FaultType, float]
     incident: Incident | None = None   # set only on the SUSPECT -> CONFIRMED edge
     baseline_learned: bool = False
+    calibration_reset: bool = False    # a fault before the baseline was ready discarded it
 
 
 @dataclass
@@ -156,11 +157,16 @@ class IncidentTracker:
         faults = {f: s for f, s in faults.items()
                   if f not in self._suppressed or self._suppressed[f] <= now_s}
         state = self.fsm.state
-        learned = False
+        learned = reset = False
         incident = None
 
         if state is IncidentState.HEALTHY:
             if faults:
+                if not self.baseline.ready and self.baseline.updates:
+                    # Calibration needs a clean run: the windows next to a fault may already be
+                    # degraded, so a fault during calibration restarts it from scratch.
+                    self.baseline.reset()
+                    reset = True
                 self.fsm.to(IncidentState.SUSPECT, ",".join(faults))
                 self._bad, self._good = 1, 0
                 self._scores, self._evidence = dict(faults), list(ev)
@@ -189,7 +195,7 @@ class IncidentTracker:
                     self.fsm.to(IncidentState.HEALTHY, "hysteresis exit")
                     self._bad = 0
         # Other states are driven by the orchestrator (MAPE-K Plan/Execute/Verify).
-        return TrackerStep(self.fsm.state, faults, incident, learned)
+        return TrackerStep(self.fsm.state, faults, incident, learned, reset)
 
     def export_state(self, now_s: float) -> dict[str, Any]:
         """Everything ``step`` depends on, as JSON; cooldowns as seconds left (no clock)."""

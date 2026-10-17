@@ -102,7 +102,7 @@ On ≥ 10 runs per fault:
 - [ ] No published metric comes from training data reused as test
 
 ## F5 — Adaptive baseline & temporal fusion
-- [ ] Calibration on clean data is automatic and yields a baseline version
+- [x] Calibration on clean data is automatic and yields a baseline version (`tests/unit/test_calibration.py`, SIMULATION: the baseline learns only fault-free HEALTHY windows, a fault before it is ready restarts calibration (`calibration_restarted`), and readiness logs one `baseline_calibrated` event with `baseline_version` and checkpoints it)
 - [x] Baseline frozen during SUSPECT / CONFIRMED / ACTING / VERIFYING (unit test)
 - [x] State and baseline restored from persistence after restart (`tests/unit/test_restore.py`, SIMULATION: per-camera SQLite checkpoint, one live agent per camera id enforced by a lease; a clean restart continues the uninterrupted state sequence; after a crash this camera's uncommitted action is rolled back and its open incident escalates to NEEDS_HUMAN without a new plan, also across a second restart)
 - [x] Same events → same state sequence (determinism unit test)
