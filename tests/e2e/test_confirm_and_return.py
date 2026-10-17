@@ -67,7 +67,7 @@ def test_every_mvp_fault_reaches_confirmed_once_and_then_closes(kind, seed):
     assert kinds.index("baseline_calibrated") < kinds.index("incident")
     incidents = store.events(kind="incident")
     assert len(incidents) == 1 and len(planner.calls) == 1
-    assert EXPECTED[kind] in planner.calls[0].candidate_faults
+    assert planner.calls[0].candidate_faults[0] == EXPECTED[kind]
     hit = confirmed_windows(states)
     assert hit and CALIB <= hit[0] < CALIB + FAULT, states
     assert states[-1] is IncidentState.HEALTHY, "closes once the fault clears"
@@ -79,6 +79,7 @@ def test_every_mvp_fault_reaches_confirmed_once_and_then_closes(kind, seed):
 def test_a_lighting_change_returns_to_healthy_without_the_planner(seed, strength, persist):
     end = CALIB + FAULT + AFTER if persist else CALIB + FAULT
     states, planner, store = run("lighting_change", strength, seed, end_window=end)
+    assert "baseline_calibrated" in [e["kind"] for e in store.events()]
     assert planner.calls == []
     assert store.events(kind="incident") == [] and confirmed_windows(states) == []
     assert states[-1] is IncidentState.HEALTHY
