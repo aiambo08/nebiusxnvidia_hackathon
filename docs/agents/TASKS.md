@@ -60,6 +60,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F5][architecture] `calibration_stalled` event when an unready baseline makes no progress for `baseline.stall_windows` windows (a visual fault every ≤ 6 windows never calibrates; `tests/unit/test_calibration.py`)
 - [x] [F5][evaluation] Hysteresis flapping benchmark vs a memoryless per-window detector (`scripts/bench_hysteresis.py` → `docs/evidence/f5/hysteresis.md`, `tests/unit/test_bench_hysteresis.py`)
 - [x] [F5][evaluation] Hysteresis gate fails a tracker that latches on (`bench_hysteresis.closed`: every sustained alert must switch off before the next sustained fault); report commit via `code_revision` (repo root, `+dirty`)
+- [x] [F5][evaluation] End-to-end box: 5 MVP faults reach CONFIRMED once, a lighting change stays HEALTHY and a 2-window transient (freeze: 3) goes SUSPECT and back, both with 0 planner calls (`tests/e2e/test_confirm_and_return.py`)
 - [ ] [F5][architecture] Per-mode baselines (day/night/profile): `RobustBaseline.mode` exists but is always `default`; calibration is per camera only
 - [ ] [F6][nebius] Golden set (20 cases × fault) + ambiguity cases
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
