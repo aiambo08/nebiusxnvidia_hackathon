@@ -87,7 +87,8 @@ class ReliabilityAgent:
         f, b = cfg["fusion"], cfg["baseline"]
         self.tracker = IncidentTracker(
             cfg["camera"]["id"], cfg["faults"], f["enter_windows"], f["exit_windows"],
-            f["cooldown_s"], RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]))
+            f["cooldown_s"], RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]),
+            calibration_discard=int(b.get("calibration_discard", 3)))
         self.executor = Executor(device, store, restart_cb,
                                  ticket_cb=lambda t: store.append("ticket", t,
                                                                   t["incident_id"]))
@@ -132,8 +133,21 @@ class ReliabilityAgent:
             return self.state
         self._recent.append(tw)
         st = self.state
+        calibrated = False
         if st in (S.HEALTHY, S.SUSPECT):
+            b = self.tracker.baseline
+            was_ready = b.ready
             step = self.tracker.step(tw, now_s=self.clock())
+            if step.calibration_discarded:
+                self.store.append("calibration_samples_discarded",
+                                  {"discarded": step.calibration_discarded,
+                                   "faults": sorted(map(str, step.faults))})
+            b = self.tracker.baseline
+            if not was_ready and b.ready:
+                calibrated = True
+                self.store.append("baseline_calibrated",
+                                  {"baseline_version": b.version, "samples": b.updates,
+                                   "mode": b.mode})
             if step.state is not st:
                 self.store.append("state", {"from": st, "to": step.state,
                                             "faults": sorted(map(str, step.faults))})
@@ -147,7 +161,7 @@ class ReliabilityAgent:
         if self._lease_lost:
             return self.state
         # SUSPECT checkpoints every window: its hysteresis counters change on each one
-        if (self.state is not st or self.state is S.SUSPECT
+        if (calibrated or self.state is not st or self.state is S.SUSPECT
                 or self._windows % self._checkpoint_every == 0):
             self.checkpoint()
         return self.state
@@ -266,7 +280,8 @@ class ReliabilityAgent:
             else:
                 state, incident_id = self.state, saved.get("incident_id")
                 info.update(restored=True, state=state, downtime_s=round(down, 1),
-                            baseline_version=self.tracker.baseline.version)
+                            baseline_version=self.tracker.baseline.version,
+                            baseline_ready=self.tracker.baseline.ready)
         for p in pending:
             info["rolled_back"].append(self._rollback_pending(p, now))
         if open_ or state not in (S.HEALTHY, S.SUSPECT) or pending:

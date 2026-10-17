@@ -67,6 +67,7 @@ baseline:
   window: 300            # samples kept per metric
   min_samples: 20
   mad_epsilon: 1.0e-6
+  calibration_discard: 3   # before the baseline is ready, a visual fault drops the latest N samples
 
 planner:
   kind: nemotron         # nemotron | rules
