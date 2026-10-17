@@ -153,7 +153,8 @@ def grade(case: dict[str, Any], outcome: PlanOutcome, gate: PolicyGate) -> dict[
     arguments = dict(plan.action.arguments)
     usage = outcome.usage
     valid = outcome.source == "nemotron" and outcome.error is None
-    correct = valid and action_name in case["expected_actions"]
+    policy_ok = gate.evaluate(plan.action, incident, now=0).approved
+    correct = valid and policy_ok and action_name in case["expected_actions"]
     sign = case.get("delta_ev_sign")
     if correct and action_name == ActionName.SET_EXPOSURE_BOUNDED.value and sign:
         delta_ev = arguments.get("delta_ev")
@@ -164,7 +165,6 @@ def grade(case: dict[str, Any], outcome: PlanOutcome, gate: PolicyGate) -> dict[
             and delta_ev != 0
             and (1 if delta_ev > 0 else -1) == sign
         )
-    policy_ok = gate.evaluate(plan.action, incident, now=0).approved
     diagnosis_ok = valid and plan.diagnosis.value == case["expected_fault"]
     return {
         "valid": bool(valid),

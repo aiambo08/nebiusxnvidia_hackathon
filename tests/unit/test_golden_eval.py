@@ -191,7 +191,7 @@ def test_committed_golden_matches_fresh_build_on_recipe_fields(golden_cases):
 def test_grader_accepts_correct_exposure_action_and_sign(dark_case):
     result = grade(dark_case, _outcome("set_exposure_bounded", {"delta_ev": 1.5}),
                    PolicyGate())
-    assert result["valid"] and result["correct"]
+    assert result["valid"] and result["policy_ok"] and result["correct"]
     assert result["action"] == "set_exposure_bounded"
     assert result["args"] == {"delta_ev": 1.5}
 
@@ -243,8 +243,8 @@ def test_out_of_range_exposure_is_not_policy_ok(cfg, dark_case):
     planner, _ = _planner(cfg, [_model_reply(arguments={"delta_ev": 5.0})])
     result = grade(dark_case, planner.plan(Incident.model_validate(dark_case["incident"])),
                    PolicyGate())
-    assert result["valid"] and result["correct"]
-    assert not result["policy_ok"]
+    assert result["valid"]
+    assert not result["policy_ok"] and not result["correct"]
 
 
 def test_summarize_all_correct_passes_three_f6_boxes(cfg):
