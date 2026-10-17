@@ -52,3 +52,21 @@ def test_run_live_analyses_each_frame_once_on_a_slow_source(live_cfg, monkeypatc
     assert windows and analysed > 0
     assert analysed <= delivered, (analysed, delivered)  # 10 polls/s on a 2 fps source
     assert all((tw.visual.exact_repeat_ratio or 0.0) == 0.0 for tw in windows)
+
+
+def test_run_live_stops_with_an_error_once_another_agent_takes_the_camera(live_cfg, monkeypatch):
+    from reliability_agent.orchestrator import CameraInUseError, lease_key
+    from reliability_agent.storage.event_store import EventStore
+
+    monkeypatch.setattr(runtime, "OpenCVSource", lambda uri: SlowSource(uri, period=0.1))
+    windows = []
+
+    def steal(tw, agent):
+        windows.append(tw)
+        agent.store.put_state(lease_key(tw.camera_id), {"owner": "other", "heartbeat": time.time()})
+
+    with pytest.raises(CameraInUseError):
+        runtime.run_live(live_cfg, duration_s=10.0, on_window=steal)
+    assert len(windows) == 2                          # the next window found the lease taken
+    store = EventStore(live_cfg["storage"]["db_path"])
+    assert store.get_state(lease_key(live_cfg["camera"]["id"]))["owner"] == "other"

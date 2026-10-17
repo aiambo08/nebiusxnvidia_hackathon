@@ -543,3 +543,41 @@ def test_a_lease_shorter_than_a_planner_call_is_a_config_error(cfg):
     bad.setdefault("storage", {})["lease_stale_s"] = 10
     with pytest.raises(ValueError, match="lease_stale_s"):
         ReliabilityAgent(bad, SyntheticSource(width=64, height=48), CountingPlanner(), EventStore())
+
+
+def test_a_stalled_agent_does_not_resume_on_a_lease_released_by_the_agent_that_took_over(
+        cfg, window):
+    a = Rig(cfg)
+    warm(a, window)
+    for _ in range(cfg_enter(a)):
+        a.feed(window(visual=DARK))
+    assert a.agent.state is S.VERIFYING
+    a.wall[0] += 61.0                                    # A stalls past lease_stale_s
+    b = ReliabilityAgent(cfg, a.device, CountingPlanner(), a.store,
+                         clock=lambda: a.t[0], wall_clock=lambda: a.wall[0])
+    assert b.state is S.NEEDS_HUMAN                       # B rolled A's action back
+    b.checkpoint()
+    b.release_lease()
+    settings, events, saved = (dict(a.device.settings), len(a.store.events()),
+                               a.store.get_state(KEY))
+    a.feed(window(visual=DARK))
+    assert a.agent.lease_lost and a.agent.state is S.VERIFYING
+    assert a.device.settings == settings and a.store.get_state(KEY) == saved
+    assert [e["kind"] for e in a.store.events()[events:]] == ["lease_lost"]
+    ReliabilityAgent(cfg, a.device, CountingPlanner(), a.store,   # the tombstone is free
+                     clock=lambda: a.t[0], wall_clock=lambda: a.wall[0])
+
+
+def test_a_lease_taken_over_before_planning_makes_no_llm_call(cfg, window, monkeypatch):
+    rig = Rig(cfg)
+    warm(rig, window)
+    get_settings = rig.device.get_settings
+
+    def steal():
+        rig.store.put_state(lease_key("cam_01"), {"owner": "other", "heartbeat": rig.wall[0]})
+        return get_settings()
+    monkeypatch.setattr(rig.device, "get_settings", steal)
+    for _ in range(cfg_enter(rig)):
+        rig.feed(window(visual=DARK))
+    assert rig.planner.calls == 0 and rig.agent.state is S.NEEDS_HUMAN
+    assert rig.store.events(kind="plan") == [] and rig.store.events(kind="execution") == []

@@ -12,7 +12,7 @@ from reliability_agent.config import api_key, load_config
 from reliability_agent.contracts.models import TelemetryWindow
 from reliability_agent.nemotron.budget import BudgetGuard
 from reliability_agent.nemotron.planner import make_planner
-from reliability_agent.orchestrator import ReliabilityAgent
+from reliability_agent.orchestrator import CameraInUseError, ReliabilityAgent
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 from reliability_agent.storage.event_store import EventStore
 
@@ -60,6 +60,9 @@ def run_live(cfg: dict | None = None, *, duration_s: float | None = None,
             agent.on_window(tw)
             if on_window:
                 on_window(tw, agent)
+            if agent.lease_lost:
+                raise CameraInUseError(f"camera id {cam['id']!r} was taken over by another agent "
+                                       f"on this event store; this agent stopped")
     finally:
         worker.stop()
         agent.checkpoint()
