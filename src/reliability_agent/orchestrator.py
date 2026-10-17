@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import math
 import time
+import uuid
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -41,6 +42,14 @@ STATE_SCHEMA = 1
 def state_key(camera_id: str) -> str:
     """One checkpoint per camera: several cameras may share one event store."""
     return f"{STATE_KEY}:{camera_id}"
+
+
+def lease_key(camera_id: str) -> str:
+    return f"lease:{camera_id}"
+
+
+class CameraInUseError(RuntimeError):
+    """Another live agent holds this camera id on the same event store."""
 
 
 @dataclass
@@ -91,6 +100,9 @@ class ReliabilityAgent:
         st = cfg.get("storage", {})
         self._checkpoint_every = max(1, int(st.get("checkpoint_windows", 10)))
         self._windows = 0
+        self._lease_stale_s = float(st.get("lease_stale_s", 10.0))
+        self._owner = uuid.uuid4().hex
+        self._acquire_lease()
         if st.get("restore_on_start", True):
             self.restore()
 
@@ -120,6 +132,7 @@ class ReliabilityAgent:
         elif st is S.NEEDS_HUMAN:
             self._await_human(tw)
         self._windows += 1
+        self._heartbeat()
         # SUSPECT checkpoints every window: its hysteresis counters change on each one
         if (self.state is not st or self.state is S.SUSPECT
                 or self._windows % self._checkpoint_every == 0):
@@ -127,6 +140,40 @@ class ReliabilityAgent:
         return self.state
 
     # ------------------------------------------------------------------ persistence (F5)
+    def _acquire_lease(self) -> None:
+        """One live agent per camera id and store: a second one would roll back the first
+        one's action onto its own device and overwrite its checkpoint. The lease is a
+        heartbeat refreshed every window; a crashed agent's lease goes stale after
+        ``storage.lease_stale_s`` (a clean shutdown releases it at once)."""
+        key = lease_key(self.tracker.camera_id)
+        try:
+            cur = self.store.get_state(key)
+        except ValueError:
+            cur = None
+        if isinstance(cur, dict) and cur.get("owner") != self._owner:
+            try:
+                age = self.wall_clock() - float(cur["heartbeat"])
+            except (KeyError, TypeError, ValueError):
+                age = math.inf
+            if abs(age) < self._lease_stale_s:
+                raise CameraInUseError(
+                    f"camera id {self.tracker.camera_id!r} is in use by another live agent "
+                    f"on this event store (heartbeat {max(age, 0.0):.1f}s ago); give each "
+                    f"camera its own id (RA_CAMERA_ID) or wait {self._lease_stale_s:.0f}s "
+                    f"if that agent has crashed")
+        self._heartbeat()
+
+    def _heartbeat(self) -> None:
+        self.store.put_state(lease_key(self.tracker.camera_id),
+                             {"owner": self._owner, "heartbeat": self.wall_clock()})
+
+    def release_lease(self) -> None:
+        """Clean shutdown: the next start of this camera need not wait for the lease."""
+        key = lease_key(self.tracker.camera_id)
+        cur = self.store.get_state(key)
+        if isinstance(cur, dict) and cur.get("owner") == self._owner:
+            self.store.delete_state(key)
+
     def checkpoint(self) -> None:
         """Persist what the next window depends on: FSM state, hysteresis counters, cooldowns,
         the policy gate's execution history and the baseline."""

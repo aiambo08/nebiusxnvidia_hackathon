@@ -8,7 +8,12 @@ import pytest
 from reliability_agent.capture.sources import SyntheticSource
 from reliability_agent.contracts.models import ActionName, FaultType, IncidentState
 from reliability_agent.nemotron.planner import RuleBasedPlanner
-from reliability_agent.orchestrator import ReliabilityAgent, state_key
+from reliability_agent.orchestrator import (
+    CameraInUseError,
+    ReliabilityAgent,
+    lease_key,
+    state_key,
+)
 from reliability_agent.policy.gate import PolicyGate
 from reliability_agent.storage import EventStore
 
@@ -48,6 +53,8 @@ class Rig:
         self.agent = self.start()
 
     def start(self, cfg=None):
+        """A new process after the previous one died (its lease has expired)."""
+        self.store.delete_state(lease_key((cfg or self.cfg)["camera"]["id"]))
         self.planner = CountingPlanner()
         self.agent = ReliabilityAgent(cfg or self.cfg, self.device, self.planner, self.store,
                                       clock=lambda: self.t[0], wall_clock=lambda: self.wall[0])
@@ -410,3 +417,61 @@ def test_a_negative_saved_age_is_clamped_not_a_permanent_block():
     g = PolicyGate(clock=lambda: 10_000.0)
     g.import_history({"set_exposure_bounded": [-1e9]})
     assert g.export_history() == {"set_exposure_bounded": [0.0]}
+
+
+def test_a_second_live_agent_with_the_same_camera_id_refuses_to_start(cfg, window, tmp_path):
+    db = tmp_path / "agent.sqlite"
+    a = Rig(cfg, store=EventStore(db))
+    drive_to_verifying(a, window)                       # cam_01 alive, mid-action
+    phone = SyntheticSource(width=64, height=48)
+    phone.apply_settings({"exposure": 1.5})
+    store_b = EventStore(db)
+    with pytest.raises(CameraInUseError, match="RA_CAMERA_ID"):
+        ReliabilityAgent(cfg, phone, CountingPlanner(), store_b,
+                         clock=lambda: a.t[0], wall_clock=lambda: a.wall[0] + 3.0)
+    assert phone.settings["exposure"] == 1.5
+    assert len(a.store.pending_snapshots()) == 1
+    a.feed(window())                                    # cam_01 carries on unharmed
+    assert a.agent.state is S.VERIFYING
+
+
+@pytest.mark.parametrize("gap, refused", [(9.0, True), (11.0, False)])
+def test_a_crashed_agents_lease_expires(cfg, window, gap, refused):
+    rig = Rig(cfg)
+    warm(rig, window)
+    rig.wall[0] += gap
+
+    def start():
+        return ReliabilityAgent(cfg, rig.device, CountingPlanner(), rig.store,
+                                clock=lambda: rig.t[0], wall_clock=lambda: rig.wall[0])
+    if refused:
+        with pytest.raises(CameraInUseError):
+            start()
+    else:
+        assert start().tracker.baseline.ready
+
+
+def test_a_clean_shutdown_releases_the_lease_at_once(cfg, window):
+    rig = Rig(cfg)
+    warm(rig, window)
+    rig.agent.checkpoint()
+    rig.agent.release_lease()
+    again = ReliabilityAgent(cfg, rig.device, CountingPlanner(), rig.store,
+                             clock=lambda: rig.t[0], wall_clock=lambda: rig.wall[0])
+    assert again.tracker.baseline.ready
+    rig.agent.release_lease()                           # not the owner any more: no-op
+    assert rig.store.get_state(lease_key("cam_01"))["owner"] == again._owner
+
+
+@pytest.mark.parametrize("bad", ["{not json", '{"owner": "x"}', '{"owner": "x", "heartbeat": "y"}'])
+def test_an_unreadable_lease_does_not_block_start(cfg, bad):
+    store = EventStore()
+    store.put_state(lease_key("cam_01"), None)
+    store._db.execute("UPDATE kv SET value=? WHERE key=?", (bad, lease_key("cam_01")))
+    ReliabilityAgent(cfg, SyntheticSource(width=64, height=48), CountingPlanner(), store)
+
+
+def test_camera_id_has_an_env_override(monkeypatch):
+    from reliability_agent.config import load_config
+    monkeypatch.setenv("RA_CAMERA_ID", "phone_rtsp")
+    assert load_config()["camera"]["id"] == "phone_rtsp"

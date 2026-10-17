@@ -2,7 +2,7 @@
 # recalibrated with real camera data. Changing a threshold that affects a gate requires an ADR.
 
 camera:
-  id: cam_01
+  id: cam_01             # env RA_CAMERA_ID; unique per camera on a shared db_path
   uri: "0"               # webcam index, file path or rtsp:// URL (env RA_CAMERA_URI overrides)
   analytic_fps: 5        # frames per second actually analysed
   ring_buffer_size: 64
@@ -117,3 +117,4 @@ storage:
   db_path: runs/agent.sqlite
   restore_on_start: true   # F5: resume FSM, baseline, cooldowns and rate limits after a restart
   checkpoint_windows: 10   # checkpoint every N windows, and on every state change
+  lease_stale_s: 10        # one live agent per camera id: a crashed agent's lease expires after this

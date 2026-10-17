@@ -4,8 +4,10 @@ Last update: 2026-10-17 · Current phase: **F5** (F4 open: tooling merged, REAL 
 
 ## Snapshot
 - F5 restart persistence (SIMULATION, `tests/unit/test_restore.py`): FSM, hysteresis counters, cooldowns,
-  gate rate-limit history and baseline restored from SQLite; uncommitted actions rolled back on restart,
-  open incidents resume as NEEDS_HUMAN without a new plan.
+  gate rate-limit history and baseline restored from SQLite, one checkpoint per camera id; uncommitted
+  actions of this camera rolled back on restart, its never-closed incident resumes as NEEDS_HUMAN without
+  a new plan (also across a second restart); a heartbeat lease refuses a second live agent with the same
+  camera id (`RA_CAMERA_ID`).
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
   baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
   event store, orchestrator, CLI, read-only API, injectors, CI.
