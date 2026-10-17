@@ -57,6 +57,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F4][human] Record ≥ 6 test sessions × 330 s (+ 1 dev) with `record_clip.py --split`, run `scripts/run_benchmark.py` on the owner's laptop, commit index + manifests + report (REAL HARDWARE clips)
 - [x] [F5][architecture] Restore FSM + baseline from SQLite after restart (`ReliabilityAgent.checkpoint/restore`, `tests/unit/test_restore.py`)
 - [x] [F5][architecture] Automatic calibration on clean windows with a `baseline_calibrated` event and version (`tests/unit/test_calibration.py`; a visual fault drops only the 3 windows before it, transport faults drop nothing, so one faulty window in ten still calibrates and LOW_FPS stays detectable)
+- [x] [F5][architecture] `calibration_stalled` event when an unready baseline makes no progress for `baseline.stall_windows` windows (a visual fault every ≤ 6 windows never calibrates; `tests/unit/test_calibration.py`)
 - [ ] [F5][architecture] Per-mode baselines (day/night/profile): `RobustBaseline.mode` exists but is always `default`; calibration is per camera only
 - [ ] [F6][nebius] Golden set (20 cases × fault) + ambiguity cases
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)

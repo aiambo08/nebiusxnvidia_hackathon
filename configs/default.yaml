@@ -68,6 +68,7 @@ baseline:
   min_samples: 20
   mad_epsilon: 1.0e-6
   calibration_discard: 3   # before the baseline is ready, a visual fault drops the latest N samples
+  stall_windows: 120       # log calibration_stalled after N windows without calibration progress
 
 planner:
   kind: nemotron         # nemotron | rules

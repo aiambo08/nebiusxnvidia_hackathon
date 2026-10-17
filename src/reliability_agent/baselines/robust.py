@@ -14,6 +14,8 @@ import numpy as np
 
 
 class RobustBaseline:
+    RECENT = 16  # latest updates that ``drop_last`` can undo
+
     def __init__(self, window: int = 300, min_samples: int = 20, eps: float = 1e-6,
                  mode: str = "default") -> None:
         self.window = window
@@ -22,7 +24,7 @@ class RobustBaseline:
         self.mode = mode  # e.g. day / night / profile — one baseline per mode (F5)
         self._data: dict[str, deque[float]] = {}
         self.updates = 0
-        self._recent: deque[list[str]] = deque(maxlen=16)  # metrics of the latest updates
+        self._recent: deque[list[str]] = deque(maxlen=self.RECENT)
 
     def update(self, sample: dict[str, float], *, frozen: bool = False) -> bool:
         """Add a sample unless frozen. Returns True if it was learned."""
@@ -39,7 +41,7 @@ class RobustBaseline:
         return True
 
     def drop_last(self, n: int) -> int:
-        """Forget up to the ``n`` latest updates (at most the 16 last); returns how many."""
+        """Forget up to the ``n`` latest updates (at most ``RECENT``); returns how many."""
         dropped = 0
         while dropped < n and self._recent:
             for k in self._recent.pop():
