@@ -189,3 +189,52 @@ def test_a_restored_baseline_reports_its_version_and_readiness(cfg, window, need
     [restore] = cam.events("restore")
     assert restore["payload"]["baseline_ready"] is True
     assert restore["payload"]["baseline_version"] == cam.agent.tracker.baseline.version
+
+
+def test_a_visual_fault_every_five_windows_reports_a_stalled_calibration(cfg, window, need):
+    """Reviewer C4: with a visual fault every <= 6 windows the default config never calibrates
+    (fault + exit_windows + calibration_discard >= period); the agent must say so."""
+    cam, rng = Cam(cfg), np.random.default_rng(8)
+    stall = cfg["baseline"]["stall_windows"]
+    for i in range(600):
+        cam.feed(window(visual=DARK) if i % 5 == 4 else healthy(window, rng))
+    assert not cam.agent.tracker.baseline.ready
+    assert cam.events("baseline_calibrated") == []
+    [ev] = cam.events("calibration_stalled")
+    assert ev["payload"]["windows"] == stall and ev["payload"]["min_samples"] == need
+    assert ev["payload"]["samples"] < need
+    while cam.agent.state is not S.HEALTHY:
+        cam.feed(healthy(window, rng))
+    while not cam.agent.tracker.baseline.ready:
+        cam.feed(healthy(window, rng))
+    assert len(cam.events("baseline_calibrated")) == 1
+    for _ in range(2 * stall):
+        cam.feed(healthy(window, rng))
+    assert len(cam.events("calibration_stalled")) == 1
+
+
+@pytest.mark.parametrize("period", [None, 7, 10])
+def test_a_calibration_that_progresses_never_reports_a_stall(cfg, window, period):
+    cam, rng = Cam(cfg), np.random.default_rng(9)
+    for i in range(600):
+        bad = period and i % period == period - 1
+        cam.feed(window(visual=DARK) if bad else healthy(window, rng))
+    assert cam.agent.tracker.baseline.ready
+    assert cam.events("calibration_stalled") == []
+
+
+def test_a_long_incident_before_calibration_reports_a_stall(cfg, window):
+    cam = Cam(cfg)
+    for _ in range(cfg["baseline"]["stall_windows"] + 5):
+        cam.feed(window(visual=DARK))
+    [ev] = cam.events("calibration_stalled")
+    assert ev["payload"]["samples"] == 0
+
+
+@pytest.mark.parametrize(("key", "value"), [("calibration_discard", 17),
+                                            ("calibration_discard", -1),
+                                            ("stall_windows", 0)])
+def test_out_of_range_calibration_settings_are_refused(cfg, key, value):
+    bad = {**cfg, "baseline": {**cfg["baseline"], key: value}}
+    with pytest.raises(ValueError, match=key):
+        Cam(bad)

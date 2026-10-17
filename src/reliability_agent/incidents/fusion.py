@@ -142,6 +142,11 @@ class IncidentTracker:
     baseline: RobustBaseline = field(default_factory=RobustBaseline)
     fsm: IncidentStateMachine = field(default_factory=IncidentStateMachine)
     calibration_discard: int = 3
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.calibration_discard <= RobustBaseline.RECENT:
+            raise ValueError(f"baseline.calibration_discard ({self.calibration_discard}) must be "
+                             f"between 0 and {RobustBaseline.RECENT}")
     _bad: int = 0
     _good: int = 0
     _suppressed: dict[FaultType, float] = field(default_factory=dict)

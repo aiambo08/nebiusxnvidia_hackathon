@@ -11,7 +11,8 @@ Last update: 2026-10-17 · Current phase: **F5** (F4 open: tooling merged, REAL 
 - F5 automatic calibration (SIMULATION, `tests/unit/test_calibration.py`): the baseline learns only
   fault-free HEALTHY windows; before `min_samples`, a visual fault also drops the 3 windows just before it
   (`calibration_samples_discarded`); readiness logs `baseline_calibrated` with `baseline_version` once and
-  checkpoints at once; the `restore` event carries `baseline_version` and `baseline_ready`.
+  checkpoints at once; the `restore` event carries `baseline_version` and `baseline_ready`; an unready baseline
+  with no progress for `baseline.stall_windows` (120) windows logs `calibration_stalled` once.
 - Repository scaffolded end-to-end: contracts, FSM, capture worker, probes, ArUco task, robust
   baseline, fusion, Nemotron planner + budget guard, policy gate, executor, verifier, hash-chained
   event store, orchestrator, CLI, read-only API, injectors, CI.

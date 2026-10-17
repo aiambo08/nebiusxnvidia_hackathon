@@ -98,6 +98,10 @@ class ReliabilityAgent:
         self._verify_windows = max(
             cfg["verification"]["healthy_windows_required"],
             math.ceil(cfg["verification"]["window_seconds"] / win))
+        self._stall_windows = int(b.get("stall_windows", 120))
+        if self._stall_windows < 1:
+            raise ValueError(f"baseline.stall_windows ({self._stall_windows}) must be >= 1")
+        self._calib_best, self._calib_idle = -1, 0
         st = cfg.get("storage", {})
         self._checkpoint_every = max(1, int(st.get("checkpoint_windows", 10)))
         self._windows = 0
@@ -157,6 +161,7 @@ class ReliabilityAgent:
             self._verify(tw)
         elif st is S.NEEDS_HUMAN:
             self._await_human(tw)
+        self._watch_calibration()
         self._windows += 1
         if self._lease_lost:
             return self.state
@@ -165,6 +170,20 @@ class ReliabilityAgent:
                 or self._windows % self._checkpoint_every == 0):
             self.checkpoint()
         return self.state
+
+    def _watch_calibration(self) -> None:
+        """Log ``calibration_stalled`` once after ``baseline.stall_windows`` windows in which
+        an unready baseline never exceeded its best sample count: until it is ready, LOW_FPS
+        and the z-score rules are off, and the camera must not look quietly HEALTHY."""
+        b = self.tracker.baseline
+        if b.ready or b.updates > self._calib_best:
+            self._calib_best, self._calib_idle = b.updates, 0
+            return
+        self._calib_idle += 1
+        if self._calib_idle == self._stall_windows:
+            self.store.append("calibration_stalled",
+                              {"windows": self._calib_idle, "samples": b.updates,
+                               "min_samples": b.min_samples})
 
     # ------------------------------------------------------------------ persistence (F5)
     def _acquire_lease(self) -> None:
