@@ -25,7 +25,7 @@ def main() -> int:
     print(f"SHA256: {digest}")
     for split in ("dev", "test"):
         split_counts = {variant: counts[(split, variant)]
-                        for variant in ("base", "no_cap", "exposure_edge", "injection")}
+                        for variant in ("base", "no_cap", "injection")}
         print(f"{split}: {sum(split_counts.values())} {split_counts}")
     return 0
 

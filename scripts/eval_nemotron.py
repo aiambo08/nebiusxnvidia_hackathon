@@ -20,7 +20,7 @@ from benchmarks.golden import grade, summarize
 from reliability_agent.config import REPO_ROOT, api_key, load_config
 from reliability_agent.contracts.models import Incident
 from reliability_agent.nemotron import BudgetGuard, ModelPrice
-from reliability_agent.nemotron.planner import NemotronPlanner, make_planner
+from reliability_agent.nemotron.planner import NemotronPlanner, RuleBasedPlanner, make_planner
 from reliability_agent.policy import PolicyGate
 
 MAX_INPUT_TOKENS_PER_CALL = 6000
@@ -39,14 +39,24 @@ def select_cases(cases: list[dict[str, Any]], split: str) -> list[dict[str, Any]
 
 
 def estimate_cost(cfg: dict[str, Any], tier: str, case_count: int,
-                  repeats: int) -> dict[str, Any]:
+                  repeats: int, planner: str = "nemotron") -> dict[str, Any]:
     """Bound retries using 6k input tokens and configured max output tokens per API call."""
+    case_runs = case_count * repeats
+    if planner == "rules":
+        return {
+            "model": "local-rules",
+            "case_runs": case_runs,
+            "max_api_calls": 0,
+            "input_tokens_per_call": 0,
+            "output_tokens_per_call": 0,
+            "per_call_usd": 0.0,
+            "upper_bound_usd": 0.0,
+        }
     model = cfg["nebius"]["models"][tier]
     price_data = cfg["nebius"].get("prices", {}).get(model)
     if price_data is None:
         raise ValueError(f"no configured token price for model {model!r}")
     price = ModelPrice(float(price_data["input"]), float(price_data["output"]))
-    case_runs = case_count * repeats
     max_api_calls = case_runs * MAX_PLANNER_ATTEMPTS
     output_tokens = int(cfg["planner"]["max_output_tokens"])
     per_call = price.cost(MAX_INPUT_TOKENS_PER_CALL, output_tokens)
@@ -62,7 +72,8 @@ def estimate_cost(cfg: dict[str, Any], tier: str, case_count: int,
 
 
 def run_eval(cases: list[dict[str, Any]], planner: Any, repeats: int = 3,
-             output_path: Path | None = None) -> list[dict[str, Any]]:
+             output_path: Path | None = None, *, baseline: bool = False
+             ) -> list[dict[str, Any]]:
     """Run an injectable planner on each case/repeat and optionally append JSONL rows."""
     if repeats < 1:
         raise ValueError("repeats must be at least 1")
@@ -78,7 +89,7 @@ def run_eval(cases: list[dict[str, Any]], planner: Any, repeats: int = 3,
             started = time.perf_counter()
             outcome = planner.plan(incident)
             wall_latency_ms = (time.perf_counter() - started) * 1000
-            row = grade(case, outcome, PolicyGate())
+            row = grade(case, outcome, PolicyGate(), baseline=baseline)
             row.update({
                 "case_id": case["case_id"],
                 "split": case["split"],
@@ -104,8 +115,9 @@ def _slug(value: str) -> str:
 
 
 def _report_paths(report_dir: Path, prompt_version: str, model: str,
-                  split: str) -> tuple[Path, Path]:
-    base = f"golden-{_slug(prompt_version)}-{_slug(model)}-{split}"
+                  split: str, planner: str) -> tuple[Path, Path]:
+    base = (f"golden-rules-baseline-{split}" if planner == "rules"
+            else f"golden-{_slug(prompt_version)}-{_slug(model)}-{split}")
     stem = base
     suffix = 2
     while (report_dir / f"{stem}.md").exists() or (report_dir / f"{stem}.json").exists():
@@ -118,11 +130,15 @@ def _render_markdown(meta: dict[str, Any], summary: dict[str, Any]) -> str:
     gate = summary["gate"]
     cost_per_call = gate["mean_cost_per_call"]
     cost_per_incident = gate["mean_cost_per_incident"]
+    budget_spent = summary["budget_spent_usd"]
     cost_per_call_text = "not scored" if cost_per_call is None else f"${cost_per_call:.8f}"
     cost_per_incident_text = (
         "not scored" if cost_per_incident is None else f"${cost_per_incident:.8f}")
+    budget_spent_text = "not reported" if budget_spent is None else f"${budget_spent:.8f}"
+    title = ("F6 deterministic rules baseline" if meta["planner"] == "rules"
+             else "F6 golden-set evaluation")
     lines = [
-        f"# F6 golden-set evaluation — {meta['split']}",
+        f"# {title} — {meta['split']}",
         "",
         f"- Commit: `{meta['commit']}`",
         f"- Golden file SHA256: `{meta['golden_sha256']}`",
@@ -131,6 +147,11 @@ def _render_markdown(meta: dict[str, Any], summary: dict[str, Any]) -> str:
         f"- Prompt version: `{meta['prompt_version']}`",
         f"- Evaluated rows: {summary['row_count']}",
         f"- Run cost: ${summary['run_total_usd']:.8f}",
+        f"- BudgetGuard spent: {budget_spent_text}",
+    ]
+    if meta["planner"] == "nemotron":
+        lines.extend(["", meta["evaluation_note"]])
+    lines += [
         "",
         "## F6 gate (test split pooled across repeats)",
         "",
@@ -186,10 +207,18 @@ def _render_markdown(meta: dict[str, Any], summary: dict[str, Any]) -> str:
 
 def write_reports(report_dir: Path, summary: dict[str, Any], *,
                   split: str, prompt_version: str, model: str, golden_sha256: str,
-                  commit: str, generated: str) -> tuple[Path, Path]:
+                  commit: str, generated: str, planner: str = "nemotron"
+                  ) -> tuple[Path, Path]:
     report_dir.mkdir(parents=True, exist_ok=True)
-    markdown_path, json_path = _report_paths(report_dir, prompt_version, model, split)
+    markdown_path, json_path = _report_paths(report_dir, prompt_version, model, split, planner)
+    evaluation_note = (
+        "This box measures whether the planner follows the local diagnosis and respects "
+        "capability/policy constraints; candidate_faults[0] determines the label in every "
+        "case and synthetic defocus carries focus_ok=false, so it is not a test of independent "
+        f"diagnosis. Deterministic rules baseline: "
+        f"[golden-rules-baseline-{split}.md](golden-rules-baseline-{split}.md).")
     meta = {
+        "planner": planner,
         "split": split,
         "prompt_version": prompt_version,
         "model": model,
@@ -197,6 +226,8 @@ def write_reports(report_dir: Path, summary: dict[str, Any], *,
         "commit": commit,
         "generated": generated,
     }
+    if planner == "nemotron":
+        meta["evaluation_note"] = evaluation_note
     markdown_path.write_text(_render_markdown(meta, summary), encoding="utf-8", newline="\n")
     json_path.write_text(json.dumps({"meta": meta, "summary": summary}, indent=2,
                                     sort_keys=True) + "\n", encoding="utf-8", newline="\n")
@@ -208,6 +239,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--split", choices=("test", "dev", "all"), default="test")
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--tier", choices=("fast", "reasoning"), default="fast")
+    parser.add_argument("--planner", choices=("nemotron", "rules"), default="nemotron")
     parser.add_argument("--prompt-version")
     parser.add_argument("--max-usd", type=float, default=0.50)
     parser.add_argument("--yes", action="store_true", help="allow live Token Factory calls")
@@ -236,7 +268,7 @@ def main(argv: list[str] | None = None, *, sdk_client: Any = None,
 
     golden_path = cases_path or REPO_ROOT / "benchmarks" / "golden" / "golden_v1.jsonl"
     cases = select_cases(load_golden(golden_path), args.split)
-    estimate = estimate_cost(cfg, args.tier, len(cases), args.repeats)
+    estimate = estimate_cost(cfg, args.tier, len(cases), args.repeats, args.planner)
     print(f"Cases: {len(cases)} × {args.repeats} repeats = {estimate['case_runs']} case runs")
     print(f"Maximum API calls (including one repair retry per case): "
           f"{estimate['max_api_calls']}")
@@ -244,41 +276,45 @@ def main(argv: list[str] | None = None, *, sdk_client: Any = None,
           f"({estimate['input_tokens_per_call']} input + "
           f"{estimate['output_tokens_per_call']} output tokens per call; "
           f"model {estimate['model']})")
-    if estimate["upper_bound_usd"] > args.max_usd:
+    if args.planner == "nemotron" and estimate["upper_bound_usd"] > args.max_usd:
         print(f"Estimate exceeds --max-usd ${args.max_usd:.6f}; no calls made.", file=sys.stderr)
         return 3
-    if not args.yes:
+    if args.planner == "nemotron" and not args.yes:
         print("Dry run only; pass --yes to make live Token Factory calls.")
         return 0
 
-    key = api_key()
-    if not key:
-        print("NEBIUS_API_KEY is not set.", file=sys.stderr)
-        return 2
-
     budget = BudgetGuard.from_config(cfg)
-    planner = make_planner(cfg, key, budget, sdk_client=sdk_client)
-    if not isinstance(planner, NemotronPlanner):
-        raise TypeError("F6 evaluation requires the Nemotron planner")
-    if args.tier != "fast":
-        planner = NemotronPlanner(planner.client, budget, cfg, tier=args.tier)
+    if args.planner == "rules":
+        planner = RuleBasedPlanner()
+    else:
+        key = api_key()
+        if not key:
+            print("NEBIUS_API_KEY is not set.", file=sys.stderr)
+            return 2
+        planner = make_planner(cfg, key, budget, sdk_client=sdk_client)
+        if not isinstance(planner, NemotronPlanner):
+            raise TypeError("F6 evaluation requires the Nemotron planner")
+        if args.tier != "fast":
+            planner = NemotronPlanner(planner.client, budget, cfg, tier=args.tier)
 
     generated = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     run_root = runs_dir or REPO_ROOT / "runs" / "eval"
     run_path = run_root / f"{stamp}.jsonl"
-    rows = run_eval(cases, planner, args.repeats, run_path)
-    summary = summarize(rows, cfg)
+    rows = run_eval(cases, planner, args.repeats, run_path,
+                    baseline=args.planner == "rules")
+    summary = summarize(rows, cfg, budget_spent_usd=budget.spent_usd, split=args.split)
     golden_sha256 = hashlib.sha256(golden_path.read_bytes()).hexdigest()
     reports = write_reports(
         report_dir or REPO_ROOT / "docs" / "evidence" / "f6",
         summary,
         split=args.split,
-        prompt_version=planner.prompt_version,
-        model=planner.model,
+        prompt_version=planner.prompt_version if isinstance(planner, NemotronPlanner) else "rules",
+        model=planner.model if isinstance(planner, NemotronPlanner) else "local-rules",
         golden_sha256=golden_sha256,
         commit=code_revision(),
         generated=generated,
+        planner=args.planner,
     )
     print(f"Run ledger: {run_path}")
     print(f"Reports: {reports[0]} (+ {reports[1].name})")
