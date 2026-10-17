@@ -3,7 +3,7 @@
 Last update: 2026-10-17 · Current phase: **F6** (F5 passed (independent gate review, SIMULATION); F4 open: tooling merged, REAL HARDWARE test sessions pending from the owner; F3: every box evidenced except REAL HARDWARE recall/precision, moved to F4; F1–F3 independent gate review pending) · Days to deadline: 16
 
 ## Snapshot
-- F5 gate review (independent, 2026-10-17, SIMULATION): APROBADA, 6/6 conditions; 710 passed, 1 deselected, 2 xfailed, Ruff clean and CI 5/5 on `d425c03`.
+- F5 gate review (independent, 2026-10-17, SIMULATION): passed, 6/6 conditions; 710 passed, 1 deselected, 2 xfailed, Ruff clean and CI 5/5 on `d425c03`.
   Hysteresis report `b6ddfd3` remains valid: intervening source changes are limited to `demo.py`, `nemotron/planner.py` and `orchestrator._handle_confirmed`/`_frozen` (none imported by `bench_hysteresis`); the config diff adds only `calibration_discard`, `stall_windows`, `restore_on_start`, `checkpoint_windows` and `lease_stale_s`, with no threshold relaxed.
   Reviewer checks: 36 random clean/crash restarts preserved state sequences; seeds 7/11/23 were deterministic across processes; 35/35 fault cases confirmed once and closed; lighting gains 0.30–1.525, a 50% ramp and 60/120 px crossings yielded 0 SUSPECT states and 0 planner calls.
 - Frozen-black handling (SIMULATION, `tests/e2e/test_scenarios.py` and
