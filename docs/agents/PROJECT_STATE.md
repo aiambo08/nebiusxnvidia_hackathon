@@ -7,7 +7,7 @@ Last update: 2026-10-17 · Current phase: **F5** (F4 open: tooling merged, REAL 
   over the same windows of the real probe path, the tracker flaps 66–100 % less than a memoryless
   per-window detector in every (MVP fault, glitch rate) cell and changes alert 67.7 % less overall,
   while alerting on all 180 sustained faults. Alert (CONFIRMED) flapping only: internal HEALTHY↔SUSPECT
-  moves drop just 9–35 %; glitches are 1–2 windows (< `enter_windows`). Remaining F5 box: all 5 faults CONFIRMED and a legitimate
+  moves drop just 9–36 %; every sustained alert closes; glitches are 1–2 windows (< `enter_windows`). Remaining F5 box: all 5 faults CONFIRMED and a legitimate
   lighting change back to HEALTHY without Nemotron (F5 PR4).
 - F5 restart persistence (SIMULATION, `tests/unit/test_restore.py`): FSM, hysteresis counters, cooldowns,
   gate rate-limit history and baseline restored from SQLite, one checkpoint per camera id; uncommitted

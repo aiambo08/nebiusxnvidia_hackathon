@@ -21,13 +21,14 @@ Gate: the tracker cuts flapping by >= 50 % in every (fault, p) cell where the me
 detector flaps at least `MIN_FLAPS` times, never flaps more in the other cells (the freeze
 probe already debounces over `probes.freeze_window` frames), and cuts all changes by >= 50 %
 overall. A cell is valid only if every sustained fault is alerted on and every run calibrated,
-so a tracker that never alerts cannot pass. Writes a Markdown report; exits 1 on FAIL.
+so a tracker that never alerts cannot pass, and only if every sustained alert closes before
+the next sustained fault (or the end of the run), so a tracker that latches on cannot.
+Writes a Markdown report; exits 1 on FAIL.
 """
 
 from __future__ import annotations
 
 import argparse
-import subprocess
 import time
 import zlib
 from collections import defaultdict
@@ -36,6 +37,7 @@ from pathlib import Path
 
 import _src_path  # noqa: F401  (adds src/ to sys.path)
 import numpy as np
+from spike_static_scene import code_revision
 
 from benchmarks.injectors.faults import apply_spatial
 from benchmarks.replay import telemetry_windows
@@ -107,6 +109,12 @@ def clip(bad: np.ndarray, kind: str, seed: int, sigma: float, per_window: int,
         src.close()
 
 
+def closed(alerted: np.ndarray, starts: list[int], sustained: int = SUSTAINED_WINDOWS) -> int:
+    """Sustained faults whose alert is off at least once between their end and the next one."""
+    bounds = [*starts[1:], len(alerted)]
+    return sum(not alerted[s + sustained:b].all() for s, b in zip(starts, bounds, strict=True))
+
+
 def run(kind: str, p: float, seed: int, sigma: float, cfg: dict, *, windows: int = 200,
         calib: int = CALIB_WINDOWS, size: tuple[int, int] = (640, 480)) -> dict:
     afps = cfg["camera"]["analytic_fps"]
@@ -156,6 +164,7 @@ def run(kind: str, p: float, seed: int, sigma: float, cfg: dict, *, windows: int
             "tracker_changes": len(tracker_at), "naive_flaps": flaps(naive_at),
             "tracker_flaps": flaps(tracker_at), "fsm_changes": fsm_changes,
             "sustained_covered": sum(covered), "sustained": len(covered),
+            "sustained_closed": closed(alerted, starts),
             "calibrated": tracker.baseline.ready}
 
 
@@ -166,7 +175,7 @@ def reduction(naive: int, tracker: int) -> float | None:
 def aggregate(results: list[dict]) -> dict[tuple[str, float], dict]:
     cells: dict[tuple[str, float], dict] = defaultdict(
         lambda: {"runs": 0, "naive": 0, "tracker": 0, "naive_flaps": 0, "tracker_flaps": 0,
-                 "fsm": 0, "covered": 0, "sustained": 0, "calibrated": 0})
+                 "fsm": 0, "covered": 0, "closed": 0, "sustained": 0, "calibrated": 0})
     for r in results:
         c = cells[(r["kind"], r["p"])]
         c["runs"] += 1
@@ -176,13 +185,15 @@ def aggregate(results: list[dict]) -> dict[tuple[str, float], dict]:
         c["tracker_flaps"] += r["tracker_flaps"]
         c["fsm"] += r["fsm_changes"]
         c["covered"] += r["sustained_covered"]
+        c["closed"] += r["sustained_closed"]
         c["sustained"] += r["sustained"]
         c["calibrated"] += int(r["calibrated"])
     for c in cells.values():
         c["reduction"] = reduction(c["naive"], c["tracker"])
         c["flap_reduction"] = reduction(c["naive_flaps"], c["tracker_flaps"])
         c["evaluable"] = c["naive_flaps"] >= MIN_FLAPS
-        c["valid"] = c["covered"] == c["sustained"] and c["calibrated"] == c["runs"]
+        c["valid"] = (c["covered"] == c["closed"] == c["sustained"]
+                      and c["calibrated"] == c["runs"])
         cut = (c["flap_reduction"] >= REDUCTION_MIN if c["evaluable"]
                else c["tracker_flaps"] <= c["naive_flaps"])
         c["pass"] = c["valid"] and cut
@@ -217,13 +228,13 @@ def main() -> None:
                     print(f"{kind} p={p:g} sigma={sigma:g} seed={seed}: naive={r['naive_flaps']}/"
                           f"{r['naive_changes']} tracker={r['tracker_flaps']}/"
                           f"{r['tracker_changes']} sustained={r['sustained_covered']}/"
-                          f"{r['sustained']} ({time.perf_counter() - t0:.1f}s)")
+                          f"{r['sustained']} closed={r['sustained_closed']} "
+                          f"({time.perf_counter() - t0:.1f}s)")
     cells = aggregate(results)
     ok = gate_ok(cells)
     naive = sum(c["naive"] for c in cells.values())
     tracker = sum(c["tracker"] for c in cells.values())
-    rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True,
-                         text=True, check=False).stdout.strip() or "unknown"
+    rev = code_revision(ROOT)
     fu = cfg["fusion"]
     fmt = lambda v: "-" if v is None else f"{100 * v:.1f} %"  # noqa: E731
     lines = [
@@ -245,30 +256,33 @@ def main() -> None:
         f"enter_windows, end + exit_windows]. Gate: flaps cut by >= {100 * REDUCTION_MIN:.0f} % in "
         f"every cell where the memoryless detector flaps >= {MIN_FLAPS} times, no more flaps in "
         f"the other cells (n/a), all changes cut by >= {100 * REDUCTION_MIN:.0f} % overall; a cell "
-        "is valid only if every sustained fault was alerted on and every run calibrated. "
+        "is valid only if every sustained fault was alerted on, every sustained alert closed "
+        "before the next sustained fault (or the end of the run) and every run calibrated. "
         "`fsm changes` also counts the internal HEALTHY <-> SUSPECT moves (not alerts).",
         "",
         "| fault | p | runs | memoryless flaps | tracker flaps | flap cut | memoryless changes "
-        "| tracker changes | change cut | fsm changes | sustained alerted | gate |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| tracker changes | change cut | fsm changes | sustained alerted | sustained closed "
+        "| gate |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for (kind, p), c in sorted(cells.items()):
         cut = fmt(c["flap_reduction"]) if c["evaluable"] else "n/a"
         lines.append(f"| {kind} | {p:g} | {c['runs']} | {c['naive_flaps']} | "
                      f"{c['tracker_flaps']} | {cut} | {c['naive']} | {c['tracker']} | "
                      f"{fmt(c['reduction'])} | {c['fsm']} | {c['covered']}/{c['sustained']} | "
-                     f"{'PASS' if c['pass'] else 'FAIL'} |")
+                     f"{c['closed']}/{c['sustained']} | {'PASS' if c['pass'] else 'FAIL'} |")
     lines += ["", f"**Overall:** memoryless {naive} changes, tracker {tracker}, reduction "
               f"{fmt(reduction(naive, tracker))} — {'PASS' if ok else 'FAIL'}.", "", "## Runs", "",
               "| fault | p | sigma | seed | bad windows | memoryless flaps/changes "
-              "| tracker flaps/changes | fsm | sustained |",
-              "|---|---|---|---|---|---|---|---|---|"]
+              "| tracker flaps/changes | fsm | sustained alerted | sustained closed |",
+              "|---|---|---|---|---|---|---|---|---|---|"]
     for r in results:
         lines.append(f"| {r['kind']} | {r['p']:g} | {r['sigma']:g} | {r['seed']} | "
                      f"{r['bad_windows']}/{r['windows']} | "
                      f"{r['naive_flaps']}/{r['naive_changes']} | "
                      f"{r['tracker_flaps']}/{r['tracker_changes']} | {r['fsm_changes']} | "
-                     f"{r['sustained_covered']}/{r['sustained']} |")
+                     f"{r['sustained_covered']}/{r['sustained']} | "
+                     f"{r['sustained_closed']}/{r['sustained']} |")
     lines += ["", f"commit: {rev} | runs: {len(results)} | wall time: "
               f"{time.perf_counter() - t_all:.0f} s | generated: "
               f"{time.strftime('%Y-%m-%d %H:%M:%S')} | overall: {'PASS' if ok else 'FAIL'}", ""]
