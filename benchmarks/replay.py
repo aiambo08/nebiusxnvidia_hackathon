@@ -15,7 +15,7 @@ from benchmarks.injectors.faults import apply_stream
 from reliability_agent.baselines.robust import RobustBaseline
 from reliability_agent.capture.base import Frame
 from reliability_agent.capture.worker import TransportMeter
-from reliability_agent.contracts.models import FaultType, IncidentState
+from reliability_agent.contracts.models import FaultType, IncidentState, TelemetryWindow
 from reliability_agent.incidents.fusion import IncidentTracker
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 
@@ -49,27 +49,17 @@ class ReplayResult:
     confirmations: list[tuple[int, float, list[str]]] = field(default_factory=list)
 
 
-def replay(frames: Iterable[np.ndarray], clip_fps: float, cfg: dict, *,
-           rearm: bool = False) -> ReplayResult:
-    """Sample `analytic_fps` frames/s from a clip and run the local detection path on them.
-
-    `rearm=True` counts every confirmation (false alarms per hour on long normal clips): after
-    each one the tracker is replaced by a fresh HEALTHY tracker that keeps the learned baseline,
-    as if an operator had closed the incident."""
+def telemetry_windows(frames: Iterable[np.ndarray], clip_fps: float,
+                      cfg: dict) -> Iterator[tuple[float, TelemetryWindow]]:
+    """Sample `analytic_fps` frames/s from a clip and yield `(t_end_s, window)` for every full
+    telemetry window, time driven by the frame index."""
     afps = cfg["camera"]["analytic_fps"]
     step = max(1, round(clip_fps / afps))
     per_window = max(1, round(afps * cfg["window"]["seconds"]))
-    fu, b = cfg["fusion"], cfg["baseline"]
-    def new_tracker(baseline: RobustBaseline) -> IncidentTracker:
-        return IncidentTracker("replay", cfg["faults"], fu["enter_windows"], fu["exit_windows"],
-                               fu["cooldown_s"], baseline)
-
-    tracker = new_tracker(RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]))
     runner = ProbeRunner(cfg)
     meter = TransportMeter()
     meter.connected = True
     agg = WindowAggregator("replay", cfg["window"]["seconds"])
-    res = ReplayResult()
     seq = n = 0
     calibrated = False
     for i, img in enumerate(frames):
@@ -86,7 +76,26 @@ def replay(frames: Iterable[np.ndarray], clip_fps: float, cfg: dict, *,
         n += 1
         if n < per_window:
             continue
-        tw = agg.emit(meter.snapshot(t=t), runner._geom_quality)
+        yield t, agg.emit(meter.snapshot(t=t), runner._geom_quality)
+        agg = WindowAggregator("replay", cfg["window"]["seconds"])
+        n = 0
+
+
+def replay(frames: Iterable[np.ndarray], clip_fps: float, cfg: dict, *,
+           rearm: bool = False) -> ReplayResult:
+    """Run the local detection path (probes -> windows -> baseline -> tracker) on a clip.
+
+    `rearm=True` counts every confirmation (false alarms per hour on long normal clips): after
+    each one the tracker is replaced by a fresh HEALTHY tracker that keeps the learned baseline,
+    as if an operator had closed the incident."""
+    fu, b = cfg["fusion"], cfg["baseline"]
+    def new_tracker(baseline: RobustBaseline) -> IncidentTracker:
+        return IncidentTracker("replay", cfg["faults"], fu["enter_windows"], fu["exit_windows"],
+                               fu["cooldown_s"], baseline)
+
+    tracker = new_tracker(RobustBaseline(b["window"], b["min_samples"], b["mad_epsilon"]))
+    res = ReplayResult()
+    for t, tw in telemetry_windows(frames, clip_fps, cfg):
         st = tracker.step(tw, now_s=t)
         idx = len(res.windows)
         res.windows.append(WindowResult(idx, round(t, 3), st.state, sorted(map(str, st.faults))))
@@ -98,8 +107,6 @@ def replay(frames: Iterable[np.ndarray], clip_fps: float, cfg: dict, *,
                 res.confirmed_faults = ranked
             if rearm:
                 tracker = new_tracker(tracker.baseline)
-        agg = WindowAggregator("replay", cfg["window"]["seconds"])
-        n = 0
     return res
 
 

@@ -106,7 +106,7 @@ On ≥ 10 runs per fault:
 - [x] Baseline frozen during SUSPECT / CONFIRMED / ACTING / VERIFYING (unit test)
 - [x] State and baseline restored from persistence after restart (`tests/unit/test_restore.py`, SIMULATION: per-camera SQLite checkpoint, one live agent per camera id enforced by a lease; a clean restart continues the uninterrupted state sequence; after a crash this camera's uncommitted action is rolled back and its open incident escalates to NEEDS_HUMAN without a new plan, also across a second restart)
 - [x] Same events → same state sequence (determinism unit test)
-- [ ] Hysteresis cuts state flapping ≥ 50% vs frame-by-frame detector
+- [x] Hysteresis cuts state flapping ≥ 50% vs frame-by-frame detector (SIMULATION, `scripts/bench_hysteresis.py` → `docs/evidence/f5/hysteresis.md`: 60 runs, 5 MVP faults × glitch rate 0.1/0.2/0.3, reference = memoryless per-window detector, alert (CONFIRMED) flaps cut 66–100 % per cell, all alert changes 67.7 % overall; internal HEALTHY↔SUSPECT moves are not cut by design — 9–35 %, freeze ≈ 0 — and glitches are 1–2 windows, shorter than `enter_windows`)
 - [ ] All 5 faults reach CONFIRMED; legitimate changes return to HEALTHY without calling Nemotron
 
 ## F6 — Nemotron integration

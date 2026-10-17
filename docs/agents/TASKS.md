@@ -58,6 +58,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F5][architecture] Restore FSM + baseline from SQLite after restart (`ReliabilityAgent.checkpoint/restore`, `tests/unit/test_restore.py`)
 - [x] [F5][architecture] Automatic calibration on clean windows with a `baseline_calibrated` event and version (`tests/unit/test_calibration.py`; a visual fault drops only the 3 windows before it, transport faults drop nothing, so one faulty window in ten still calibrates and LOW_FPS stays detectable)
 - [x] [F5][architecture] `calibration_stalled` event when an unready baseline makes no progress for `baseline.stall_windows` windows (a visual fault every ≤ 6 windows never calibrates; `tests/unit/test_calibration.py`)
+- [x] [F5][evaluation] Hysteresis flapping benchmark vs a memoryless per-window detector (`scripts/bench_hysteresis.py` → `docs/evidence/f5/hysteresis.md`, `tests/unit/test_bench_hysteresis.py`)
 - [ ] [F5][architecture] Per-mode baselines (day/night/profile): `RobustBaseline.mode` exists but is always `default`; calibration is per camera only
 - [ ] [F6][nebius] Golden set (20 cases × fault) + ambiguity cases
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
