@@ -3,6 +3,7 @@
 import pytest
 
 from reliability_agent.demo import SCENARIOS, run_scenario
+from reliability_agent.nemotron.planner import RuleBasedPlanner
 from reliability_agent.storage import EventStore
 
 
@@ -57,3 +58,35 @@ def test_planner_called_once_and_only_after_confirmation(name):
 def test_all_scenarios_registered():
     assert set(SCENARIOS) >= {"dark", "defocus", "freeze", "occlusion", "overexposure",
                               "bad_action"}
+
+
+def executed(res):
+    return [str(e["payload"]["action"]) for e in res.events if e["kind"] == "execution"]
+
+
+class SpyPlanner(RuleBasedPlanner):
+    def __init__(self):
+        self.calls = 0
+
+    def plan(self, incident):
+        self.calls += 1
+        return super().plan(incident)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_frozen_black_frame_restarts_capture_without_trying_exposure(seed):
+    spy = SpyPlanner()
+    res = run_scenario("frozen_black", planner=spy, seed=seed)
+    inc = [e["payload"] for e in res.events if e["kind"] == "incident"]
+    assert len(inc) == 1 and str(inc[0]["candidate_faults"][0]) == "blackout"
+    assert "set_exposure_bounded" not in [str(a) for a in inc[0]["allowed_actions"]]
+    assert executed(res) == ["restart_capture"], res.transitions
+    assert verification(res) == ["committed"]
+    assert res.final_state == "HEALTHY"
+    assert spy.calls == 0  # deterministic plan, no planner/LLM call
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_a_dark_scene_that_is_not_frozen_still_gets_exposure(seed):
+    res = run_scenario("dark", seed=seed)
+    assert executed(res) == ["set_exposure_bounded"], res.transitions

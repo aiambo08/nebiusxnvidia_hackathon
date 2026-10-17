@@ -38,7 +38,9 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F3][vision] Pre-existing (on `main` too, SIMULATION): a periodic multi-level flicker on a live sensor (±4 counts, period 2–8) trips the MSE-floor loop branch on the 160×120 image (σ 0.7: 300/420 windows). Judging that branch at full resolution loses replayed-buffer loops with decoder jitter (reviewer numbers in ADR-005); needs a noise-relative period test or transport evidence
 - [ ] [F3→later][ingestion+vision] Transport-level freeze evidence for compressed sources (RTP timestamps / decoder frame counters / `CAP_PROP_POS_MSEC` advancing while pixels repeat), so `freeze` on RTSP does not rest on pixels alone; contract change → ADR
 - [x] [F3][evaluation] `benchmarks.replay.EXPECTED` has no entries for `loop4`/`loop8`, so `score()` cannot grade those runs (static-scene loops are now detected via the bit-exact period rule, ADR-004; re-measure loop8 on the static smooth scene)
-- [ ] [F5][planner] Frozen black frame is reported as `blackout` only (ADR-003): if the exposure action fails verification while `exact_repeat_ratio ≥ 0.9`, plan `restart_capture` next instead of NEEDS_HUMAN
+- [x] [F5][planner+safety] On the first confirmed window where `exact_repeat_ratio ≥ faults.freeze.exact_repeat_ratio_min` and `blackout` is the leading fault, plan `restart_capture` when supported; do not offer exposure or autofocus on a frozen pipeline. SIMULATION: `tests/e2e/test_scenarios.py::test_frozen_black_frame_restarts_capture_without_trying_exposure`, `tests/adversarial/test_frozen_pipeline.py::test_frozen_black_without_restart_offers_no_image_setting_actions`, `test_frozen_black_without_restart_rejects_scripted_exposure`
+- [ ] [F5][safety] Extend the frozen check to inspect the incident's recent windows, not only the confirming window; cover freeze onset before/after darkness and window alignment.
+- [ ] [F5][evaluation] Investigate the pre-existing defocus verification margin: seed 0, 640×480, `analytic_fps` 8 rolls back 4/4 on `main` too, likely related to the one-off `[1-defocus]` flake.
 - [ ] [F1][safety] Simulated action apply/rollback ×2 — unit test green
 
 ## F2–F8

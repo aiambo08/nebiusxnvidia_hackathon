@@ -35,6 +35,7 @@ SCENARIOS: dict[str, tuple[str, float, int | None]] = {
     "occlusion": ("occlude", 1.0, 6),
     "overexposure": ("overexpose", 1.0, None),
     "bad_action": ("dark", 0.99, 8),   # scripted planner proposes the WRONG action -> rollback
+    "frozen_black": ("freeze", 1.0, None),  # decoder froze on a black frame -> restart_capture
 }
 
 
@@ -117,6 +118,9 @@ def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None 
     runner.calibrate_reference(src.read())
     for _ in range(warmup):
         one_window()
+    if name == "frozen_black":  # render one black frame for the freeze to repeat
+        src.set_fault("dark", 0.99)
+        src.read()
     src.set_fault(fault, strength)
     in_human = 0
     for _ in range(fault_windows):
