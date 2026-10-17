@@ -47,7 +47,8 @@ def test_clip_keeps_the_occluder_still_within_a_run():
 @pytest.mark.parametrize("kind", ["dark", "occlude_opaque"])
 def test_tracker_flaps_less_and_still_alerts_on_every_sustained_fault(cfg, kind):
     r = bench.run(kind, 0.3, seed=0, sigma=2.0, cfg=cfg, windows=150, calib=25, size=(320, 240))
-    assert r["calibrated"] and r["sustained_covered"] == r["sustained"] == 3
+    assert r["calibrated"]
+    assert r["sustained_covered"] == r["sustained_closed"] == r["sustained"] == 3
     assert r["naive_flaps"] >= bench.MIN_FLAPS
     assert r["tracker_flaps"] <= (1 - bench.REDUCTION_MIN) * r["naive_flaps"]
     assert r["tracker_changes"] <= (1 - bench.REDUCTION_MIN) * r["naive_changes"]
@@ -60,11 +61,12 @@ def test_flaps_exclude_the_changes_every_detector_owes_a_sustained_fault(cfg):
     assert r["naive_flaps"] == r["tracker_flaps"] == 0
 
 
-def _cell(naive, tracker, covered=3, calibrated=1, kind="dark", flaps=None):
+def _cell(naive, tracker, covered=3, calibrated=1, kind="dark", flaps=None, closed=3):
     nf, tf = flaps or (naive, tracker)
     return {"kind": kind, "p": 0.1, "naive_changes": naive, "tracker_changes": tracker,
             "naive_flaps": nf, "tracker_flaps": tf, "fsm_changes": 0,
-            "sustained_covered": covered, "sustained": 3, "calibrated": bool(calibrated)}
+            "sustained_covered": covered, "sustained_closed": closed, "sustained": 3,
+            "calibrated": bool(calibrated)}
 
 
 def test_gate_needs_half_the_flaps_in_every_cell():
@@ -88,3 +90,23 @@ def test_a_tracker_that_never_alerts_cannot_pass():
     assert not bench.gate_ok(bench.aggregate([_cell(40, 0, calibrated=0)]))
     assert not bench.gate_ok({})
     assert not bench.gate_ok(bench.aggregate([_cell(0, 0)])), "no flapping to cut is no evidence"
+
+
+def test_closed_counts_only_alerts_that_switch_off_before_the_next_sustained_fault():
+    starts = [10, 30, 50]
+    alerted = np.zeros(70, dtype=bool)
+    for s in starts:
+        alerted[s + 1:s + bench.SUSTAINED_WINDOWS + 2] = True
+    assert bench.closed(alerted, starts) == 3
+    latched = alerted.copy()
+    latched[starts[0]:] = True
+    assert bench.closed(latched, starts) == 0, "on from the first alert to the end"
+    bridged = alerted.copy()
+    bridged[starts[1]:starts[2] + 1] = True
+    assert bench.closed(bridged, starts) == 2, "stays on into the next sustained fault"
+
+
+def test_a_tracker_that_latches_on_cannot_pass():
+    assert bench.gate_ok(bench.aggregate([_cell(40, 2, flaps=(34, 0))]))
+    assert not bench.gate_ok(bench.aggregate([_cell(40, 2, flaps=(34, 0), closed=0)]))
+    assert not bench.gate_ok(bench.aggregate([_cell(40, 2, flaps=(34, 0), closed=2)]))
