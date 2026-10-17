@@ -163,7 +163,8 @@ class ReliabilityAgent:
             cur = self.store.get_state(key)
         except ValueError:
             cur = None
-        if isinstance(cur, dict) and cur.get("owner") != self._owner:
+        if isinstance(cur, dict) and cur.get("owner") != self._owner \
+                and not cur.get("released"):
             try:
                 age = self.wall_clock() - float(cur["heartbeat"])
             except (KeyError, TypeError, ValueError):
@@ -181,15 +182,17 @@ class ReliabilityAgent:
                              {"owner": self._owner, "heartbeat": self.wall_clock()})
 
     def _heartbeat(self) -> bool:
-        """Refresh the lease; False (and the agent stops acting for good) if another agent
-        took it over, e.g. after this one stalled for longer than ``lease_stale_s``."""
+        """Refresh the lease; False (and the agent stops acting for good) unless it is still
+        this agent's own live lease. A missing or released lease counts as lost too: another
+        agent may have taken over while this one stalled and then shut down cleanly."""
         if self._lease_lost:
             return False
         try:
             cur = self.store.get_state(lease_key(self.tracker.camera_id))
         except ValueError:
             cur = None
-        if isinstance(cur, dict) and cur.get("owner") != self._owner:
+        if not (isinstance(cur, dict) and cur.get("owner") == self._owner
+                and not cur.get("released")):
             self._lease_lost = True
             log.error("lease of camera %s taken over by another agent; this agent stops acting",
                       self.tracker.camera_id)
@@ -199,12 +202,19 @@ class ReliabilityAgent:
         self._write_lease()
         return True
 
+    @property
+    def lease_lost(self) -> bool:
+        return self._lease_lost
+
     def release_lease(self) -> None:
-        """Clean shutdown: the next start of this camera need not wait for the lease."""
+        """Clean shutdown: the next start of this camera need not wait for the lease. A
+        tombstone, not a deletion, so a stalled agent cannot mistake it for its own."""
         key = lease_key(self.tracker.camera_id)
         cur = self.store.get_state(key)
         if isinstance(cur, dict) and cur.get("owner") == self._owner:
-            self.store.delete_state(key)
+            self.store.put_state(key, {"owner": self._owner, "released": True,
+                                       "heartbeat": self.wall_clock()})
+        self._lease_lost = True
 
     def checkpoint(self) -> None:
         """Persist what the next window depends on: FSM state, hysteresis counters, cooldowns,
@@ -342,7 +352,9 @@ class ReliabilityAgent:
         self.store.append("incident", incident, incident.incident_id)
 
         self._to(S.DIAGNOSING, "incident confirmed")
-        self._heartbeat()
+        if not self._heartbeat():
+            self._to(S.NEEDS_HUMAN, "lease taken over by another agent: no plan")
+            return
         out = self.planner.plan(incident)
         self.active.plan = out
         u = out.usage
