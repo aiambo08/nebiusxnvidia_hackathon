@@ -31,10 +31,17 @@ def _code_sha() -> str:
 
 def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
     summary = recovery["summary"]
+    regression_summary = regression["summary"]
     rate = (
         "n/a" if summary["recovery_rate"] is None
         else f"{summary['recovery_rate']:.1%}"
     )
+    regression_misses = [
+        f"{key.replace(':', ' strength ')}: "
+        f"{result['runs'] - result['passed']}/{result['runs']}"
+        for key, result in regression_summary["by_fault_strength"].items()
+        if result["passed"] != result["runs"]
+    ]
     lines = [
         "# F8 Offline Recovery Benchmark",
         "",
@@ -68,7 +75,11 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         "## Deliberate regression grid",
         "",
         "Same pre-registered faults and seeds `0..4`; actions are proposed through "
-        "the policy gate.",
+        "the policy gate when an incident is confirmed.",
+        "The frozen-black case uses the agent's local frozen-blackout restart plan "
+        "instead of the injected planner; the harness keeps the repeated frame "
+        "across restart to exercise rollback.",
+        "Other regression cases use scripted, policy-gated, non-remediating proposals.",
         "",
         "| Fault | Strength | Runs | Rollback/safe-mode pass | Rollback events | "
         "Settings restored |",
@@ -83,11 +94,13 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         )
     lines.extend([
         "",
-        f"Rollback/safe-mode pass: **{regression['summary']['passed']} / "
-        f"{regression['summary']['runs']}**; successful rollback events: "
-        f"{regression['summary']['rollback_ok']}; settings equal restored snapshots: "
-        f"{regression['summary']['settings_identical']}. "
-        f"100% gate: {'PASS' if regression['summary']['gate_pass'] else 'FAIL'}.",
+        f"Rollback/safe-mode pass: **{regression_summary['passed']} / "
+        f"{regression_summary['runs']}**; successful rollback events: "
+        f"{regression_summary['rollback_ok']}; settings equal restored snapshots: "
+        f"{regression_summary['settings_identical']}. "
+        f"100% gate: {'PASS' if regression_summary['gate_pass'] else 'FAIL'}.",
+        "Regression misses by fault/strength: "
+        f"{', '.join(regression_misses) if regression_misses else 'none'}.",
         "",
         "Per-case event-derived outcomes and regression checks are in the companion JSON.",
         "",
