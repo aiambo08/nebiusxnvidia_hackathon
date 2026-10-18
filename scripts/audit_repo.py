@@ -107,9 +107,12 @@ CREDENTIAL_PATTERNS = {
     "Hugging Face token": re.compile(rb"\bhf_[A-Za-z0-9]{8,}\b", re.IGNORECASE),
 }
 API_KEY_ASSIGNMENT_PATTERN = re.compile(
-    rb"\b(NEBIUS_API_KEY|api_key)[\"']?[ \t]*\]?[ \t]*(?:=|:)[ \t]*[\"']?"
+    rb"\b(NEBIUS_API_KEY|api_key)[\"']?[ \t]*\]?[ \t]*(?:=|:)[ \t]*([\"']?)"
     rb"([^\"'\s,;#}\]\)]+)",
     re.IGNORECASE,
+)
+FORWARDED_API_KEY_VALUE_PATTERN = re.compile(
+    rb"[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*"
 )
 YAML_KEY_ASSIGNMENT_PATTERN = re.compile(
     rb"(?m)^[ \t]*KEY\s*:\s*[\"']?([^\"'\s,;#}\]]+)"
@@ -194,14 +197,6 @@ def _is_placeholder_value(value: bytes) -> bool:
         "your-key-here",
         "str",
     }
-    stripped = value.strip()
-    if (
-        stripped[:1].islower()
-        and re.fullmatch(
-            rb"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*", stripped
-        )
-    ):
-        return True
     return (
         normalized in placeholders
         or "http://" in normalized
@@ -217,8 +212,16 @@ def _credential_findings_bytes(data: bytes) -> set[str]:
         label for label, pattern in CREDENTIAL_PATTERNS.items() if pattern.search(data)
     }
     for match in API_KEY_ASSIGNMENT_PATTERN.finditer(data):
-        if not _is_placeholder_value(match.group(2)):
-            name = match.group(1).decode("ascii", errors="ignore").casefold()
+        name = match.group(1).decode("ascii", errors="ignore").casefold()
+        quoted = bool(match.group(2))
+        value = match.group(3)
+        forwarded_api_key = (
+            name == "api_key"
+            and not quoted
+            and b"_" in value
+            and FORWARDED_API_KEY_VALUE_PATTERN.fullmatch(value)
+        )
+        if not _is_placeholder_value(value) and not forwarded_api_key:
             findings.add(f"{name} assignment")
     for match in YAML_KEY_ASSIGNMENT_PATTERN.finditer(data):
         if not _is_placeholder_value(match.group(1)):

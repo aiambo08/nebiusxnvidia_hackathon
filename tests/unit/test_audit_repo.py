@@ -255,6 +255,99 @@ def test_your_prefix_alone_does_not_make_a_value_a_placeholder(tmp_path):
     assert "api_key assignment" in report
 
 
+def test_api_key_assignment_values_are_flagged_per_current_file_row(tmp_path):
+    v1_value = b"v1." + b"CmQKHHN0YXRpY2tleS1lMDBhYmNkZWZnaGlqa2xtbm9w"
+    hex_value = b"a3f9c2e1b7d84f0a" + b"9e6c5b2d1f0e8a7c"
+    live_value = b"sk" + b"_live_" + b"abcdefghijklmnop1234"
+    fixtures = [
+        (
+            "nebius-v1-env.txt",
+            b"NEBIUS_" + b"API_KEY=" + v1_value,
+            "nebius_api_key assignment",
+        ),
+        (
+            "api-key-quoted-hex.txt",
+            b"api" + b'_key = "' + hex_value + b'"',
+            "api_key assignment",
+        ),
+        (
+            "api-key-sk-live.txt",
+            b'api_key="' + live_value + b'"',
+            "api_key assignment",
+        ),
+        (
+            "nebius-lowercase.txt",
+            b"NEBIUS_" + b"API_KEY=" + b"abcdefghijklmnopqrstuvwxyz0123456789",
+            "nebius_api_key assignment",
+        ),
+        (
+            "nebius-reference.txt",
+            b"NEBIUS_" + b"API_KEY=settings.nebius_key",
+            "nebius_api_key assignment",
+        ),
+        ("v1-unquoted.txt", b"api_key=" + v1_value, "api_key assignment"),
+        ("v1-quoted-colon.txt", b'api_key: "' + v1_value + b'"', "api_key assignment"),
+        ("hex-unquoted.txt", b"api_key=" + hex_value, "api_key assignment"),
+        (
+            "hex-quoted-json.txt",
+            b'{"api_key": "' + hex_value + b'"}',
+            "api_key assignment",
+        ),
+        (
+            "quoted-forward-reference.txt",
+            b"api" + b'_key="' + b"settings.nebius_key" + b'"',
+            "api_key assignment",
+        ),
+        (
+            "os-environ.txt",
+            b'os.environ["NEBIUS_API_KEY"] = "' + b"Q" * 24 + b'"',
+            "nebius_api_key assignment",
+        ),
+        (
+            "openai-call.txt",
+            b'OpenAI(api_key="' + hex_value + b'")',
+            "api_key assignment",
+        ),
+    ]
+    repo, allowlist = _new_repo(
+        tmp_path,
+        {relative: content for relative, content, _reason in fixtures},
+    )
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    report = (tmp_path / "audit.md").read_text(encoding="utf-8")
+    tracked_section = report.split("## Tracked-file inventory", 1)[1].split(
+        "## Historical findings", 1
+    )[0]
+    for relative, _content, reason in fixtures:
+        row = next(
+            line for line in tracked_section.splitlines() if f"`{relative}`" in line
+        )
+        assert reason in row
+
+
+def test_placeholder_prefixes_only_skip_exact_known_values(tmp_path):
+    prefixes = ("fake", "dummy", "example", "placeholder", "replace")
+    files = {
+        f"{prefix}.py": "api" + "_key=" + prefix + "-looks-like-a-real-value\n"
+        for prefix in prefixes
+    }
+    repo, allowlist = _new_repo(tmp_path, files)
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    report = (tmp_path / "audit.md").read_text(encoding="utf-8")
+    tracked_section = report.split("## Tracked-file inventory", 1)[1].split(
+        "## Historical findings", 1
+    )[0]
+    for prefix in prefixes:
+        row = next(line for line in tracked_section.splitlines() if f"`{prefix}.py`" in line)
+        assert "api_key assignment" in row
+
+
 def _credential_fixtures():
     private_key = (
         b"-----BEGIN "

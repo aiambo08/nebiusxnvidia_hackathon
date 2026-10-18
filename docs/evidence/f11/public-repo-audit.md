@@ -126,7 +126,7 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `pyproject.toml` | 1757 | — | — |
 | `scripts/__init__.py` | 0 | — | — |
 | `scripts/_src_path.py` | 293 | — | — |
-| `scripts/audit_repo.py` | 21274 | — | — |
+| `scripts/audit_repo.py` | 21436 | — | — |
 | `scripts/bench_detectors.py` | 8541 | — | — |
 | `scripts/bench_experiments.py` | 2439 | — | — |
 | `scripts/bench_hysteresis.py` | 15226 | — | — |
@@ -206,7 +206,7 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `tests/integration/test_recovery_benchmark.py` | 1518 | — | — |
 | `tests/integration/test_replay_injection.py` | 2098 | — | — |
 | `tests/integration/test_source_contract.py` | 1771 | — | — |
-| `tests/unit/test_audit_repo.py` | 21983 | — | — |
+| `tests/unit/test_audit_repo.py` | 25253 | — | — |
 | `tests/unit/test_baseline_fusion.py` | 18138 | — | — |
 | `tests/unit/test_bench_detectors.py` | 2644 | — | — |
 | `tests/unit/test_bench_hysteresis.py` | 5145 | — | — |
