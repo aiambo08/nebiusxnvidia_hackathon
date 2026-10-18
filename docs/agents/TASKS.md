@@ -93,4 +93,10 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
 - [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
 - [ ] [F9][product] Complete F9 product evidence
-- [ ] [F12][product] Video + Devpost text
+- [ ] [F12][product] Independent fresh reviewer reproduces the README happy path
+- [ ] [F12][product] Run F4 REAL HARDWARE recordings and benchmark with the owner
+- [ ] [F12][product] Five-user product test with completed observation forms
+- [ ] [F12][product] Record and publish the public demo video with real physical input
+- [ ] [F12][product] Confirm video and final commit match; create and push the submission tag
+- [ ] [F12][product] Verify public evidence links in an incognito session
+- [ ] [F12][product] Complete Devpost fields and submit with operational margin

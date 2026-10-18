@@ -1,6 +1,6 @@
 # Project state
 
-Last update: 2026-10-18 · Current phase: **F8** (F8 simulation gate evidence complete; independent F8 review pending; F6 independent gate review pending; F4 open: tooling merged, REAL HARDWARE test sessions pending from the owner; F3: every box evidenced except REAL HARDWARE recall/precision, moved to F4; F1–F3 independent gate review pending) · Days to deadline: 15
+Last update: 2026-10-18 · Current phase: **F8** (F8 simulation evidence complete; F4 REAL HARDWARE test sessions and F9 product review remain open; F12 submission preparation is documentation only, with every F12 gate unchecked) · Days to deadline: 15
 
 ## Snapshot
 - F6 offline golden set (SIMULATION, `benchmarks/golden/golden_v1.jsonl`): 136 captured-incident cases (base 100, no_cap 16, injection 20; dev 48 / test 88); evaluation and grading are implemented without live Token Factory calls.
@@ -121,6 +121,11 @@ Last update: 2026-10-18 · Current phase: **F8** (F8 simulation gate evidence co
 ## F8 review revalidation
 - SIMULATION on clean code commit `20c4126c218229646395ba7bff3aa8dd50399891`: recovery remained 87/100 (3 needs-human, 10 timeouts); raw regression remained 45/50. All 45/45 executed runs rolled back with exact snapshot restoration, and all five non-executed dark:0.8 runs left settings unchanged. The executed-coverage floor passed for dark, defocus, overexpose, and frozen_black. Recovery classification and incident reports are EventStore-only; regression uses EventStore events, initial/pre-action/final device settings, and `ScenarioResult.final_state`. Defocus and frozen_black `enter_safe_mode` proposals are non-remediating actions. Full report: `docs/evidence/f8/recovery-bench.md` and `.json`.
 - Classifier follow-up: `tests/unit/test_recovery_classifier.py` retains the no-rollback execution failure test and separately pins non-exact rollback diagnostics (`snapshot_equal=False`) and non-executed changed-settings rejection; M14, M6a and M7 mutation checks kill their respective mutants.
+
+## F10–F12 submission status
+- F10 A1–A8 evidence is in PR #58 and is not present on the current `origin/main`; describe it as pending until integration. The soak remains pending and `/home/ubuntu/wt-soak` is not part of this work.
+- F11 evidence is in PR #59 and remains pending review unless it is integrated before the F12 push.
+- F12 documentation is being prepared. No F12 gate is claimed complete: independent reproduction, physical demo video, user test, final tag, incognito link check and Devpost submission remain owner/reviewer work.
 
 ## Blockers
 - Token Factory console balance to be confirmed by Aibo.
