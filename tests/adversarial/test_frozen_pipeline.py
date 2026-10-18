@@ -60,6 +60,29 @@ class ExposurePlanner:
         )
 
 
+class ProfilePlanner:
+    name = "scripted-profile"
+
+    def __init__(self):
+        self.calls = 0
+
+    def plan(self, incident):
+        self.calls += 1
+        return PlanOutcome(
+            NemotronPlan(
+                diagnosis=FaultType.BLACKOUT,
+                confidence=0.9,
+                action=PlanAction(
+                    name=ActionName.SWITCH_STREAM_PROFILE,
+                    arguments={"profile": "sub"},
+                ),
+                human_message="(scripted) switch stream profile",
+            ),
+            TokenUsage(model="scripted"),
+            "scripted",
+        )
+
+
 def test_frozen_black_without_restart_offers_no_image_setting_actions(monkeypatch):
     _disable_restart(monkeypatch)
     planner = SpyPlanner()
@@ -77,6 +100,26 @@ def test_frozen_black_without_restart_offers_no_image_setting_actions(monkeypatc
     assert planner.calls == 1
     assert not _events(res, "execution")
     assert "NEEDS_HUMAN" in res.states
+
+
+def test_blackout_offers_only_relevant_actions_and_rejects_profile_plan():
+    planner = ProfilePlanner()
+    res = run_scenario("dark", planner=planner)
+
+    incidents = _events(res, "incident")
+    assert len(incidents) == 1
+    allowed = {str(action) for action in incidents[0]["payload"]["allowed_actions"]}
+    assert not allowed.intersection({
+        "restart_capture",
+        "switch_stream_profile",
+        "trigger_autofocus",
+    })
+    policy = next(event["payload"] for event in _events(res, "policy")
+                  if str(event["payload"]["action"]) == "switch_stream_profile")
+    assert policy["approved"] is False
+    assert "action not offered for this incident" in policy["reasons"]
+    assert not _events(res, "execution")
+    assert planner.calls == 1
 
 
 def test_frozen_black_without_restart_rejects_scripted_exposure(monkeypatch):

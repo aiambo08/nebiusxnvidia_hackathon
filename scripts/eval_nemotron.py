@@ -29,7 +29,7 @@ PROMPT_VERSION_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def load_golden(path: Path | None = None) -> list[dict[str, Any]]:
-    path = path or REPO_ROOT / "benchmarks" / "golden" / "golden_v1.jsonl"
+    path = path or REPO_ROOT / "benchmarks" / "golden" / "golden_v2.jsonl"
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()]
 
@@ -266,7 +266,7 @@ def main(argv: list[str] | None = None, *, sdk_client: Any = None,
     if not prompt_path.is_file():
         parser.error(f"prompt version {cfg['planner']['prompt_version']!r} does not exist")
 
-    golden_path = cases_path or REPO_ROOT / "benchmarks" / "golden" / "golden_v1.jsonl"
+    golden_path = cases_path or REPO_ROOT / "benchmarks" / "golden" / "golden_v2.jsonl"
     cases = select_cases(load_golden(golden_path), args.split)
     estimate = estimate_cost(cfg, args.tier, len(cases), args.repeats, args.planner)
     print(f"Cases: {len(cases)} × {args.repeats} repeats = {estimate['case_runs']} case runs")

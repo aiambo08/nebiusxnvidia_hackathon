@@ -6,7 +6,9 @@ import random
 import pytest
 
 from reliability_agent.contracts.models import ActionName, FaultType, Incident
+from reliability_agent.nemotron.planner import _RULES
 from reliability_agent.policy import PolicyGate
+from reliability_agent.policy.gate import ALWAYS_OFFERED, FAULT_ACTIONS
 
 CAPS = ["exposure", "autofocus", "profiles", "restart"]
 
@@ -44,6 +46,86 @@ def adversarial_cases():
 
 
 CASES = list(adversarial_cases())
+EXPECTED_FAULT_ACTIONS = {
+    FaultType.STREAM_DOWN: (ActionName.RESTART_CAPTURE,),
+    FaultType.FREEZE: (ActionName.RESTART_CAPTURE,),
+    FaultType.BLACKOUT: (
+        ActionName.SET_EXPOSURE_BOUNDED,
+        ActionName.REQUEST_MANUAL_CLEANING,
+    ),
+    FaultType.OVEREXPOSURE: (ActionName.SET_EXPOSURE_BOUNDED,),
+    FaultType.FOCUS_DRIFT: (
+        ActionName.TRIGGER_AUTOFOCUS,
+        ActionName.REQUEST_MANUAL_CLEANING,
+    ),
+    FaultType.LOW_FPS: (ActionName.SWITCH_STREAM_PROFILE,),
+    FaultType.PIPELINE_SATURATION: (ActionName.SWITCH_STREAM_PROFILE,),
+    FaultType.LENS_OCCLUSION: (ActionName.REQUEST_MANUAL_CLEANING,),
+    FaultType.FOV_SHIFT: (ActionName.REQUEST_RECALIBRATION,),
+    FaultType.MOTION_BLUR: (),
+    FaultType.UNKNOWN: (),
+}
+
+
+def test_fault_actions_covers_every_fault_type_and_matches_the_offer_table():
+    assert set(FAULT_ACTIONS) == set(FaultType)
+    assert FAULT_ACTIONS == EXPECTED_FAULT_ACTIONS
+    assert ALWAYS_OFFERED == (ActionName.ENTER_SAFE_MODE, ActionName.NEEDS_HUMAN)
+
+
+@pytest.mark.parametrize(("fault", "expected"), EXPECTED_FAULT_ACTIONS.items())
+def test_offered_for_each_fault_with_full_capabilities(fault, expected):
+    gate = PolicyGate()
+    offered = gate.offered_for(CAPS, [fault])
+    expected_set = set(expected) | set(ALWAYS_OFFERED)
+    assert set(offered) == expected_set
+    assert offered == [name for name in gate.allowed_for(CAPS) if name in expected_set]
+
+
+@pytest.mark.parametrize("missing", CAPS)
+def test_offered_for_omits_actions_requiring_each_missing_capability(missing):
+    gate = PolicyGate()
+    capabilities = [cap for cap in CAPS if cap != missing]
+    faults = list(FaultType)
+    expected_relevant = {
+        action
+        for fault, actions in EXPECTED_FAULT_ACTIONS.items()
+        for action in actions
+    } | set(ALWAYS_OFFERED)
+    expected = [
+        name for name in gate.allowed_for(capabilities)
+        if name in expected_relevant
+    ]
+    assert gate.offered_for(capabilities, faults) == expected
+
+
+def test_offered_for_unions_multiple_fault_actions_in_registry_order():
+    gate = PolicyGate()
+    faults = [FaultType.BLACKOUT, FaultType.FOCUS_DRIFT]
+    relevant = set(EXPECTED_FAULT_ACTIONS[FaultType.BLACKOUT]
+                   + EXPECTED_FAULT_ACTIONS[FaultType.FOCUS_DRIFT]) | set(ALWAYS_OFFERED)
+    assert gate.offered_for(CAPS, faults) == [
+        name for name in gate.allowed_for(CAPS) if name in relevant
+    ]
+
+
+@pytest.mark.parametrize("faults", [[], [FaultType.UNKNOWN], [FaultType.MOTION_BLUR]])
+def test_unknown_or_empty_faults_offer_only_always_offered(faults):
+    assert PolicyGate().offered_for(CAPS, faults) == [
+        ActionName.ENTER_SAFE_MODE,
+        ActionName.NEEDS_HUMAN,
+    ]
+
+
+def test_overexposure_without_exposure_offers_only_escalation():
+    assert PolicyGate().offered_for(
+        ["autofocus", "profiles", "restart"], [FaultType.OVEREXPOSURE]
+    ) == [ActionName.ENTER_SAFE_MODE, ActionName.NEEDS_HUMAN]
+
+
+def test_every_planner_rule_action_is_offered_for_its_fault():
+    for fault, action, _ in _RULES:
+        assert action in FAULT_ACTIONS[fault]
 
 
 def test_at_least_100_cases():
