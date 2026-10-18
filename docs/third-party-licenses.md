@@ -13,6 +13,10 @@ No third-party source code is vendored. Runtime dependencies (installed from PyP
 | fastapi / uvicorn (optional) | API | MIT / BSD-3-Clause | 2026-10-04 |
 | pytest, pytest-cov, ruff (dev) | tests/lint | MIT | 2026-10-04 |
 
+The `opencv-python-headless` wheel bundles FFmpeg (LGPL; see its
+`LICENSE-3RD-PARTY.txt`), and NumPy bundles libgfortran (GPL with the runtime exception).
+These notices apply if wheels are redistributed; this project does not redistribute wheels.
+
 Models (used as a service, not redistributed): NVIDIA Nemotron 3 family — NVIDIA Open Model
 License; check the license URL returned by the catalog for the exact model used.
 
@@ -27,9 +31,9 @@ Candidates **not yet incorporated** (check license before copying anything):
 <!-- BEGIN GENERATED DEPENDENCY LICENSES -->
 ## Installed runtime and optional dependency distributions
 
-Generated from `pyproject.toml` and installed distribution metadata. Transitive requirements are included.
+Generated from `pyproject.toml` and installed distribution metadata. Transitive requirements are included; markers are resolved for Linux and win32.
 
-Requirement markers use a Python 3.11/Linux target. Versions and metadata reflect this installed environment.
+versions as resolved on the generating machine; --check compares names and licences.
 
 | Name | Version | Licence | Homepage | Pulled in by |
 |---|---|---|---|---|
@@ -38,6 +42,7 @@ Requirement markers use a Python 3.11/Linux target. Versions and metadata reflec
 | `anyio` | 4.15.1 | MIT | https://anyio.readthedocs.io/en/latest/ | api, runtime |
 | `certifi` | 2026.7.22 | MPL-2.0 | https://github.com/certifi/python-certifi | runtime |
 | `click` | 8.5.0 | BSD-3-Clause | https://github.com/pallets/click/ | api |
+| `colorama` | 0.4.6 | BSD License | https://github.com/tartley/colorama | dev |
 | `coverage` | 7.16.2 | Apache-2.0 | https://github.com/coveragepy/coveragepy | dev |
 | `fastapi` | 0.142.2 | MIT | https://github.com/fastapi/fastapi | api |
 | `h11` | 0.16.0 | MIT | https://github.com/python-hyper/h11 | api, runtime |
@@ -72,5 +77,7 @@ Requirement markers use a Python 3.11/Linux target. Versions and metadata reflec
 
 - `certifi` — `MPL-2.0` (copyleft)
 
-No manual licence overrides were needed.
+### Manual licence overrides
+
+- `colorama` — `BSD License`; source: `https://pypi.org/pypi/colorama/0.4.6/json`
 <!-- END GENERATED DEPENDENCY LICENSES -->

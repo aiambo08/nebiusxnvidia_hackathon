@@ -16,18 +16,36 @@ from packaging.utils import canonicalize_name
 
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
+UV_LOCK = ROOT / "uv.lock"
 LICENSE_DOCUMENT = ROOT / "docs/third-party-licenses.md"
 BEGIN_MARKER = "<!-- BEGIN GENERATED DEPENDENCY LICENSES -->"
 END_MARKER = "<!-- END GENERATED DEPENDENCY LICENSES -->"
-LICENSE_OVERRIDES: dict[str, dict[str, str]] = {}
-MARKER_TARGET = {
-    "implementation_name": "cpython",
-    "os_name": "posix",
-    "platform_python_implementation": "CPython",
-    "platform_system": "Linux",
-    "python_full_version": "3.11.0",
-    "python_version": "3.11",
-    "sys_platform": "linux",
+LICENSE_OVERRIDES: dict[str, dict[str, str]] = {
+    "colorama": {
+        "license": "BSD License",
+        "source": "https://pypi.org/pypi/colorama/0.4.6/json",
+        "homepage": "https://github.com/tartley/colorama",
+    }
+}
+MARKER_TARGETS = {
+    "linux": {
+        "implementation_name": "cpython",
+        "os_name": "posix",
+        "platform_python_implementation": "CPython",
+        "platform_system": "Linux",
+        "python_full_version": "3.11.0",
+        "python_version": "3.11",
+        "sys_platform": "linux",
+    },
+    "win32": {
+        "implementation_name": "cpython",
+        "os_name": "nt",
+        "platform_python_implementation": "CPython",
+        "platform_system": "Windows",
+        "python_full_version": "3.11.0",
+        "python_version": "3.11",
+        "sys_platform": "win32",
+    },
 }
 UNKNOWN_VALUES = {
     "",
@@ -47,22 +65,32 @@ NONCOMMERCIAL_PATTERN = re.compile(
 )
 
 
-def _marker_environment() -> dict[str, str]:
-    return {**default_environment(), **MARKER_TARGET, "extra": ""}
+def _marker_environment(platform: str) -> dict[str, str]:
+    return {**default_environment(), **MARKER_TARGETS[platform], "extra": ""}
 
 
-def _marker_matches(requirement: Requirement, extras: set[str] | None = None) -> bool:
+def _marker_matches(
+    requirement: Requirement,
+    extras: set[str] | None = None,
+    environment: dict[str, str] | None = None,
+) -> bool:
     if requirement.marker is None:
         return True
-    environment = _marker_environment()
+    marker_environment = environment or _marker_environment("linux")
     values = extras or {""}
     return any(
-        requirement.marker.evaluate({**environment, "extra": extra}) for extra in values
+        requirement.marker.evaluate({**marker_environment, "extra": extra})
+        for extra in values
     )
 
 
 def resolve_dependencies() -> tuple[dict[str, dict[str, Any]], list[str]]:
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
+    lock = tomllib.loads(UV_LOCK.read_text(encoding="utf-8"))
+    locked_packages = {
+        canonicalize_name(package["name"]): package
+        for package in lock.get("package", [])
+    }
     groups = {"runtime": project.get("dependencies", [])}
     groups.update(project.get("optional-dependencies", {}))
     installed = {
@@ -72,63 +100,95 @@ def resolve_dependencies() -> tuple[dict[str, dict[str, Any]], list[str]]:
     }
     records: dict[str, dict[str, Any]] = {}
     errors = []
-    environment = _marker_environment()
-
-    for group, roots in groups.items():
-        queue: deque[tuple[Requirement, set[str]]] = deque()
-        for text in roots:
-            try:
-                requirement = Requirement(text)
-            except InvalidRequirement as exc:
-                errors.append(f"Invalid {group} requirement {text!r}: {exc}")
-                continue
-            marker_extra = "" if group == "runtime" else group
-            if requirement.marker and not requirement.marker.evaluate(
-                {**environment, "extra": marker_extra}
-            ):
-                continue
-            queue.append((requirement, set(requirement.extras)))
-
-        visited: set[tuple[str, tuple[str, ...]]] = set()
-        while queue:
-            requirement, requested_extras = queue.popleft()
-            name = canonicalize_name(requirement.name)
-            state = (name, tuple(sorted(requested_extras)))
-            if state in visited:
-                continue
-            visited.add(state)
-            distribution = installed.get(name)
-            if distribution is None:
-                errors.append(
-                    f"{group} dependency {requirement.name!r} is not installed"
-                )
-                continue
-
-            record = records.setdefault(
-                name,
-                {
-                    "distribution": distribution,
-                    "groups": set(),
-                },
-            )
-            record["groups"].add(group)
-            marker_extras = requested_extras | {""}
-            for dependency_text in distribution.requires or []:
+    for platform, target in MARKER_TARGETS.items():
+        environment = {**default_environment(), **target, "extra": ""}
+        for group, roots in groups.items():
+            queue: deque[tuple[Requirement, set[str]]] = deque()
+            for text in roots:
                 try:
-                    dependency = Requirement(dependency_text)
+                    requirement = Requirement(text)
                 except InvalidRequirement as exc:
+                    errors.append(f"Invalid {group} requirement {text!r}: {exc}")
+                    continue
+                marker_extra = "" if group == "runtime" else group
+                if requirement.marker and not requirement.marker.evaluate(
+                    {**environment, "extra": marker_extra}
+                ):
+                    continue
+                queue.append((requirement, set(requirement.extras)))
+
+            visited: set[tuple[str, tuple[str, ...]]] = set()
+            while queue:
+                requirement, requested_extras = queue.popleft()
+                name = canonicalize_name(requirement.name)
+                state = (name, tuple(sorted(requested_extras)))
+                if state in visited:
+                    continue
+                visited.add(state)
+                distribution = installed.get(name)
+                locked_package = locked_packages.get(name)
+                override = LICENSE_OVERRIDES.get(name)
+                if distribution is None and not (
+                    platform == "win32" and locked_package and override
+                ):
                     errors.append(
-                        f"Invalid dependency metadata for "
-                        f"{distribution.metadata.get('Name')}: {dependency_text!r}: {exc}"
+                        f"{group} dependency {requirement.name!r} is not installed "
+                        f"for {platform}"
                     )
                     continue
-                if _marker_matches(dependency, marker_extras):
-                    queue.append((dependency, set(dependency.extras)))
+
+                record = records.setdefault(
+                    name,
+                    {
+                        "distribution": distribution,
+                        "name": (
+                            distribution.metadata.get("Name", name)
+                            if distribution
+                            else locked_package["name"]
+                        ),
+                        "version": (
+                            distribution.version
+                            if distribution
+                            else locked_package["version"]
+                        ),
+                        "homepage": (
+                            ""
+                            if distribution
+                            else override.get("homepage", "")
+                        ),
+                        "groups": set(),
+                    },
+                )
+                record["groups"].add(group)
+                if distribution is None:
+                    continue
+
+                marker_extras = requested_extras | {""}
+                for dependency_text in distribution.requires or []:
+                    try:
+                        dependency = Requirement(dependency_text)
+                    except InvalidRequirement as exc:
+                        errors.append(
+                            f"Invalid dependency metadata for "
+                            f"{distribution.metadata.get('Name')}: "
+                            f"{dependency_text!r}: {exc}"
+                        )
+                        continue
+                    if _marker_matches(dependency, marker_extras, environment):
+                        queue.append((dependency, set(dependency.extras)))
 
     return records, errors
 
 
-def _metadata_licence(distribution: importlib.metadata.Distribution) -> str:
+def _metadata_licence(record: dict[str, Any]) -> str:
+    name = canonicalize_name(record["name"])
+    override = LICENSE_OVERRIDES.get(name)
+    if override:
+        return override["license"]
+
+    distribution = record["distribution"]
+    if distribution is None:
+        return "UNKNOWN"
     metadata = distribution.metadata
     for field in ("License-Expression", "License"):
         value = (metadata.get(field) or "").strip()
@@ -141,13 +201,13 @@ def _metadata_licence(distribution: importlib.metadata.Distribution) -> str:
     )
     if classifiers:
         return "; ".join(classifiers)
-    override = LICENSE_OVERRIDES.get(
-        canonicalize_name(metadata.get("Name", ""))
-    )
-    return override["license"] if override else "UNKNOWN"
+    return "UNKNOWN"
 
 
-def _homepage(distribution: importlib.metadata.Distribution) -> str:
+def _homepage(record: dict[str, Any]) -> str:
+    distribution = record["distribution"]
+    if distribution is None:
+        return record["homepage"]
     metadata = distribution.metadata
     if metadata.get("Home-page"):
         return metadata.get("Home-page", "").strip()
@@ -170,8 +230,8 @@ def _display(value: str) -> str:
 
 def _review_flags(records: dict[str, dict[str, Any]]) -> list[tuple[str, str, str]]:
     flags = []
-    for name, record in sorted(records.items()):
-        licence = _metadata_licence(record["distribution"])
+    for _name, record in sorted(records.items()):
+        licence = _metadata_licence(record)
         categories = []
         if COPYLEFT_PATTERN.search(licence):
             categories.append("copyleft")
@@ -180,7 +240,7 @@ def _review_flags(records: dict[str, dict[str, Any]]) -> list[tuple[str, str, st
         if categories:
             flags.append(
                 (
-                    record["distribution"].metadata.get("Name", name),
+                    record["name"],
                     licence,
                     ", ".join(categories),
                 )
@@ -194,19 +254,18 @@ def render_generated_section(
 ) -> str:
     rows = []
     unknown = []
-    for name, record in sorted(records.items()):
-        distribution = record["distribution"]
-        licence = _metadata_licence(distribution)
+    for _name, record in sorted(records.items()):
+        licence = _metadata_licence(record)
         if licence == "UNKNOWN":
-            unknown.append(distribution.metadata.get("Name", name))
+            unknown.append(record["name"])
         rows.append(
             "| "
             + " | ".join(
                 (
-                    f"`{_display(distribution.metadata.get('Name', name))}`",
-                    _display(distribution.version),
+                    f"`{_display(record['name'])}`",
+                    _display(record["version"]),
                     _display(licence),
-                    _display(_homepage(distribution)) or "—",
+                    _display(_homepage(record)) or "—",
                     _display(", ".join(sorted(record["groups"]))),
                 )
             )
@@ -219,10 +278,9 @@ def render_generated_section(
         "## Installed runtime and optional dependency distributions",
         "",
         "Generated from `pyproject.toml` and installed distribution metadata. "
-        "Transitive requirements are included.",
+        "Transitive requirements are included; markers are resolved for Linux and win32.",
         "",
-        "Requirement markers use a Python 3.11/Linux target. Versions and metadata "
-        "reflect this installed environment.",
+        "versions as resolved on the generating machine; --check compares names and licences.",
         "",
         "| Name | Version | Licence | Homepage | Pulled in by |",
         "|---|---|---|---|---|",
@@ -301,10 +359,13 @@ def check_document(
     failures = list(errors)
     if not rows:
         failures.append("generated dependency table is missing from the document")
+    expected_names = set(records)
+    documented_names = set(rows)
+    for name in sorted(documented_names - expected_names):
+        failures.append(f"extra generated table row for {name}")
     for name, record in sorted(records.items()):
-        distribution = record["distribution"]
-        display_name = distribution.metadata.get("Name", name)
-        licence = _metadata_licence(distribution)
+        display_name = record["name"]
+        licence = _metadata_licence(record)
         if licence.upper() == "UNKNOWN" or not licence.strip():
             failures.append(f"{display_name} has an empty or UNKNOWN licence")
         documented = rows.get(name)
@@ -312,6 +373,11 @@ def check_document(
             failures.append(f"{display_name} is missing from the generated table")
         elif documented.upper() == "UNKNOWN" or not documented.strip():
             failures.append(f"{display_name} has an empty or UNKNOWN documented licence")
+        elif " ".join(documented.split()).casefold() != " ".join(licence.split()).casefold():
+            failures.append(
+                f"{display_name} licence mismatch: documented {documented!r}, "
+                f"resolved {licence!r}"
+            )
     return failures
 
 
@@ -344,9 +410,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     unknown = [
-        record["distribution"].metadata.get("Name", name)
+        record["name"]
         for name, record in records.items()
-        if _metadata_licence(record["distribution"]).upper() == "UNKNOWN"
+        if _metadata_licence(record).upper() == "UNKNOWN"
     ]
     print(f"Generated licence table for {len(records)} distributions in {args.doc}.")
     if errors:

@@ -182,9 +182,9 @@ Results must be generated from event files, never typed into the README by hand.
 - [x] Without API key the product starts in local mode and explains the limitation
 - [x] Above soft cap, non-essential calls are disabled (unit test)
 - [x] Above hard cap, no call leaves the client (unit test)
-- [x] All used dependencies have documented licenses (`docs/third-party-licenses.md`; `scripts/license_report.py --check`, 34 distributions, `certifi` MPL-2.0 flagged)
+- [x] All used dependencies have documented licenses (`docs/third-party-licenses.md`; `scripts/license_report.py --check`, 35 Linux/win32 distributions, `certifi` MPL-2.0 flagged, `colorama` 0.4.6 BSD override cited)
 - [ ] A different agent installs and runs from README only
-- [x] Public repo contains no private videos, credentials or illegally redistributed datasets (`docs/evidence/f11/public-repo-audit.md`; 0 current findings, 0 historical media/dataset additions)
+- [x] Public repo contains no private videos, credentials or illegally redistributed datasets (`docs/evidence/f11/public-repo-audit.md`; 213 tracked files, five justified synthetic JSONL paths, zero unallowlisted findings; history names and blob content checked)
 
 ## F12 — Submission
 - [ ] A fresh reviewer reproduces the happy path
