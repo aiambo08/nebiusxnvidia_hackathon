@@ -216,37 +216,6 @@ def test_dashboard_command_never_leaks_the_key(
         )
 
     monkeypatch.setattr(nemotron, "make_planner", offline_make_planner)
-
-    def inspect_dashboard(app, *, host, port):
-        del host, port
-        agent_thread = next(
-            (thread for thread in threading.enumerate()
-             if thread.name == "ra-dashboard-agent"),
-            None,
-        )
-        assert agent_thread is not None, "dashboard agent thread was not started"
-        agent_thread.join(timeout=60)
-        assert not agent_thread.is_alive(), "dashboard agent thread did not finish"
-
-        with TestClient(app) as client:
-            incidents_response = client.get("/api/incidents")
-            assert incidents_response.status_code == 200
-            incidents = incidents_response.json()
-            assert incidents
-            incident_id = incidents[0]["incident_id"]
-
-            get_routes = [
-                route for route in app.routes
-                if "GET" in getattr(route, "methods", set())
-            ]
-            assert get_routes
-            for route in get_routes:
-                path = route.path.replace("{incident_id}", incident_id)
-                response = client.get(path)
-                assert response.status_code < 500, path
-                api_bodies.append(response.content)
-
-    monkeypatch.setattr(uvicorn, "run", inspect_dashboard)
     db_path = tmp_path / "dashboard-command.sqlite"
     argv = [
         "dashboard",
@@ -258,8 +227,42 @@ def test_dashboard_command_never_leaks_the_key(
     for scenario in SCENARIOS:
         argv.extend(["--scenario", scenario])
 
-    external_calls = _forbid_external_drivers(monkeypatch)
-    assert cli.main(argv) == 0
+    with monkeypatch.context() as runner_guard:
+        external_calls = _forbid_external_drivers(runner_guard)
+
+        def inspect_dashboard(app, *, host, port):
+            del host, port
+            agent_thread = next(
+                (thread for thread in threading.enumerate()
+                 if thread.name == "ra-dashboard-agent"),
+                None,
+            )
+            assert agent_thread is not None, "dashboard agent thread was not started"
+            agent_thread.join(timeout=60)
+            assert not agent_thread.is_alive(), "dashboard agent thread did not finish"
+            assert external_calls == []
+            runner_guard.undo()
+
+            with TestClient(app) as client:
+                incidents_response = client.get("/api/incidents")
+                assert incidents_response.status_code == 200
+                incidents = incidents_response.json()
+                assert incidents
+                incident_id = incidents[0]["incident_id"]
+
+                get_routes = [
+                    route for route in app.routes
+                    if "GET" in getattr(route, "methods", set())
+                ]
+                assert get_routes
+                for route in get_routes:
+                    path = route.path.replace("{incident_id}", incident_id)
+                    response = client.get(path)
+                    assert response.status_code < 500, path
+                    api_bodies.append(response.content)
+
+        monkeypatch.setattr(uvicorn, "run", inspect_dashboard)
+        assert cli.main(argv) == 0
     assert passed_keys and all(key == SENTINEL for key in passed_keys)
     assert sdk.calls, "dashboard command did not reach the FakeSDK planner"
     assert external_calls == []
