@@ -74,7 +74,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F6][evaluation] Add `golden_v2.jsonl` with v1 labels/splits unchanged and regenerate the deterministic test baseline (`docs/evidence/f6/golden-rules-baseline-test.md`)
 - [x] [F6][nebius] Re-run diagnose_v2 on dev → test on `golden_v2` (141/144 dev; 261/264 test; reports in `docs/evidence/f6/`)
 - [x] [F6][nebius] Default the configured planner prompt to `diagnose_v2`, matching the live `golden_v2` run (`configs/default.yaml`)
-- [ ] [F6][evaluation] Independent F6 gate review
+- [x] [F6][evaluation] Independent F6 gate review (PASS with no blockers; record merged on `main` at `7c4607c`; https://app.devin.ai/sessions/4ad9cabd2a5c4cb383b2e743273ef06e)
 - [ ] [F6][nebius] Update `build_golden.py` to write `golden_v2` (or accept `--out`) and make `spike_nemotron.py` use `offered_for` (reviewer non-blocking follow-up, PR #51)
 - [ ] [F6][nebius] Investigate whether unknown plan args should be stripped/rejected before the gate; invented `trigger_autofocus` args caused all three test misses (the gate rejected them)
 - [ ] [F6][evaluation] Resolve the missing `golden-rules-baseline-dev.md` target linked by the golden-v2 dev-2 eval report (target absent; leave frozen reports unchanged)
@@ -93,10 +93,18 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
 - [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
 - [ ] [F9][product] Complete F9 product evidence
-- [x] [F10][evaluation] Run the 4-hour SIMULATION soak and generate the EventStore report (`docs/evidence/f10/soak/soak.md` and `.json`; 658 events, valid chain, 0 errors, no sustained leak, 0.25 false alarms/h; F10 still pending REAL HARDWARE evidence)
-- [x] [F11][integrator] Document runtime and every optional dependency licence, including transitives (`scripts/license_report.py --check`, `docs/third-party-licenses.md`; 35 Linux/win32 distributions, `certifi` MPL-2.0 flagged, `colorama` 0.4.6 BSD override cited to PyPI JSON)
+- F12 documentation drafts and the author-run fresh-clone quickstart transcript are prepared in `docs/evidence/f12/quickstart.md`. A PR reviewer also reproduced the fresh-clone quickstart, but that review transcript is not committed as judge-open evidence; all F12 boxes below remain unchecked. Real UVC/ONVIF exposure/focus control is not implemented (`OpenCVSource.capabilities()` exposes only `restart`), and the webcam demo claims only detection plus a cleaning ticket, safe mode or `needs_human` escalation; bounded exposure/focus commit/rollback is SIMULATION only. No stream-down/restart segment is claimed because the live-dashboard outage-to-verification path lacks an end-to-end test.
+- [ ] [F12][product] Independent fresh reviewer reproduces the README happy path
+- [ ] [F12][product] Run F4 REAL HARDWARE recordings and benchmark with the owner
+- [ ] [F12][product] Five-user product test with completed observation forms
+- [ ] [F12][product] Record and publish the public demo video with real physical input
+- [ ] [F12][product] Confirm video and final commit match; create and push the submission tag
+- [ ] [F12][product] Verify public evidence links in an incognito session
+- [ ] [F12][product] Complete Devpost fields and submit with operational margin
+- [x] [F10][evaluation] Run the 4-hour SIMULATION soak and generate the EventStore report (`docs/evidence/f10/soak/soak.md`; 4.0 h, 23/24 faults detected, 0.25 false alarms/h, +7.2 MB RSS, $0; evidence merged on `main`, F10 remains in progress pending REAL HARDWARE validation, so the gate is not passed)
+- [x] [F11][integrator] Document runtime and every optional dependency licence, including transitives (`scripts/license_report.py --check`, `docs/third-party-licenses.md`; F11 license-inventory and public-repo-audit boxes are ticked on `main` at `4b5b929`, 218 tracked files, 35 Linux/win32 distributions, `certifi` MPL-2.0 flagged, `colorama` 0.4.6 BSD override cited to PyPI JSON)
 - [x] [F11][integrator] Audit 218 tracked files and media/dataset/credential history with path-and-finding-type allowlisting (`scripts/audit_repo.py`, `docs/evidence/f11/public-repo-audit.md`; five synthetic JSONL dataset paths justified in current content and history, credentials never waived, zero unallowlisted findings)
 - [ ] [F11][independent reviewer] Install and run from README only
 - [ ] [F10][evaluation] Independently review the A1–A8 SIMULATION experiment report (`docs/evidence/f10/experiments.md`; 454 valid EventStores, A3 recovery 25/25, F8-comparable subset 20/20, A8 restarts include REJECTED and FAILED, A4 COMMITTED delta 0 vs 0)
-- [ ] [F10][evaluation] Complete robustness evidence with four-hour SIMULATION soak and REAL HARDWARE validation; PR1 SIMULATION evidence is in `docs/evidence/f10/soak/soak.md`, REAL HARDWARE and F4 evidence remain pending
+- [ ] [F10][evaluation] Complete REAL HARDWARE validation and F4 evidence; SIMULATION soak is merged on `main`, but F10 remains in progress and is not passed until REAL HARDWARE validation is complete
 - [ ] [F12][product] Video + Devpost text
