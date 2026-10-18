@@ -75,10 +75,10 @@ and hardware work, record the public demo, conduct the five-user test, verify li
 final commit through the owner's account. Real UVC/ONVIF exposure/focus control is not implemented
 yet: `OpenCVSource.capabilities()` returns only `restart`, so on a real webcam the gate offers only
 restart, safe mode, cleaning/human tickets. Bounded exposure/focus commit/rollback is demonstrated
-in SIMULATION only ([source](../src/reliability_agent/capture/sources.py)). F11 passed and is
-merged on `main` at `4b5b929`: the audit covers 218 tracked files and the license inventory 35
-distributions ([audit](evidence/f11/public-repo-audit.md); [licenses](third-party-licenses.md)).
-The independent README-install review box remains open.
+in SIMULATION only ([source](../src/reliability_agent/capture/sources.py)). F11 license-inventory
+and public-repo-audit boxes are ticked on `main` (`4b5b929`; 218 tracked files, 35 distributions);
+the independent README-install box is open, so the F11 gate is not passed
+([audit](evidence/f11/public-repo-audit.md); [licenses](third-party-licenses.md)).
 
 ## Built with
 

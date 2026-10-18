@@ -10,9 +10,10 @@ recovers** — otherwise it rolls back and escalates to a human.
 > License: [Apache-2.0](LICENSE) · F5, F6 and F8 are the gates currently marked passed in
 > [`docs/phases-and-gates.md`](docs/phases-and-gates.md). F3, F4, F7 and F9 remain open.
 > F10 A1–A8 SIMULATION evidence is merged on `main`, but its soak and REAL HARDWARE evidence
-> remain pending. F11 is merged and passed on `main` (`4b5b929`): the audit covers 218 tracked
-> files and the license report 35 distributions ([audit](docs/evidence/f11/public-repo-audit.md);
-> [licenses](docs/third-party-licenses.md)); the independent README-install box remains open.
+> remain pending. F11 license-inventory and public-repo-audit boxes are ticked on `main`
+> (`4b5b929`; 218 tracked files, 35 distributions); the independent README-install box is open,
+> so the F11 gate is not passed ([audit](docs/evidence/f11/public-repo-audit.md);
+> [licenses](docs/third-party-licenses.md)).
 > F12 is documentation preparation only; its gate is not
 > passed and owner/reviewer actions remain. Evidence is labelled SIMULATION or REAL HARDWARE.
 > See [`docs/phases-and-gates.md`](docs/phases-and-gates.md).

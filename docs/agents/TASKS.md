@@ -101,7 +101,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F12][product] Confirm video and final commit match; create and push the submission tag
 - [ ] [F12][product] Verify public evidence links in an incognito session
 - [ ] [F12][product] Complete Devpost fields and submit with operational margin
-- [x] [F11][integrator] Document runtime and every optional dependency licence, including transitives (`scripts/license_report.py --check`, `docs/third-party-licenses.md`; merged/passed in `main` at `4b5b929`, 35 Linux/win32 distributions, `certifi` MPL-2.0 flagged, `colorama` 0.4.6 BSD override cited to PyPI JSON)
+- [x] [F11][integrator] Document runtime and every optional dependency licence, including transitives (`scripts/license_report.py --check`, `docs/third-party-licenses.md`; F11 license-inventory and public-repo-audit boxes are ticked on `main` at `4b5b929`, 218 tracked files and 35 Linux/win32 distributions)
 - [x] [F11][integrator] Audit 218 tracked files and media/dataset/credential history with path-and-finding-type allowlisting (`scripts/audit_repo.py`, `docs/evidence/f11/public-repo-audit.md`; five synthetic JSONL dataset paths justified in current content and history, credentials never waived, zero unallowlisted findings)
 - [ ] [F11][independent reviewer] Install and run from README only
 - [ ] [F10][evaluation] Independently review the A1–A8 SIMULATION experiment report (`docs/evidence/f10/experiments.md`; 454 valid EventStores, A3 recovery 25/25, F8-comparable subset 20/20, A8 restarts include REJECTED and FAILED, A4 COMMITTED delta 0 vs 0)
