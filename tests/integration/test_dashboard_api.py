@@ -122,6 +122,8 @@ def test_dashboard_html_escapes_template_interpolations():
     """A deliberately simple regex checks template literals assigned to HTML sinks."""
     page = (Path(__file__).resolve().parents[2] / "apps/dashboard/index.html").read_text()
     assert "Fault cleared; primary metric already at baseline." in page
+    kv = re.search(r"function kv\(el,rows\)\s*\{(.*?)\n\}", page, re.S).group(1)
+    assert ".innerHTML" not in kv
     assignments = re.findall(
         r"(?s)(?:\.innerHTML\s*=|\.insertAdjacentHTML\s*\([^,]+,)\s*(.*?);", page)
     for assignment in assignments:

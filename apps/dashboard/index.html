@@ -45,7 +45,7 @@ main{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.25fr);g
 .card{background:#0d1117;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
 .card h3{margin:0 0 6px;font-size:12px;color:var(--mut);font-weight:600}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px}
-.kv span:nth-child(odd){color:var(--mut)}
+.kv>span:nth-child(odd){color:var(--mut)}
 .kv span{overflow-wrap:anywhere}
 pre{margin:6px 0 0;background:#010409;border:1px solid var(--line);border-radius:6px;padding:8px;font-size:11.5px;max-height:190px;overflow:auto;white-space:pre-wrap;word-break:break-word}
 .nv{color:var(--nv);font-weight:700}
@@ -118,7 +118,19 @@ function kv(el,rows){
   el.replaceChildren();
   for(const [k,v] of rows.filter(r=>r)){
     const key=document.createElement("span"),value=document.createElement("span");
-    key.textContent=k;value.textContent=v==null?"–":String(v);el.append(key,value);
+    key.textContent=k;
+    if(Array.isArray(v)){
+      for(const part of v){
+        const span=document.createElement("span");
+        span.textContent=part.text==null?"–":String(part.text);
+        if(part.cls)span.className=part.cls;
+        value.append(span);
+      }
+    }else if(v&&typeof v==="object"&&"text" in v){
+      value.textContent=v.text==null?"–":String(v.text);
+      if(v.cls)value.className=v.cls;
+    }else value.textContent=v==null?"–":String(v);
+    el.append(key,value);
   }
 }
 function plannerLabel(p,source){
@@ -161,14 +173,14 @@ function summarize(inc){
   return {inc,ev,incident:one("incident"),plan:one("plan"),policy:one("policy"),exec:one("execution"),ver:one("verification"),rb:one("rollback"),closed:one("closed"),states:by("state")};
 }
 function outcome(s){
-  if(s.ver&&s.ver.payload.status==="committed")return {label:"committed",state:"done"};
-  if(s.rb)return {label:"rolled back",state:"bad"};
-  if(s.exec&&s.exec.payload.status==="ticket")return {label:"ticket → human",state:"warn"};
-  if(s.policy&&!s.policy.payload.approved)return {label:"rejected by gate",state:"bad"};
+  if(s.ver&&s.ver.payload.status==="committed")return {label:"committed",state:"done",cls:"ok"};
+  if(s.rb)return {label:"rolled back",state:"bad",cls:"bad"};
+  if(s.exec&&s.exec.payload.status==="ticket")return {label:"ticket → human",state:"warn",cls:"warn"};
+  if(s.policy&&!s.policy.payload.approved)return {label:"rejected by gate",state:"bad",cls:"bad"};
   const last=s.states.length?s.states[s.states.length-1].payload.to:inc_state(s);
-  if(last==="NEEDS_HUMAN")return {label:"needs human",state:"warn"};
-  if(s.closed)return {label:"closed",state:"done"};
-  return {label:"in progress",state:"run"};
+  if(last==="NEEDS_HUMAN")return {label:"needs human",state:"warn",cls:"warn"};
+  if(s.closed)return {label:"closed",state:"done",cls:"ok"};
+  return {label:"in progress",state:"run",cls:"mut"};
 }
 function inc_state(s){return s.inc.state}
 function t0(s){return s.incident?Date.parse(s.incident.ts):null}
@@ -178,7 +190,7 @@ function renderHist(list){
   if(!list.length){$("hist").innerHTML='<tr><td colspan="5" class="mut">no incidents yet — the camera is healthy</td></tr>';return}
   $("hist").innerHTML=list.map(inc=>{const s=summarize(inc);const a=s.plan?s.plan.payload.plan.action.name:"–";const c=s.plan?s.plan.payload.usage.estimated_cost_usd:null;
     const result=outcome(s);
-    return `<tr data-id="${esc(inc.incident_id)}" class="${esc(inc.incident_id===selected?"sel":"")}"><td>${esc(new Date(inc.opened).toLocaleTimeString())}</td><td>${esc((inc.faults||[]).join(", "))}</td><td>${esc(a)}</td><td>${esc(result.label)}</td><td>${usd(c)}</td></tr>`}).join("");
+    return `<tr data-id="${esc(inc.incident_id)}" class="${esc(inc.incident_id===selected?"sel":"")}"><td>${esc(new Date(inc.opened).toLocaleTimeString())}</td><td>${esc((inc.faults||[]).join(", "))}</td><td>${esc(a)}</td><td class="${esc(result.cls)}">${esc(result.label)}</td><td>${usd(c)}</td></tr>`}).join("");
   for(const tr of $("hist").querySelectorAll("tr[data-id]"))tr.onclick=()=>{selected=tr.dataset.id;autoFollow=selected===list[0].incident_id;renderHist(list);renderDetail(list.find(i=>i.incident_id===selected))};
 }
 function verificationReason(v){
@@ -225,6 +237,15 @@ function renderTimeline(root,s){
   }
   root.replaceChildren(fragment);
 }
+function renderDiagnosisHeading(source){
+  const root=$("diagh");
+  root.replaceChildren(document.createTextNode("2 · Diagnose — "));
+  if(source==="nemotron"){
+    const model=document.createElement("span");
+    model.className="nv";model.textContent="NVIDIA Nemotron";
+    root.append(model,document.createTextNode(" on Nebius Token Factory"));
+  }else root.append(document.createTextNode(plannerLabel(plannerStatus,source)));
+}
 function renderDetail(inc){
   if(!inc){$("incid").textContent="";return}
   const s=summarize(inc);$("incid").textContent="· "+inc.incident_id.slice(0,8)+(autoFollow?" (latest)":"");
@@ -240,22 +261,27 @@ function renderDetail(inc){
     ["capabilities",(I.capabilities||[]).join(", ")||"none"],["offered actions",(I.allowed_actions||[]).join(", ")]]:[["status","waiting"]]);
   const P=s.plan&&s.plan.payload;
   if(P){const u=P.usage||{},pl=P.plan;
-    $("diagh").textContent=P.source==="nemotron"?"2 · Diagnose — NVIDIA Nemotron on Nebius Token Factory":"2 · Diagnose — "+plannerLabel(plannerStatus,P.source);
+    renderDiagnosisHeading(P.source);
     $("plnr").textContent=plannerLabel(plannerStatus,P.source);
-    kv($("diag"),[["source",plannerLabel(plannerStatus,P.source)],["model",u.model||"–"],["prompt",u.prompt_version||"–"],
+    kv($("diag"),[["source",P.source==="nemotron"?[{text:P.source},{text:" ● live runtime call",cls:"nv"}]:plannerLabel(plannerStatus,P.source)],["model",{text:u.model||"–",cls:"nv"}],["prompt",u.prompt_version||"–"],
       ["tokens",`${num(u.input_tokens,0)} in / ${num(u.output_tokens,0)} out${u.cached?" (cache)":""}`],["cost",usd(u.estimated_cost_usd)],["latency",u.latency_ms!=null?num(u.latency_ms,0)+" ms":"–"],
       ["attempts",P.attempts],["diagnosis",`${pl.diagnosis} (${num(pl.confidence)})`],["proposes",`${pl.action.name} ${JSON.stringify(pl.action.arguments)}`],["message",pl.human_message||"–"]]);
     $("plan").textContent=JSON.stringify(pl,null,2);
   }else{kv($("diag"),[["status",s.incident?"calling planner…":"waiting"]]);$("plan").textContent="–"}
   const G=s.policy&&s.policy.payload;
-  kv($("gate"),G?[["decision",G.approved?"APPROVED":"REJECTED"],["action",G.action+" "+JSON.stringify(G.arguments||{})],["reasons",(G.reasons||[]).join("; ")||"all checks passed"]]
+  kv($("gate"),G?[["decision",{text:G.approved?"APPROVED":"REJECTED",cls:G.approved?"ok":"bad"}],["action",G.action+" "+JSON.stringify(G.arguments||{})],["reasons",(G.reasons||[]).join("; ")||"all checks passed"]]
     :[["status",P&&P.plan.action.name==="needs_human"?"planner escalated to a human: nothing to approve":"waiting"]]);
   const E=s.exec&&s.exec.payload;
-  kv($("act"),E?[["status",E.status==="success"?"applied":E.status==="ticket"?"ticket opened":E.status],["action",E.action],["applied",JSON.stringify(E.applied||{})],
-    ["snapshot",s.rb?(s.rb.payload.ok?"restored "+JSON.stringify(s.rb.payload.restored):"restore failed"):"saved before acting"],E.error?["error",E.error]:null]:[["status","waiting"]]);
+  kv($("act"),E?[["status",E.status==="success"?{text:"applied",cls:"ok"}:E.status==="ticket"?{text:"ticket opened",cls:"warn"}:{text:E.status,cls:"bad"}],["action",E.action],["applied",JSON.stringify(E.applied||{})],
+    ["snapshot",s.rb?(s.rb.payload.ok?{text:"restored "+JSON.stringify(s.rb.payload.restored),cls:"ok"}:{text:"restore failed",cls:"bad"}):"saved before acting"],E.error?["error",E.error]:null]:[["status","waiting"]]);
   const V=s.ver&&s.ver.payload;
   if(V)renderVerification(V);
-  else $("verify").textContent=E&&E.status==="success"?"observing the effect…":E&&E.status==="ticket"?"waiting for a human fix; closes when the camera is healthy again":"waiting";
+  else{
+    const waiting=document.createElement("span");
+    waiting.className="mut";
+    waiting.textContent=E&&E.status==="success"?"observing the effect…":E&&E.status==="ticket"?"waiting for a human fix; closes when the camera is healthy again":"waiting";
+    $("verify").replaceChildren(waiting);
+  }
   renderTimeline($("tl"),s);
 }
 async function incidents(){
