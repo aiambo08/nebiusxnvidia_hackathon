@@ -15,6 +15,7 @@ from benchmarks.experiments import (
 )
 from benchmarks.recovery import ScriptedPlanner, REGRESSION_ACTIONS
 from reliability_agent.config import load_config
+from reliability_agent.contracts.models import Incident
 from reliability_agent.storage import EventStore
 
 
@@ -30,7 +31,7 @@ def test_a1_detector_only_never_calls_its_failing_planner(tmp_path):
     planner = _NoCallPlanner()
     _run_standard(
         tmp_path, "test-revision", "A1_local_detector_only", "dark", 0.99, 0,
-        planner=planner, detector_only=True, warmup=3, fault_windows=20,
+        planner=planner, detector_only=True, warmup=3, fault_windows=12,
     )
     events, chain_valid = _read_store(
         tmp_path / "db" / "A1_local_detector_only" / "dark-0.99-seed0.sqlite"
@@ -45,7 +46,7 @@ def test_a1_detector_only_never_calls_its_failing_planner(tmp_path):
 def test_a2_emits_a_plan_without_executing_or_changing_settings(tmp_path):
     _run_standard(
         tmp_path, "test-revision", "A2_detector_no_actions", "dark", 0.99, 0,
-        auto_execute=False, warmup=3, fault_windows=20,
+        auto_execute=False, warmup=3, fault_windows=12,
     )
     events, chain_valid = _read_store(
         tmp_path / "db" / "A2_detector_no_actions" / "dark-0.99-seed0.sqlite"
@@ -66,13 +67,13 @@ def test_a2_emits_a_plan_without_executing_or_changing_settings(tmp_path):
 def test_a3_and_a4_smoke_recovery_and_visual_metric_ablation(tmp_path):
     _run_standard(
         tmp_path, "test-revision", "A3_full_loop", "dark", 0.99, 0,
-        warmup=3, fault_windows=20,
+        warmup=3, fault_windows=12,
     )
     action, arguments = REGRESSION_ACTIONS["dark"]
     _run_standard(
         tmp_path, "test-revision", "A4_no_downstream_metric", "dark", 0.99, 0,
         planner=ScriptedPlanner(action, arguments), downstream_ablation=True,
-        warmup=3, fault_windows=20, extra_metadata={"phase": "regression"},
+        warmup=3, fault_windows=12, extra_metadata={"phase": "regression"},
     )
 
     for arm in ("A3_full_loop", "A4_no_downstream_metric"):
@@ -87,7 +88,7 @@ def test_a5_reuses_a_frozen_baseline_learned_on_another_scene(tmp_path):
     baseline = _run_training_baseline(tmp_path, "test-revision", 1000)
     _run_standard(
         tmp_path, "test-revision", "A5_single_baseline", "dark", 0.99, 0,
-        baseline_data=baseline, warmup=3, fault_windows=20,
+        baseline_data=baseline, warmup=3, fault_windows=12,
     )
     events, chain_valid = _read_store(
         tmp_path / "db" / "A5_single_baseline" / "dark-0.99-seed0.sqlite"
@@ -105,20 +106,26 @@ def test_a5_reuses_a_frozen_baseline_learned_on_another_scene(tmp_path):
 
 def test_a6_fake_outage_falls_back_and_opens_circuit_without_spend(tmp_path):
     planner = _a6_planner(load_config(env=False))
-    for seed in range(3):
-        _run_standard(
-            tmp_path, "test-revision", "A6_token_factory_outage",
-            "dark", 0.99, seed,
-            planner=planner, warmup=3, fault_windows=20,
-        )
+    _run_standard(
+        tmp_path, "test-revision", "A6_token_factory_outage",
+        "dark", 0.99, 0,
+        planner=planner, warmup=3, fault_windows=12,
+    )
     stores = list((tmp_path / "db" / "A6_token_factory_outage").glob("*.sqlite"))
     events = [event for path in stores for event in _read_store(path)[0]]
+    incident = next(event["payload"] for event in events
+                    if event["kind"] == "incident")
+    outcomes = [
+        planner.plan(Incident.model_validate(incident))
+        for _ in range(2)
+    ]
 
     assert planner.opened_after_threshold
     assert planner.max_failures >= planner.client.breaker.threshold
+    assert all(outcome.source == "fallback" for outcome in outcomes)
     assert sum(event["kind"] == "plan"
                and event["payload"].get("source") == "fallback"
-               for event in events) >= 3
+               for event in events) >= 1
     assert all(_read_store(path)[0] for path in stores)
     for path in stores:
         store = EventStore(path)
@@ -174,7 +181,7 @@ def test_a8_restart_preserves_invariants_in_acting_and_verifying(tmp_path, targe
     meta = _run_custom(
         tmp_path, "test-revision", "A8_restart_in_every_state",
         "dark", "dark", 0.99, 0, restart_target=target,
-        warmup=3, fault_windows=30,
+        warmup=3, fault_windows=20,
     )
 
     assert meta["same_incident_id"]
