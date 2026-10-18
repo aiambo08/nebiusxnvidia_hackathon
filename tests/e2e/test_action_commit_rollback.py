@@ -154,9 +154,13 @@ def _check_case(cfg, window, action, fault, effect):
             assert store.pending_snapshots() == []
         assert store.verify_chain()
     finally:
-        agent.checkpoint()
-        agent.release_lease()
-        store.close()
+        try:
+            agent.checkpoint()
+        finally:
+            try:
+                agent.release_lease()
+            finally:
+                store.close()
 
 
 @pytest.mark.parametrize(("action", "fault"), CASES, ids=CASE_IDS)

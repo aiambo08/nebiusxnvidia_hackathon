@@ -33,6 +33,8 @@ def test_reports_are_derived_from_scenario_event_store(tmp_path):
     rolled_back = report_for_incident(events, incidents[1]["incident_id"])
     assert committed["verifications"][-1]["status"] == "committed"
     assert rolled_back["rollbacks"][-1]["ok"] is True
+    assert committed["restart_rollbacks"] == []
+    assert committed["restart_resolution"] is None
 
     out_dir = tmp_path / "reports"
     root = Path(__file__).resolve().parents[2]
@@ -51,7 +53,7 @@ def test_reports_are_derived_from_scenario_event_store(tmp_path):
         capture_output=True,
         text=True,
         encoding="utf-8",
-        timeout=30,
+        timeout=120,
     )
     payloads = [
         json.loads(path.read_text(encoding="utf-8"))

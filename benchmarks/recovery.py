@@ -30,6 +30,7 @@ REGRESSION_ACTIONS = {
     "overexpose": (ActionName.SET_EXPOSURE_BOUNDED, {"delta_ev": 1.5}),
     "frozen_black": (ActionName.ENTER_SAFE_MODE, {}),
 }
+REGRESSION_FAMILIES = tuple(REGRESSION_ACTIONS)
 
 
 class ScriptedPlanner:
@@ -57,7 +58,7 @@ def _normal(value: Any) -> str:
 
 
 def classify_events(events: list[dict], fault: str) -> dict[str, Any]:
-    """Classify a completed run using only its persisted EventStore events."""
+    """Classify recovery outcomes from persisted EventStore events."""
     incident_events = [event for event in events if event["kind"] == "incident"]
     if not incident_events:
         return {
@@ -90,8 +91,9 @@ def classify_regression(
     events: list[dict],
     initial_settings: dict[str, Any],
     final_settings: dict[str, Any],
+    final_state: str | None = None,
 ) -> dict[str, Any]:
-    """Classify rollback coverage and untouched settings from events and device state."""
+    """Classify regression behavior from events, scenario state, and device settings."""
     regression_executed = any(
         event["kind"] == "execution"
         and event["payload"].get("status") == "success"
@@ -103,14 +105,18 @@ def classify_regression(
         None,
     )
     rollback_ok = bool(rollback and rollback.get("ok"))
-    snapshot_equal = bool(rollback_ok and final_settings == rollback.get("restored"))
+    pre_action_snapshot_settings = rollback.get("restored") if rollback else None
+    snapshot_equal = bool(
+        rollback_ok and _same_settings(final_settings, pre_action_snapshot_settings)
+    )
     safe_mode = final_settings.get("safe_mode") is True
     settings_unchanged = (
         final_settings == initial_settings if not regression_executed else None
     )
-    regression_pass = snapshot_equal or safe_mode
+    regression_pass = regression_executed and (snapshot_equal or safe_mode)
     regression_gate_pass = (
-        regression_pass if regression_executed else settings_unchanged is True
+        (safe_mode or (rollback_ok and snapshot_equal))
+        if regression_executed else settings_unchanged is True
     )
     incident_confirmed = any(event["kind"] == "incident" for event in events)
     non_executed_reason = (
@@ -126,9 +132,18 @@ def classify_regression(
         "non_executed_reason": non_executed_reason,
         "rollback_ok": rollback_ok,
         "snapshot_equal": snapshot_equal,
+        "safe_mode": safe_mode,
+        "initial_settings": initial_settings,
+        "pre_action_snapshot_settings": pre_action_snapshot_settings,
+        "final_settings": final_settings,
+        "final_state": final_state,
         "regression_pass": regression_pass,
         "regression_gate_pass": regression_gate_pass,
     }
+
+
+def _same_settings(left: Any, right: Any) -> bool:
+    return isinstance(left, dict) and isinstance(right, dict) and left == right
 
 
 def _run_case(
@@ -198,7 +213,7 @@ def _run_case(
         }
         if regression:
             run.update(classify_regression(
-                events, initial_settings[0], final_settings
+                events, initial_settings[0], final_settings, result.final_state
             ))
         return run
     finally:
@@ -243,6 +258,121 @@ def _summarize(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def regression_gate(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate regression outcomes using EventStore classifications and device state."""
+    by_fault = {
+        fault: {
+            "runs": 0,
+            "executed": 0,
+            "executed_pass": 0,
+            "not_executed": 0,
+            "not_executed_unchanged": 0,
+        }
+        for fault in REGRESSION_FAMILIES
+    }
+    by_fault_strength: dict[str, dict[str, int]] = {}
+    raw_passed = 0
+    executed_count = 0
+    executed_pass = 0
+    not_executed = 0
+    not_executed_unchanged = 0
+    rollback_ok_count = 0
+    settings_identical = 0
+    row_passes = []
+
+    for row in rows:
+        fault = str(row.get("fault", row.get("scenario", "")))
+        if fault not in by_fault:
+            by_fault[fault] = {
+                "runs": 0,
+                "executed": 0,
+                "executed_pass": 0,
+                "not_executed": 0,
+                "not_executed_unchanged": 0,
+            }
+        family = by_fault[fault]
+        family["runs"] += 1
+        executed = row.get("regression_executed") is True
+        rollback_ok = row.get("rollback_ok") is True
+        exact_snapshot = rollback_ok and _same_settings(
+            row.get("final_settings"), row.get("pre_action_snapshot_settings")
+        )
+        if rollback_ok:
+            rollback_ok_count += 1
+        if exact_snapshot:
+            settings_identical += 1
+
+        if executed:
+            executed_count += 1
+            family["executed"] += 1
+            passed = (
+                row.get("final_settings", {}).get("safe_mode") is True
+                or exact_snapshot
+            )
+            if passed:
+                executed_pass += 1
+                family["executed_pass"] += 1
+                raw_passed += 1
+        else:
+            not_executed += 1
+            family["not_executed"] += 1
+            unchanged = _same_settings(
+                row.get("final_settings"), row.get("initial_settings")
+            )
+            if unchanged:
+                not_executed_unchanged += 1
+                family["not_executed_unchanged"] += 1
+            passed = unchanged
+        row_passes.append(passed)
+
+        strength = row.get("strength")
+        key = f"{fault}:{strength if strength is not None else 'n/a'}"
+        counts = by_fault_strength.setdefault(key, {
+            "runs": 0,
+            "passed": 0,
+            "rollback_ok": 0,
+            "settings_identical": 0,
+            "executed": 0,
+            "executed_pass": 0,
+            "not_executed": 0,
+            "not_executed_unchanged": 0,
+        })
+        counts["runs"] += 1
+        counts["passed"] += int(executed and passed)
+        counts["rollback_ok"] += int(rollback_ok)
+        counts["settings_identical"] += int(exact_snapshot)
+        if executed:
+            counts["executed"] += 1
+            counts["executed_pass"] += int(passed)
+        else:
+            counts["not_executed"] += 1
+            counts["not_executed_unchanged"] += int(unchanged)
+
+    missing_families = [
+        fault for fault in REGRESSION_FAMILIES if by_fault[fault]["executed"] == 0
+    ]
+    coverage_floor_pass = not missing_families
+    return {
+        "runs": len(rows),
+        "passed": raw_passed,
+        "failed": len(rows) - raw_passed,
+        "executed": executed_count,
+        "executed_pass": executed_pass,
+        "not_executed": not_executed,
+        "not_executed_unchanged": not_executed_unchanged,
+        "rollback_ok": rollback_ok_count,
+        "settings_identical": settings_identical,
+        "coverage_floor": {
+            "pass": coverage_floor_pass,
+            "required_families": list(REGRESSION_FAMILIES),
+            "missing_families": missing_families,
+        },
+        "gate_pass": all(row_passes) and coverage_floor_pass,
+        "by_fault": by_fault,
+        "by_fault_strength": by_fault_strength,
+    }
+
+
 def run_recovery_benchmark(seeds=range(10)) -> dict[str, Any]:
     runs = [
         _run_case(scenario, strength, seed, regression=False)
@@ -260,36 +390,8 @@ def run_regression_benchmark(seeds=range(5)) -> dict[str, Any]:
         for strength in strengths
         for seed in seeds
     ]
-    executed = [run for run in runs if run["regression_executed"]]
+    summary = regression_gate(runs)
     not_executed = [run for run in runs if not run["regression_executed"]]
-    executed_passed = sum(run["regression_gate_pass"] for run in executed)
-    not_executed_unchanged = sum(
-        run["settings_unchanged"] is True for run in not_executed
-    )
-    grouped: dict[tuple[str, float | None], list[dict[str, Any]]] = defaultdict(list)
-    for run in runs:
-        grouped[(run["fault"], run["strength"])].append(run)
-    by_fault_strength = {
-        f"{fault}:{strength if strength is not None else 'n/a'}": {
-            "runs": len(values),
-            "passed": sum(item["regression_pass"] for item in values),
-            "rollback_ok": sum(item["rollback_ok"] for item in values),
-            "settings_identical": sum(item["snapshot_equal"] for item in values),
-            "executed": sum(item["regression_executed"] for item in values),
-            "executed_passed": sum(
-                item["regression_executed"] and item["regression_gate_pass"]
-                for item in values
-            ),
-            "not_executed": sum(not item["regression_executed"] for item in values),
-            "settings_unchanged": sum(
-                not item["regression_executed"] and item["settings_unchanged"] is True
-                for item in values
-            ),
-        }
-        for (fault, strength), values in sorted(grouped.items(), key=lambda item: (
-            item[0][0], -1 if item[0][1] is None else item[0][1]
-        ))
-    }
     non_executed_runs = [
         {
             "fault": run["fault"],
@@ -303,22 +405,7 @@ def run_regression_benchmark(seeds=range(5)) -> dict[str, Any]:
         for run in not_executed
     ]
     return {
-        "summary": {
-            "runs": len(runs),
-            "passed": sum(item["regression_pass"] for item in runs),
-            "failed": sum(not item["regression_pass"] for item in runs),
-            "executed": len(executed),
-            "executed_passed": executed_passed,
-            "not_executed": len(not_executed),
-            "not_executed_settings_unchanged": not_executed_unchanged,
-            "gate_pass": (
-                executed_passed == len(executed)
-                and not_executed_unchanged == len(not_executed)
-            ),
-            "rollback_ok": sum(item["rollback_ok"] for item in runs),
-            "settings_identical": sum(item["snapshot_equal"] for item in runs),
-            "by_fault_strength": by_fault_strength,
-        },
+        "summary": summary,
         "non_executed_runs": non_executed_runs,
         "runs": runs,
     }

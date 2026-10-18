@@ -71,6 +71,10 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         f"recoverable cases ({rate}); "
         f"{summary['needs_human']} needs-human, {summary['timeout']} timeouts. "
         f"Gate ≥85%: {'PASS' if summary['gate_pass'] else 'FAIL'}.",
+        "Margin note: 87/100 is only 1–2 cases above the 85% threshold. "
+        "The reviewer reported 86/100 under heavy parallel CPU load when "
+        "`defocus:1.0`, seed 2, hit the wall-clock `task.latency_ms_p95` guard "
+        "with 5 ms tolerance; 12 repeats across idle and loaded conditions recovered.",
         "",
         "## Deliberate regression grid",
         "",
@@ -79,7 +83,14 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         "The frozen-black case uses the agent's local frozen-blackout restart plan "
         "instead of the injected planner; the harness keeps the repeated frame "
         "across restart to exercise rollback.",
-        "Other regression cases use scripted, policy-gated, non-remediating proposals.",
+        "The defocus and frozen_black regression proposals use `enter_safe_mode`, "
+        "a policy-approved non-remediating action.",
+        "The other regression cases use scripted, policy-gated proposals.",
+        "The first benchmark report recorded `100% gate: FAIL` at commit `46c383a`; "
+        "commit `13d2559` revised `gate_pass`. A run that never confirms an incident "
+        "executes no action to contain, so raw 45/50 remains published while "
+        "non-executed runs must leave settings unchanged. Review then added the "
+        "executed-coverage floor so a never-acting agent cannot pass.",
         "",
         "| Fault | Strength | Runs | Raw rollback/safe-mode pass | Executed | "
         "Executed pass | Not executed / settings unchanged | Rollback events | "
@@ -91,10 +102,24 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         lines.append(
             f"| {fault} | {strength} | {result['runs']} | "
             f"{result['passed']} / {result['runs']} | "
-            f"{result['executed']} | {result['executed_passed']} / "
+            f"{result['executed']} | {result['executed_pass']} / "
             f"{result['executed']} | {result['not_executed']} / "
-            f"{result['settings_unchanged']} | {result['rollback_ok']} | "
+            f"{result['not_executed_unchanged']} | {result['rollback_ok']} | "
             f"{result['settings_identical']} |"
+        )
+    lines.extend([
+        "",
+        "### Executed coverage by fault family",
+        "",
+        "| Fault family | Runs | Executed | Executed pass | Not executed | "
+        "Not executed, settings unchanged |",
+        "|---|---:|---:|---:|---:|---:|",
+    ])
+    for fault, result in regression_summary["by_fault"].items():
+        lines.append(
+            f"| {fault} | {result['runs']} | {result['executed']} | "
+            f"{result['executed_pass']} | {result['not_executed']} | "
+            f"{result['not_executed_unchanged']} |"
         )
     lines.extend([
         "",
@@ -103,16 +128,24 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         f"{regression_summary['rollback_ok']}; settings equal restored snapshots: "
         f"{regression_summary['settings_identical']}.",
         f"Executed regressions ending in rollback with exact snapshot restoration "
-        f"or safe mode: **{regression_summary['executed_passed']} / "
+        f"or safe mode: **{regression_summary['executed_pass']} / "
         f"{regression_summary['executed']}**.",
         f"Non-executed runs with unchanged settings: "
-        f"**{regression_summary['not_executed_settings_unchanged']} / "
+        f"**{regression_summary['not_executed_unchanged']} / "
         f"{regression_summary['not_executed']}**. Revised 100% gate: "
-        f"{'PASS' if regression_summary['gate_pass'] else 'FAIL'}.",
+        f"{'PASS' if regression_summary['gate_pass'] else 'FAIL'}. "
+        f"Coverage floor: "
+        f"{'PASS' if regression_summary['coverage_floor']['pass'] else 'FAIL'}"
+        + (
+            f" (missing: {', '.join(regression_summary['coverage_floor']['missing_families'])})"
+            if regression_summary["coverage_floor"]["missing_families"] else ""
+        )
+        + ".",
         "Regression misses by fault/strength: "
         f"{', '.join(regression_misses) if regression_misses else 'none'}.",
         "",
-        "Non-executed runs (reason from EventStore):",
+        "Non-executed runs (incident reason from EventStore; unchanged-settings check "
+        "uses device state):",
     ])
     if regression["non_executed_runs"]:
         for run in regression["non_executed_runs"]:
@@ -127,7 +160,9 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         lines.append("- None.")
     lines.extend([
         "",
-        "Per-case event-derived outcomes and regression checks are in the companion JSON.",
+        "Recovery classification and incident reports are event-only. Regression "
+        "classification combines EventStore events, device settings, and "
+        "`ScenarioResult.final_state`; per-case inputs and outcomes are in the companion JSON.",
         "",
     ])
     return "\n".join(lines)
