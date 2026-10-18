@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import gc
+import hashlib
 import importlib.util
 import json
 import os
 import random
+import shlex
 import statistics
 import threading
 import time
@@ -38,6 +40,7 @@ REMEDIATIONS = {
     "occlude": set(),
 }
 ROOT = Path(__file__).resolve().parents[1]
+REQUIRED_DURATION_S = 14400
 
 
 def _wall_now() -> datetime:
@@ -111,24 +114,257 @@ def _event_fault_windows(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [window for window in windows.values() if window.get("start_wall")]
 
 
-def evaluate_events(
-    events: list[dict[str, Any]], duration_s: float | None = None
+def _incident_id(event: dict[str, Any]) -> str | None:
+    payload = event.get("payload", {})
+    return event.get("incident_id") or payload.get("incident_id")
+
+
+def _planner_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
+    usage_events = [event for event in events if event.get("kind") == "usage"]
+    planner_events = [
+        event for event in events if event.get("kind") in {"plan", "usage"}
+    ]
+    names: set[str] = set()
+    live_calls = 0
+    cost_usd = 0.0
+    for event in planner_events:
+        payload = event.get("payload", {})
+        usage = payload.get("usage", payload if event.get("kind") == "usage" else {})
+        source = payload.get("source") or payload.get("planner")
+        model = usage.get("model")
+        if source:
+            names.add(str(source))
+        if model:
+            names.add(str(model))
+        if event.get("kind") == "usage" or not usage_events:
+            cost_usd += float(
+                usage.get("estimated_cost_usd") or usage.get("cost_usd") or 0.0
+            )
+
+        is_local = str(source or "").lower() in {"rules", "rule-based", "local"} or \
+            str(model or "").lower() in {"rules", "rule-based", "local-rules"}
+        if event.get("kind") == "usage":
+            live_calls += int(not is_local)
+        elif not usage_events and not is_local:
+            live_calls += max(1, int(payload.get("attempts") or 0))
+
+    return {
+        "names": sorted(names),
+        "live_calls": live_calls,
+        "cost_usd": cost_usd,
+    }
+
+
+def _incident_notes(
+    incident: dict[str, Any],
+    events: list[dict[str, Any]],
+    faults: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Evaluate the preregistered gates from EventStore-shaped records only."""
+    incident_id = _incident_id(incident)
+    payload = incident.get("payload", {})
+    confirmed_faults = payload.get("candidate_faults") or []
+    if isinstance(confirmed_faults, str):
+        confirmed_faults = [confirmed_faults]
+    fault_kind = str(confirmed_faults[0]) if confirmed_faults else "unknown"
+    confirmed_at = _as_datetime(incident["ts"])
+
+    preceding_faults = [
+        fault for fault in faults
+        if fault.get("end_wall")
+        and _as_datetime(fault["end_wall"]) <= confirmed_at
+    ]
+    preceding_fault = max(
+        preceding_faults,
+        key=lambda fault: _as_datetime(fault["end_wall"]),
+        default=None,
+    )
+    if preceding_fault:
+        preceding = {
+            "fault_id": preceding_fault.get("fault_id", "unknown"),
+            "kind": preceding_fault.get("fault", "unknown"),
+            "seconds_before_confirmation": (
+                confirmed_at - _as_datetime(preceding_fault["end_wall"])
+            ).total_seconds(),
+        }
+    else:
+        preceding = None
+
+    related = [event for event in events if _incident_id(event) == incident_id]
+    related.sort(key=lambda event: int(event.get("seq", 0)))
+    actions: list[str] = []
+    executions = [event for event in related if event.get("kind") == "execution"]
+    verifications = [event for event in related if event.get("kind") == "verification"]
+    for execution in executions:
+        execution_payload = execution.get("payload", {})
+        execution_seq = int(execution.get("seq", 0))
+        verification = next(
+            (
+                event for event in verifications
+                if int(event.get("seq", 0)) > execution_seq
+            ),
+            None,
+        )
+        outcome = f"execution {execution_payload.get('status', 'unknown')}"
+        if verification:
+            outcome += f", verification {verification.get('payload', {}).get('status', 'unknown')}"
+        actions.append(f"{execution_payload.get('action', 'unknown')} ({outcome})")
+    for rollback in (event for event in related if event.get("kind") == "rollback"):
+        actions.append(
+            f"rollback ({'restored' if rollback.get('payload', {}).get('ok') else 'failed'})"
+        )
+
+    closed_event = next(
+        (event for event in related if event.get("kind") == "closed"),
+        None,
+    )
+    state_events = [event for event in related if event.get("kind") == "state"]
+    closing_state = None
+    if state_events:
+        closing_state = state_events[-1].get("payload", {}).get("to")
+    needs_human_event = next(
+        (
+            event for event in state_events
+            if event.get("payload", {}).get("to") == "NEEDS_HUMAN"
+        ),
+        None,
+    )
+    if closed_event:
+        closing_state = closed_event.get("payload", {}).get("state") or closing_state
+        closed_after_s = (
+            _as_datetime(closed_event["ts"]) - confirmed_at
+        ).total_seconds()
+        seconds_from_needs_human_to_closure = (
+            (
+                _as_datetime(closed_event["ts"])
+                - _as_datetime(needs_human_event["ts"])
+            ).total_seconds()
+            if needs_human_event else None
+        )
+    else:
+        closed_after_s = None
+        seconds_from_needs_human_to_closure = None
+
+    return {
+        "incident_id": incident_id or "unknown",
+        "fault_kind": fault_kind,
+        "confirmed_at_utc": confirmed_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "seconds_since_preceding_fault_end": preceding,
+        "actions": actions,
+        "closing_state": closing_state,
+        "seconds_until_closure": closed_after_s,
+        "seconds_from_needs_human_to_closure": seconds_from_needs_human_to_closure,
+    }
+
+
+def _faults_without_incidents(
+    faults: list[dict[str, Any]],
+    detected_fault_ids: set[str],
+    requested_duration_s: float,
+    run_end_wall: str | None,
+) -> list[dict[str, Any]]:
+    unobserved = []
+    for fault in faults:
+        fault_id = str(fault.get("fault_id", "unknown"))
+        if fault_id in detected_fault_ids:
+            continue
+        start_wall = _as_datetime(fault["start_wall"])
+        end_wall = fault.get("end_wall") or run_end_wall
+        active_duration_s = (
+            max(0.0, (_as_datetime(end_wall) - start_wall).total_seconds())
+            if end_wall else 0.0
+        )
+        started_elapsed_s = float(
+            fault.get("started_elapsed_s", fault.get("scheduled_start_s", 0.0))
+        )
+        unobserved.append({
+            "fault_id": fault_id,
+            "kind": str(fault.get("fault", "unknown")),
+            "active_duration_s": active_duration_s,
+            "started_elapsed_s": started_elapsed_s,
+            "started_at_or_after_requested_duration": (
+                started_elapsed_s >= requested_duration_s
+            ),
+        })
+    return unobserved
+
+
+def evaluate_events(
+    events: list[dict[str, Any]],
+    *,
+    required_duration_s: float = REQUIRED_DURATION_S,
+) -> dict[str, Any]:
+    """Evaluate soak gates and evidence coverage from EventStore-shaped records."""
     run_starts = [e for e in events if e.get("kind") == "soak_run"
                   and e.get("payload", {}).get("phase") == "start"]
     run_ends = [e for e in events if e.get("kind") == "soak_run"
                 and e.get("payload", {}).get("phase") == "end"]
     start_payload = run_starts[0]["payload"] if run_starts else {}
     end_payload = run_ends[-1]["payload"] if run_ends else {}
-    if duration_s is None:
-        duration_s = float(end_payload.get("elapsed_s",
-                                           start_payload.get("requested_duration_s", 0.0)))
+    sample_events = [e for e in events if e.get("kind") == "soak_sample"]
+    duration_s = float(
+        end_payload.get(
+            "elapsed_s",
+            max(
+                (float(e.get("payload", {}).get("elapsed_s", 0.0)) for e in sample_events),
+                default=0.0,
+            ),
+        )
+    )
+    requested_duration_s = float(start_payload.get("requested_duration_s") or 0.0)
+    sample_s_value = start_payload.get("sample_s")
+    sample_s = float(sample_s_value) if sample_s_value is not None else None
     complete = bool(end_payload.get("completed", False))
     errors = [e for e in events if e.get("kind") in {"error", "exception", "soak_error"}]
     gate_a = complete and not errors
 
-    samples = [e["payload"] for e in events if e.get("kind") == "soak_sample"]
+    samples = [e["payload"] for e in sample_events]
+    sample_elapsed = []
+    malformed_sample_time = False
+    for sample in samples:
+        try:
+            sample_elapsed.append(float(sample["elapsed_s"]))
+        except (KeyError, TypeError, ValueError):
+            malformed_sample_time = True
+    sample_elapsed.sort()
+    coverage_gaps = []
+    if sample_elapsed:
+        coverage_gaps.append(sample_elapsed[0])
+        coverage_gaps.extend(
+            current - previous
+            for previous, current in zip(sample_elapsed, sample_elapsed[1:], strict=False)
+        )
+        coverage_gaps.append(duration_s - sample_elapsed[-1])
+    maximum_gap_s = max(coverage_gaps) if coverage_gaps else None
+    maximum_gap_allowed_s = 2.0 * sample_s if sample_s is not None else None
+    sample_coverage_pass = bool(
+        run_starts
+        and run_ends
+        and sample_elapsed
+        and not malformed_sample_time
+        and all(0.0 <= elapsed <= duration_s for elapsed in sample_elapsed)
+        and maximum_gap_allowed_s is not None
+        and maximum_gap_allowed_s > 0.0
+        and maximum_gap_s is not None
+        and maximum_gap_s <= maximum_gap_allowed_s
+    )
+    sample_coverage = {
+        "sample_count": len(sample_events),
+        "sample_interval_s": sample_s,
+        "maximum_gap_s": maximum_gap_s,
+        "maximum_allowed_gap_s": maximum_gap_allowed_s,
+        "pass": sample_coverage_pass,
+    }
+    duration_qualified = (
+        requested_duration_s >= required_duration_s
+        and duration_s >= requested_duration_s
+    )
+    duration_qualification = {
+        "observed_duration_s": duration_s,
+        "requested_duration_s": requested_duration_s,
+        "required_duration_s": required_duration_s,
+        "pass": duration_qualified,
+    }
+
     baseline = [s for s in samples if 1800 <= float(s.get("elapsed_s", -1)) < 3600]
     last = [s for s in samples
             if max(0.0, duration_s - 1800) <= float(s.get("elapsed_s", -1)) <= duration_s + 1]
@@ -189,11 +425,25 @@ def evaluate_events(
         "rate": detection_rate,
         "gate": False,
     }
+    run_end_event = run_ends[-1] if run_ends else None
+    run_end_wall = (
+        end_payload.get("ended_wall")
+        or (run_end_event.get("ts") if run_end_event else None)
+    )
+    unmatched_notes = [
+        _incident_notes(incident, events, faults) for incident in unmatched
+    ]
+    undetected_fault_notes = _faults_without_incidents(
+        faults, detected_faults, requested_duration_s, run_end_wall
+    )
+    planner_summary = _planner_summary(events)
     return {
         "label": "SIMULATION",
         "code_revision": start_payload.get("code_revision", "unknown"),
         "duration_s": duration_s,
         "duration_complete": complete,
+        "duration_qualification": duration_qualification,
+        "sample_coverage": sample_coverage,
         "gates": {
             "no_crash": {"pass": gate_a, "error_events": len(errors)},
             "no_sustained_leak": {"pass": gate_b, **leak_details},
@@ -207,32 +457,58 @@ def evaluate_events(
         },
         "faults": faults,
         "false_alarm_incident_ids": [e.get("incident_id") for e in unmatched],
-        "overall_pass": gate_a and gate_b is True and gate_c,
+        "unmatched_incidents": unmatched_notes,
+        "faults_without_incident": undetected_fault_notes,
+        "planner_summary": planner_summary,
+        "overall_pass": (
+            duration_qualified
+            and sample_coverage_pass
+            and gate_a is True
+            and gate_b is True
+            and gate_c is True
+        ),
     }
 
 
 def render_report(report: dict[str, Any]) -> str:
     gates = report["gates"]
     fmt = lambda value: "n/a" if value is None else f"{value:.3f}"  # noqa: E731
+    coverage = report["sample_coverage"]
+    duration = report["duration_qualification"]
+    planner = report["planner_summary"]
+    planner_names = ", ".join(planner["names"]) if planner["names"] else "none observed"
     lines = [
         "# F10 soak report — SIMULATION",
         "",
         f"- code revision: `{report['code_revision']}`",
+        f"- database SHA-256: `{report.get('database_sha256', 'unavailable')}`",
+        f"- regenerate command: `{report.get('regenerate_command', 'unavailable')}`",
         f"- duration: {report['duration_s'] / 3600:.4f} h",
-        f"- complete: {report['duration_complete']}",
+        f"- complete: {'yes' if report['duration_complete'] else 'no'}",
         "",
         "| Gate | Result | Details |",
-        "|---|---:|---|",
-        f"| No crash | {'PASS' if gates['no_crash']['pass'] else 'FAIL'} | "
+        "|---|---|---|",
+        f"| No crash (A) | {'PASS' if gates['no_crash']['pass'] else 'FAIL'} | "
         f"{gates['no_crash']['error_events']} error/exception events |",
-        f"| Sustained leak | {gates['no_sustained_leak']['pass']} | "
+        f"| Sustained leak (B) | "
+        f"{'PASS' if gates['no_sustained_leak']['pass'] is True else 'FAIL'} | "
         f"RSS growth {fmt(gates['no_sustained_leak']['rss_growth_mb'])} MB "
         f"(limit {fmt(gates['no_sustained_leak']['rss_growth_limit_mb'])} MB); "
         f"threads {gates['no_sustained_leak']['final_thread_count']}; "
         f"fds {gates['no_sustained_leak']['final_fd_count']} |",
-        f"| False alarms | {'PASS' if gates['false_alarms_per_hour']['pass'] else 'FAIL'} | "
+        f"| False alarms (C) | "
+        f"{'PASS' if gates['false_alarms_per_hour']['pass'] else 'FAIL'} | "
         f"{fmt(gates['false_alarms_per_hour']['rate'])}/h "
-        f"(limit 1.000/h) |",
+        f"(maximum 1.000/h) |",
+        f"| Duration | {'PASS' if duration['pass'] else 'FAIL'} | "
+        f"observed {duration['observed_duration_s']:.3f} s; "
+        f"requested {duration['requested_duration_s']:.3f} s; "
+        f"minimum {duration['required_duration_s']:.3f} s |",
+        f"| Sample coverage | {'PASS' if coverage['pass'] else 'FAIL'} | "
+        f"{coverage['sample_count']} samples at {fmt(coverage['sample_interval_s'])} s; "
+        f"maximum gap "
+        f"{fmt(coverage['maximum_gap_s'])} s "
+        f"(maximum {fmt(coverage['maximum_allowed_gap_s'])} s) |",
         f"| Detection (reported, not gated) | "
         f"{fmt(gates['detection']['rate'])} | "
         f"{gates['detection']['faults_with_confirmed_incident']}/"
@@ -240,7 +516,48 @@ def render_report(report: dict[str, Any]) -> str:
         "",
         f"Overall: **{'PASS' if report['overall_pass'] else 'NOT PASSED'}**",
         "",
+        "## Notes (SIMULATION)",
     ]
+    for incident in report["unmatched_incidents"]:
+        preceding = incident["seconds_since_preceding_fault_end"]
+        if preceding:
+            since_text = (
+                f"{preceding['seconds_before_confirmation']:.3f} s after "
+                f"{preceding['fault_id']} ({preceding['kind']}) ended"
+            )
+        else:
+            since_text = "no preceding fault end was recorded"
+        actions_text = "; ".join(incident["actions"]) if incident["actions"] else "none recorded"
+        if incident["seconds_until_closure"] is None:
+            closure_text = "not closed"
+        else:
+            closure_text = (
+                f"closed {incident['closing_state'] or 'unknown'} "
+                f"{incident['seconds_until_closure']:.3f} s later"
+            )
+            after_needs_human = incident["seconds_from_needs_human_to_closure"]
+            if after_needs_human is not None:
+                closure_text += f" ({after_needs_human:.3f} s after NEEDS_HUMAN)"
+        lines.append(
+            f"- Unmatched incident {incident['incident_id']}: confirmed "
+            f"{incident['fault_kind']} at {incident['confirmed_at_utc']}, {since_text}; "
+            f"actions: {actions_text}; {closure_text}."
+        )
+    for fault in report["faults_without_incident"]:
+        started = "yes" if fault["started_at_or_after_requested_duration"] else "no"
+        lines.append(
+            f"- Fault {fault['fault_id']} ({fault['kind']}) had no incident; active for "
+            f"{fault['active_duration_s']:.3f} s; started at or after requested duration: "
+            f"{started}."
+        )
+    lines.append(
+        "- Detection is informational (`gate: false`); the F10 detection minimum is evidenced "
+        "by A1 in docs/evidence/f10/experiments.md"
+    )
+    lines.append(
+        f"- Planner: {planner_names}, live calls {planner['live_calls']}, "
+        f"cost USD {planner['cost_usd']:.6f}"
+    )
     return "\n".join(lines)
 
 
@@ -267,7 +584,9 @@ def run_soak(*, hours: float = 4.0, out: str | Path | None = None, sample_s: flo
         raise FileExistsError(f"soak database already exists: {db_path}")
     duration_s = hours * 3600.0
     cfg = load_config(env=False)
-    source = SyntheticSource(width=640, height=480, seed=seed)
+    source: SyntheticSource | None = None
+    source_settings: dict[str, Any] | None = None
+    source_index = 0
     planner = RuleBasedPlanner()
     store = EventStore(db_path)
     start_mono = time.monotonic()
@@ -292,6 +611,7 @@ def run_soak(*, hours: float = 4.0, out: str | Path | None = None, sample_s: flo
         nonlocal active_fault
         if active_fault is None:
             return
+        assert source is not None
         source.set_fault(None)
         settings_reset = reason in {"duration", "run_end"}
         if settings_reset:  # end of the scripted episode: scene and camera back to pre-fault state
@@ -325,7 +645,8 @@ def run_soak(*, hours: float = 4.0, out: str | Path | None = None, sample_s: flo
                 finish_fault(elapsed, "remediation_applied")
             elif elapsed >= active_fault["started_elapsed_s"] + fault_duration_s:
                 finish_fault(elapsed, "duration")
-        if active_fault is None and elapsed >= first_fault_s + fault_index * schedule_period_s:
+        if (active_fault is None and elapsed < duration_s
+                and elapsed >= first_fault_s + fault_index * schedule_period_s):
             fault, strength = FAULTS[fault_index % len(FAULTS)]
             fault_id = f"fault-{fault_index:04d}"
             fault_seed = rng.randrange(0, 2**32)
@@ -357,15 +678,29 @@ def run_soak(*, hours: float = 4.0, out: str | Path | None = None, sample_s: flo
     try:
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
+            source = SyntheticSource(
+                width=640,
+                height=480,
+                seed=seed + source_index,
+            )
+            source_index += 1
+            if source_settings is not None:
+                source.apply_settings(source_settings)
+            if active_fault is not None:
+                source.set_fault(active_fault["fault"], active_fault["strength"])
             try:
-                run_live(
-                    cfg,
-                    duration_s=remaining,
-                    on_window=on_window,
-                    store=store,
-                    source=source,
-                    planner=planner,
-                )
+                try:
+                    run_live(
+                        cfg,
+                        duration_s=remaining,
+                        on_window=on_window,
+                        store=store,
+                        source=source,
+                        planner=planner,
+                    )
+                finally:
+                    source_settings = source.get_settings()
+                    source.close()
                 if time.monotonic() < deadline:
                     store.append("soak_error", {
                         "error_type": "RuntimeError",
@@ -394,7 +729,8 @@ def run_soak(*, hours: float = 4.0, out: str | Path | None = None, sample_s: flo
             "ended_wall": _iso(_wall_now()),
         })
     finally:
-        source.close()
+        if source is not None:
+            source.close()
         store.close()
     return db_path
 
@@ -423,4 +759,22 @@ def report_database(db_path: str | Path) -> dict[str, Any]:
     report = evaluate_events(events)
     if report["code_revision"] == "unknown":
         report["code_revision"] = _code_revision(ROOT)
+    digest = hashlib.sha256()
+    with db_path.open("rb") as database_file:
+        for chunk in iter(lambda: database_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    output_dir = db_path.parent
+
+    def command_path(path: Path) -> str:
+        try:
+            return path.relative_to(ROOT).as_posix()
+        except ValueError:
+            return str(path)
+
+    report["database_sha256"] = digest.hexdigest()
+    report["regenerate_command"] = (
+        "python scripts/soak_report.py "
+        f"--db {shlex.quote(command_path(db_path))} "
+        f"--out-dir {shlex.quote(command_path(output_dir))}"
+    )
     return report

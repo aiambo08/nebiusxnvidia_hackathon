@@ -1,6 +1,13 @@
 {
   "code_revision": "70d7848",
+  "database_sha256": "ff62ae0231a925d99fb295b9b546e8566a21f6ffaa5a41db662abd2fb40c6847",
   "duration_complete": true,
+  "duration_qualification": {
+    "observed_duration_s": 14400.865488680996,
+    "pass": true,
+    "requested_duration_s": 14400.0,
+    "required_duration_s": 14400
+  },
   "duration_s": 14400.865488680996,
   "false_alarm_incident_ids": [
     "266430bd-5385-433e-99a6-a33bc86f3cf4"
@@ -583,6 +590,15 @@
       "strength": 1.0
     }
   ],
+  "faults_without_incident": [
+    {
+      "active_duration_s": 0.026232,
+      "fault_id": "fault-0023",
+      "kind": "overexpose",
+      "started_at_or_after_requested_duration": true,
+      "started_elapsed_s": 14400.839251931997
+    }
+  ],
   "gates": {
     "detection": {
       "faults_with_confirmed_incident": 23,
@@ -613,5 +629,40 @@
     }
   },
   "label": "SIMULATION",
-  "overall_pass": true
+  "overall_pass": true,
+  "planner_summary": {
+    "cost_usd": 0.0,
+    "live_calls": 0,
+    "names": [
+      "local-rules",
+      "rules"
+    ]
+  },
+  "regenerate_command": "python scripts/soak_report.py --db docs/evidence/f10/soak/soak.sqlite --out-dir docs/evidence/f10/soak",
+  "sample_coverage": {
+    "maximum_allowed_gap_s": 120.0,
+    "maximum_gap_s": 60.91484811400005,
+    "pass": true,
+    "sample_count": 241,
+    "sample_interval_s": 60.0
+  },
+  "unmatched_incidents": [
+    {
+      "actions": [
+        "switch_stream_profile (execution success, verification rolled_back)",
+        "rollback (restored)"
+      ],
+      "closing_state": "HEALTHY",
+      "confirmed_at_utc": "2026-10-18 16:29:26 UTC",
+      "fault_kind": "low_fps",
+      "incident_id": "266430bd-5385-433e-99a6-a33bc86f3cf4",
+      "seconds_from_needs_human_to_closure": 2.303767,
+      "seconds_since_preceding_fault_end": {
+        "fault_id": "fault-0022",
+        "kind": "freeze",
+        "seconds_before_confirmation": 268.478846
+      },
+      "seconds_until_closure": 19.0188
+    }
+  ]
 }

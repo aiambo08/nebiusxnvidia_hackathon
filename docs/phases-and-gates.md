@@ -23,7 +23,7 @@ recalibrated with real camera data.
 | F7 | Executor & safety | 3 | Safety | in progress |
 | F8 | Verification & rollback | 3 | Safety + Evaluation | passed |
 | F9 | Product & demo experience | 4 | Product | in progress |
-| F10 | End-to-end validation | 4 | Evaluation | not started |
+| F10 | End-to-end validation | 4 | Evaluation | in progress |
 | F11 | Hardening & security | 4 | Integrator | partially scaffolded |
 | F12 | Submission | 4 | Product + human | not started |
 
