@@ -85,6 +85,6 @@ Format: `- [ ] [Fx][role] task — acceptance`
 
 ## F9–F12
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
-- [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (scripted planner label; compact rules header)
+- [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
 - [ ] [F9][product] Complete F9 product evidence
 - [ ] [F12][product] Video + Devpost text
