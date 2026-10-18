@@ -23,7 +23,6 @@ from reliability_agent.capture.sources import SyntheticSource
 from reliability_agent.capture.worker import TransportMeter
 from reliability_agent.config import api_key
 from reliability_agent.contracts.models import (
-    ActionName,
     FaultType,
     IncidentState,
 )
@@ -762,19 +761,42 @@ def _settings_reference(
 
 
 def _classifier_result(events: list[dict], fault: str) -> dict[str, Any]:
-    result = classify_events(events, CLASSIFIER_FAULT[fault])
-    if fault == "occlusion":
-        incident = next(
-            (event["payload"] for event in reversed(events)
-             if event["kind"] == "incident"),
-            {},
+    return classify_events(events, CLASSIFIER_FAULT[fault])
+
+
+def _update_recovery_counts(
+    counts: dict[str, int], result: dict[str, Any]
+) -> None:
+    counts["runs"] += 1
+    counts["recoverable"] += int(result["recoverable"])
+    if result["outcome"] == "recovered_auto":
+        counts["recovered_auto"] += int(result["recoverable"])
+    else:
+        counts[result["outcome"]] += 1
+
+
+def _verification_decisions_by_fault(
+    runs: list[dict[str, Any]],
+) -> dict[str, dict[str, int]]:
+    decisions: dict[str, dict[str, int]] = {}
+    for run in runs:
+        if run["meta"].get("phase") != "regression":
+            continue
+        fault = run["meta"].get("fault")
+        if not fault:
+            continue
+        counts = decisions.setdefault(
+            fault, {"committed": 0, "rolled_back": 0, "inconclusive": 0}
         )
-        allowed = {
-            str(action).lower().rsplit(".", 1)[-1]
-            for action in incident.get("allowed_actions", [])
-        }
-        result["recoverable"] = ActionName.REQUEST_MANUAL_CLEANING.value in allowed
-    return result
+        events = [event for event in run["events"] if event["kind"] == "verification"]
+        if not events:
+            counts["inconclusive"] += 1
+            continue
+        for event in events:
+            status = _state_name(event["payload"].get("status")).lower()
+            outcome = status if status in ("committed", "rolled_back") else "inconclusive"
+            counts[outcome] += 1
+    return decisions
 
 
 def _same_recovery_run_set(
@@ -917,6 +939,24 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         }
         for fault in sorted({item["fault"] for item in classifier_runs})
     }
+    f8_comparable_faults = {"dark", "defocus", "overexpose", "frozen_black"}
+    f8_comparable_runs = [
+        item for item in classifier_runs if item["fault"] in f8_comparable_faults
+    ]
+    recovery_a3_f8_comparable = {
+        "runs": len(f8_comparable_runs),
+        "recoverable": sum(item["recoverable"] for item in f8_comparable_runs),
+        "recovered_auto": sum(
+            item["recoverable"] and item["outcome"] == "recovered_auto"
+            for item in f8_comparable_runs
+        ),
+        "needs_human": sum(
+            item["outcome"] == "needs_human" for item in f8_comparable_runs
+        ),
+        "timeout": sum(
+            item["outcome"] == "timeout" for item in f8_comparable_runs
+        ),
+    }
     a4_recovery: dict[str, dict[str, int]] = {}
     for run in arm_runs.get("A4_no_downstream_metric", []):
         fault = run["meta"].get("fault")
@@ -927,12 +967,7 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             fault, {"runs": 0, "recoverable": 0, "recovered_auto": 0,
                     "needs_human": 0, "timeout": 0}
         )
-        counts["runs"] += 1
-        counts["recoverable"] += int(result["recoverable"])
-        counts["recovered_auto"] += int(
-            result["recoverable"] and result["outcome"] == "recovered_auto"
-        )
-        counts[result["outcome"]] += 1
+        _update_recovery_counts(counts, result)
     confusion: dict[str, dict[str, int]] = {}
     f1_values = []
     scored = [
@@ -1094,12 +1129,7 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             fault, {"runs": 0, "recoverable": 0, "recovered_auto": 0,
                     "needs_human": 0, "timeout": 0}
         )
-        counts["runs"] += 1
-        counts["recoverable"] += int(result["recoverable"])
-        counts["recovered_auto"] += int(
-            result["recoverable"] and result["outcome"] == "recovered_auto"
-        )
-        counts[result["outcome"]] += 1
+        _update_recovery_counts(counts, result)
 
     def detection_pair(arm):
         values = arm_runs.get(arm, [])
@@ -1148,6 +1178,13 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         run for run in a3_all
         if run["meta"].get("phase") == "regression"
     ]
+    verification_decisions = {
+        "A3_full_loop": _verification_decisions_by_fault(a3_regression_runs),
+        "A4_no_downstream_metric": _verification_decisions_by_fault(
+            a4_regression_runs
+        ),
+    }
+
     def committed_count(values):
         return sum(
             event["kind"] == "verification"
@@ -1176,6 +1213,7 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "arms": rows,
         "macro_f1": {"mvp_faults": confusion, "macro_f1": macro_f1},
         "recovery_a3": a3_recovery,
+        "recovery_a3_f8_comparable": recovery_a3_f8_comparable,
         "recovery_a4": a4_recovery,
         "recovery_a6": a6_recovery,
         "a6_recovery_same_run_set": a6_recovery_same_run_set,
@@ -1192,6 +1230,7 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             "full_loop_gate": gate_for(a3_regression_runs),
             "no_downstream_gate": gate_for(a4_regression_runs),
         },
+        "verification_decisions": verification_decisions,
         "a8_states": {
             "runs": [
                 run["meta"] for run in arm_runs.get("A8_restart_in_every_state", [])
@@ -1610,10 +1649,26 @@ def _markdown(report: dict[str, Any]) -> str:
                   "| Fault | Runs | Recoverable | Recovered auto | Needs human | Timeout |",
                   "|---|---:|---:|---:|---:|---:|"])
     for fault, result in sorted(summary["recovery_a3"].items()):
+        fault_label = (
+            "occlusion (ticket / needs_human expected)"
+            if fault == "occlusion" else fault
+        )
         lines.append(
-            f"| {fault} | {result['runs']} | {result['recoverable']} | "
+            f"| {fault_label} | {result['runs']} | {result['recoverable']} | "
             f"{result['recovered_auto']} | {result['needs_human']} | {result['timeout']} |"
         )
+    f8_comparable = summary["recovery_a3_f8_comparable"]
+    lines.append(
+        f"| F8-comparable subset | {f8_comparable['runs']} | "
+        f"{f8_comparable['recoverable']} | {f8_comparable['recovered_auto']} | "
+        f"{f8_comparable['needs_human']} | {f8_comparable['timeout']} |"
+    )
+    lines.extend([
+        "",
+        "The F8 classifier returns `recoverable=False` for occlusion; its five "
+        "ticket / needs-human outcomes are reported separately and excluded from "
+        "the recoverable denominator.",
+    ])
     comparison = summary["a4_regression_comparison"]
     lines.extend([
         "",
@@ -1625,6 +1680,28 @@ def _markdown(report: dict[str, Any]) -> str:
         f"{comparison['no_downstream_runs']}.",
         f"Regression gate: full loop {comparison['full_loop_gate'].get('gate_pass')}; "
         f"no-downstream-metric {comparison['no_downstream_gate'].get('gate_pass')}.",
+        "",
+        "## Regression verification decisions by fault family",
+        "",
+        "| Family | A3 committed | A3 rolled_back | A3 inconclusive | "
+        "A4 committed | A4 rolled_back | A4 inconclusive |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ])
+    a3_decisions = summary["verification_decisions"]["A3_full_loop"]
+    a4_decisions = summary["verification_decisions"]["A4_no_downstream_metric"]
+    for fault in sorted(set(a3_decisions) | set(a4_decisions)):
+        a3 = a3_decisions.get(
+            fault, {"committed": 0, "rolled_back": 0, "inconclusive": 0}
+        )
+        a4 = a4_decisions.get(
+            fault, {"committed": 0, "rolled_back": 0, "inconclusive": 0}
+        )
+        lines.append(
+            f"| {fault} | {a3['committed']} | {a3['rolled_back']} | "
+            f"{a3['inconclusive']} | {a4['committed']} | "
+            f"{a4['rolled_back']} | {a4['inconclusive']} |"
+        )
+    lines.extend([
         "",
         "## A4 recovery by fault",
         "",

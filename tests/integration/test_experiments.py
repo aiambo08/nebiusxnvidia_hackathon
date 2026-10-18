@@ -7,12 +7,15 @@ import pytest
 from benchmarks.experiments import (
     _a6_plan_summary,
     _a6_planner,
+    _classifier_result,
     _NoCallPlanner,
     _run_custom,
     _run_standard,
     _run_training_baseline,
     _same_recovery_run_set,
     _summarize_runs,
+    _update_recovery_counts,
+    _verification_decisions_by_fault,
     generate_report,
     run_experiments,
 )
@@ -97,6 +100,108 @@ def test_a3_and_a4_smoke_recovery_and_visual_metric_ablation(tmp_path):
         events, chain_valid = _read_store(path)
         assert chain_valid
         assert any(event["kind"] == "incident" for event in events)
+
+
+def test_a4_verification_events_use_visual_metric_without_task_guards(tmp_path):
+    action, arguments = REGRESSION_ACTIONS["dark"]
+    for arm, downstream_ablation in (
+        ("A3_full_loop", False),
+        ("A4_no_downstream_metric", True),
+    ):
+        _run_standard(
+            tmp_path, "test-revision", arm, "dark", 0.99, 0,
+            planner=ScriptedPlanner(action, arguments),
+            downstream_ablation=downstream_ablation,
+            warmup=3, fault_windows=12,
+            extra_metadata={"phase": "regression"},
+        )
+
+    verification_events = {}
+    for arm in ("A3_full_loop", "A4_no_downstream_metric"):
+        events, chain_valid = _read_store(
+            tmp_path / "db" / arm / "regression" / "dark-0.99-seed0.sqlite"
+        )
+        assert chain_valid
+        verification_events[arm] = next(
+            event for event in events if event["kind"] == "verification"
+        )["payload"]
+
+    a3 = verification_events["A3_full_loop"]
+    a3_metrics = set(a3["before"]) | set(a3["after"])
+    assert a3["reasons"][0].startswith("task.success_rate")
+    assert {"task.success_rate", "task.latency_ms_p95"} <= a3_metrics
+
+    a4 = verification_events["A4_no_downstream_metric"]
+    a4_metrics = set(a4["before"]) | set(a4["after"])
+    assert a4["reasons"][0].startswith("visual.brightness_p50")
+    assert "visual.brightness_p50" in a4_metrics
+    assert all(not metric.startswith("task.") for metric in a4_metrics)
+
+
+def test_occlusion_recoverability_uses_the_f8_event_classifier():
+    result = _classifier_result(
+        [
+            {
+                "kind": "incident",
+                "payload": {"allowed_actions": ["request_manual_cleaning"]},
+            },
+            {"kind": "execution", "payload": {"status": "ticket"}},
+            {"kind": "state", "payload": {"to": "NEEDS_HUMAN"}},
+            {"kind": "closed", "payload": {"reason": "camera healthy again"}},
+        ],
+        "occlusion",
+    )
+
+    assert result["recoverable"] is False
+    assert result["outcome"] == "needs_human"
+
+
+def test_recovery_summary_does_not_double_count_recovered_auto():
+    counts = {
+        "runs": 0,
+        "recoverable": 0,
+        "recovered_auto": 0,
+        "needs_human": 0,
+        "timeout": 0,
+    }
+
+    _update_recovery_counts(
+        counts, {"recoverable": True, "outcome": "recovered_auto"}
+    )
+
+    assert counts == {
+        "runs": 1,
+        "recoverable": 1,
+        "recovered_auto": 1,
+        "needs_human": 0,
+        "timeout": 0,
+    }
+
+
+def test_regression_verification_decisions_are_counted_by_fault():
+    runs = [
+        {
+            "meta": {"fault": "dark", "phase": "regression"},
+            "events": [{"kind": "verification", "payload": {"status": "COMMITTED"}}],
+        },
+        {
+            "meta": {"fault": "dark", "phase": "regression"},
+            "events": [{"kind": "verification", "payload": {"status": "ROLLED_BACK"}}],
+        },
+        {
+            "meta": {"fault": "dark", "phase": "regression"},
+            "events": [{"kind": "verification", "payload": {"status": "INCONCLUSIVE"}}],
+        },
+        {"meta": {"fault": "dark", "phase": "regression"}, "events": []},
+        {
+            "meta": {"fault": "dark", "phase": "recovery"},
+            "events": [{"kind": "verification", "payload": {"status": "COMMITTED"}}],
+        },
+    ]
+
+    assert _verification_decisions_by_fault(runs) == {
+        "dark": {"committed": 1, "rolled_back": 1, "inconclusive": 2}
+    }
 
 
 def test_a5_reuses_a_frozen_baseline_learned_on_another_scene(tmp_path):
@@ -348,6 +453,9 @@ def test_report_regenerates_identically_from_saved_eventstores(tmp_path):
     )) == json.loads((tmp_path / "report-b" / "experiments.json").read_text(
         encoding="utf-8"
     ))
+    assert "| F8-comparable subset |" in markdown_a
+    assert "The F8 classifier returns `recoverable=False` for occlusion" in markdown_a
+    assert "## Regression verification decisions by fault family" in markdown_a
 
 
 def test_live_mode_requires_explicit_yes(tmp_path):
