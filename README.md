@@ -7,10 +7,13 @@ deterministic policy gate, and **keeps the change only if the downstream task me
 recovers** — otherwise it rolls back and escalates to a human.
 
 > Working name · Nebius x NVIDIA Global AI Hackathon 2026 · **Physical AI track** ·
-> License: [Apache-2.0](LICENSE) · F5 and F8 are the gates currently marked passed in
-> [`docs/phases-and-gates.md`](docs/phases-and-gates.md). F3, F4, F6, F7 and F9 remain open.
+> License: [Apache-2.0](LICENSE) · F5, F6 and F8 are the gates currently marked passed in
+> [`docs/phases-and-gates.md`](docs/phases-and-gates.md). F3, F4, F7 and F9 remain open.
 > F10 A1–A8 SIMULATION evidence is merged on `main`, but its soak and REAL HARDWARE evidence
-> remain pending. F11 is pending review. F12 is documentation preparation only; its gate is not
+> remain pending. F11 is merged and passed on `main` (`4b5b929`): the audit covers 218 tracked
+> files and the license report 35 distributions ([audit](docs/evidence/f11/public-repo-audit.md);
+> [licenses](docs/third-party-licenses.md)); the independent README-install box remains open.
+> F12 is documentation preparation only; its gate is not
 > passed and owner/reviewer actions remain. Evidence is labelled SIMULATION or REAL HARDWARE.
 > See [`docs/phases-and-gates.md`](docs/phases-and-gates.md).
 

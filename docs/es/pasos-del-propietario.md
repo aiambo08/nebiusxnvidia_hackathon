@@ -26,6 +26,11 @@ muestra cambios antes del pull, para y pregunta; no los descartes. Pega de vuelt
 de Python, la última línea de pytest y el estado final de Git. No compartas `.env`, su contenido ni
 claves.
 
+F11 está aprobado e integrado en `main` en `4b5b929`: la auditoría cubre 218 archivos rastreados y
+el inventario de licencias, 35 distribuciones ([auditoría](../evidence/f11/public-repo-audit.md);
+[licencias](../third-party-licenses.md)). La revisión independiente de instalación desde README
+sigue pendiente.
+
 ## 2. Prueba de archivo sintético y grabaciones F4 REAL HARDWARE
 
 La primera parte es solo una prueba local del flujo de archivo; **no es evidencia F4 ni REAL
