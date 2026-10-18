@@ -69,10 +69,15 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F5][architecture] Record in `DECISIONS.md` that a crash before the first 10-window checkpoint loses baseline samples (32 vs 38 updates) without changing state sequences
 - [ ] [F5][evaluation] Add a legitimate non-fault scenario that reaches SUSPECT and returns to HEALTHY; currently only short MVP fault transients exercise SUSPECT → HEALTHY
 - [x] [F6][nebius] Offline golden-set recipe, grader, and deterministic baseline report (136 cases; `benchmarks/golden/golden_v1.jsonl`, `docs/evidence/f6/golden-rules-baseline-test.md`)
-- [x] [F6][nebius] diagnose_v1 fast live evaluation (run by Devin; test/dev reports) and dev-only v2 prompt iterations documented in `docs/evidence/f6/`; v2 test was not run
+- [x] [F6][nebius] diagnose_v1 fast live evaluation (run by Devin; test/dev reports) and pre-ADR-009 dev-only v2 prompt iterations documented in `docs/evidence/f6/`
 - [x] [F6][safety] Offer only capability-supported actions relevant to local candidate faults (ADR-009, `PolicyGate.offered_for`); preserve frozen-black restart
 - [x] [F6][evaluation] Add `golden_v2.jsonl` with v1 labels/splits unchanged and regenerate the deterministic test baseline (`docs/evidence/f6/golden-rules-baseline-test.md`)
-- [ ] [F6][nebius] Re-run diagnose_v2 on dev → test on `golden_v2`; record reports in `docs/evidence/f6/`
+- [x] [F6][nebius] Re-run diagnose_v2 on dev → test on `golden_v2` (141/144 dev; 261/264 test; reports in `docs/evidence/f6/`)
+- [x] [F6][nebius] Default the configured planner prompt to `diagnose_v2`, matching the live `golden_v2` run (`configs/default.yaml`)
+- [ ] [F6][evaluation] Independent F6 gate review
+- [ ] [F6][nebius] Update `build_golden.py` to write `golden_v2` (or accept `--out`) and make `spike_nemotron.py` use `offered_for` (reviewer non-blocking follow-up, PR #51)
+- [ ] [F6][nebius] Investigate whether unknown plan args should be stripped/rejected before the gate; invented `trigger_autofocus` args caused all three test misses (the gate rejected them)
+- [ ] [F6][evaluation] Resolve the missing `golden-rules-baseline-dev.md` target linked by the golden-v2 dev-2 eval report (target absent; leave frozen reports unchanged)
 - [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
 - [ ] [F8][safety] Persist pending VERIFYING decisions across restarts

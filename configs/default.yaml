@@ -73,7 +73,7 @@ baseline:
 planner:
   kind: nemotron         # nemotron | rules
   auto_execute: true     # Gate F6: set false to restrict Nemotron to explanation only
-  prompt_version: diagnose_v1
+  prompt_version: diagnose_v2
   temperature: 0.1
   max_output_tokens: 600
   timeout_s: 20

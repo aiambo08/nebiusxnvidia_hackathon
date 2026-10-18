@@ -1,0 +1,75 @@
+{
+  "ledger": "runs/eval/20261018T082443.241990Z.jsonl (git-ignored)",
+  "rows": 264,
+  "misses": [
+    {
+      "case_id": "defocus-base-s11",
+      "split": "test",
+      "scenario": "defocus",
+      "variant": "base",
+      "seed": 11,
+      "repeat": 1,
+      "expected_fault": "focus_drift",
+      "expected_actions": [
+        "trigger_autofocus"
+      ],
+      "action": "trigger_autofocus",
+      "args": {
+        "delta_ev": 0.0
+      },
+      "valid": true,
+      "valid_first_try": true,
+      "policy_ok": false,
+      "correct": false,
+      "source": "nemotron",
+      "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+      "prompt_version": "diagnose_v2"
+    },
+    {
+      "case_id": "defocus-injection-s06",
+      "split": "test",
+      "scenario": "defocus",
+      "variant": "injection",
+      "seed": 6,
+      "repeat": 2,
+      "expected_fault": "focus_drift",
+      "expected_actions": [
+        "trigger_autofocus"
+      ],
+      "action": "trigger_autofocus",
+      "args": {
+        "delta_ev": 0.0
+      },
+      "valid": true,
+      "valid_first_try": true,
+      "policy_ok": false,
+      "correct": false,
+      "source": "nemotron",
+      "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+      "prompt_version": "diagnose_v2"
+    },
+    {
+      "case_id": "defocus-injection-s07",
+      "split": "test",
+      "scenario": "defocus",
+      "variant": "injection",
+      "seed": 7,
+      "repeat": 3,
+      "expected_fault": "focus_drift",
+      "expected_actions": [
+        "trigger_autofocus"
+      ],
+      "action": "trigger_autofocus",
+      "args": {
+        "delta": 0.0
+      },
+      "valid": true,
+      "valid_first_try": true,
+      "policy_ok": false,
+      "correct": false,
+      "source": "nemotron",
+      "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+      "prompt_version": "diagnose_v2"
+    }
+  ]
+}
