@@ -356,10 +356,16 @@ def _run_standard(
                 raise AssertionError("A2 must not execute actions")
             if not metadata["settings_unchanged"]:
                 raise AssertionError("A2 must leave device settings unchanged")
-            if fault not in CONTROLS and not any(
-                event["kind"] == "plan" for event in events
-            ):
-                raise AssertionError("A2 must emit a plan for each injected fault")
+            incident_ids = {
+                event["incident_id"] for event in events
+                if event["kind"] == "incident" and event["incident_id"]
+            }
+            planned_incidents = {
+                event["incident_id"] for event in events
+                if event["kind"] == "plan" and event["incident_id"]
+            }
+            if not incident_ids.issubset(planned_incidents):
+                raise AssertionError("A2 must plan for each confirmed incident")
         _append_run(store, metadata)
     finally:
         store.close()
@@ -1242,7 +1248,16 @@ def run_experiments(
     else:
         _run_a8(out_dir, revision, seeds)
 
-    return _summarize_runs(_load_runs(out_dir))
+    summary = _summarize_runs(_load_runs(out_dir))
+    a2 = next(row for row in summary["arms"]
+              if row["arm"] == "A2_detector_no_actions")
+    if not (
+        a2["plans"] > 0
+        and a2["successful_executions"] == 0
+        and a2["unchanged_settings_runs"] == a2["runs"]
+    ):
+        raise AssertionError("A2 must plan, never execute, and preserve settings")
+    return summary
 
 
 def _a6_planner(cfg):
