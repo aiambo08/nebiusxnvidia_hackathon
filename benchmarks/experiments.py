@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+from benchmarks.injectors.faults import apply_spatial
 from benchmarks.recovery import (
     REGRESSION_ACTIONS,
     ScriptedPlanner,
@@ -18,7 +19,6 @@ from benchmarks.recovery import (
     classify_regression,
     regression_gate,
 )
-from benchmarks.injectors.faults import apply_spatial
 from reliability_agent.capture.sources import SyntheticSource
 from reliability_agent.capture.worker import TransportMeter
 from reliability_agent.config import api_key
@@ -27,14 +27,14 @@ from reliability_agent.contracts.models import (
     FaultType,
     IncidentState,
 )
+from reliability_agent.demo import SCENARIOS as DEMO_SCENARIOS
 from reliability_agent.demo import (
-    SCENARIOS as DEMO_SCENARIOS,
     WrongActionPlanner,
     demo_config,
     run_scenario,
 )
-from reliability_agent.nemotron.planner import RuleBasedPlanner, make_planner
 from reliability_agent.nemotron.budget import BudgetGuard
+from reliability_agent.nemotron.planner import RuleBasedPlanner, make_planner
 from reliability_agent.orchestrator import ReliabilityAgent
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 from reliability_agent.storage import EventStore
@@ -100,8 +100,10 @@ def _scenario_for(fault: str) -> str:
     return SCENARIO_NAMES[fault]
 
 
-def _grid_db(out_dir: Path, arm: str, run_id: str) -> Path:
-    return out_dir / "db" / arm / f"{run_id}.sqlite"
+def _grid_db(
+    out_dir: Path, arm: str, run_id: str, phase: str = "recovery"
+) -> Path:
+    return out_dir / "db" / arm / phase / f"{run_id}.sqlite"
 
 
 def _capture_source(source: SyntheticSource, state: dict[str, Any],
@@ -273,7 +275,8 @@ def _run_standard(
     extra_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     run_id = f"{fault}-{strength if strength is not None else 'na'}-seed{seed}"
-    path = _grid_db(out_dir, arm, run_id)
+    phase = (extra_metadata or {}).get("phase", "recovery")
+    path = _grid_db(out_dir, arm, run_id, phase)
     store = EventStore(path)
     source_state: dict[str, Any] = {}
     cfg = demo_config()
@@ -281,9 +284,9 @@ def _run_standard(
     cfg["planner"]["auto_execute"] = auto_execute
     effective_planner = planner or RuleBasedPlanner()
     scenario = _scenario_for(fault)
-    source_cb = lambda source: _capture_source(
-        source, source_state, lighting_change=lighting_change
-    )
+    def source_cb(source):
+        _capture_source(source, source_state, lighting_change=lighting_change)
+
     patched_agent = None
     if detector_only:
         patched_agent = _DetectorOnlyAgent
@@ -385,7 +388,7 @@ def _run_training_baseline(
         if agent.tracker.baseline.ready:
             captured["baseline"] = agent.tracker.baseline.to_dict()
 
-    meta = _run_standard(
+    _run_standard(
         out_dir, code_revision, "A5_training", "clean", 0.0, seed,
         warmup=6 if smoke else 30, fault_windows=0, on_window=save_baseline,
         extra_metadata={"training_scene_seed": seed},
@@ -395,7 +398,9 @@ def _run_training_baseline(
     store = EventStore(_grid_db(out_dir, "A5_training",
                                 f"clean-0.0-seed{seed}"))
     try:
-        _append_run(store, {**meta, "trained_baseline": captured["baseline"]})
+        store.append("experiment_metadata", {
+            "trained_baseline": captured["baseline"],
+        })
     finally:
         store.close()
     return captured["baseline"]
@@ -411,7 +416,7 @@ def _update_run_metadata(
         events = store.events(kind="experiment_run")
         if not events:
             raise RuntimeError(f"missing experiment metadata for {run_id}")
-        store.append("experiment_run", {**events[-1]["payload"], **updates})
+        store.append("experiment_metadata", updates)
     finally:
         store.close()
 
@@ -608,10 +613,6 @@ def _run_custom(
                 raise RuntimeError(f"state {restart_target} was not reached")
             before = store.events()
             before_plans = sum(event["kind"] == "plan" for event in before)
-            before_executions = [
-                event["payload"].get("execution_id")
-                for event in before if event["kind"] == "execution"
-            ]
             cut_ids = {event["incident_id"] for event in before
                        if event["kind"] == "incident"}
             cut_incident_id = next(iter(cut_ids), None)
@@ -776,6 +777,59 @@ def _classifier_result(events: list[dict], fault: str) -> dict[str, Any]:
     return result
 
 
+def _same_recovery_run_set(
+    left: list[dict[str, Any]], right: list[dict[str, Any]]
+) -> bool:
+    def keys(runs):
+        return Counter(
+            (
+                run["meta"].get("fault"),
+                run["meta"].get("strength"),
+                run["meta"].get("seed"),
+            )
+            for run in runs
+            if run["meta"].get("fault") in CLASSIFIER_FAULT
+            and run["meta"].get("phase") != "regression"
+        )
+
+    return keys(left) == keys(right)
+
+
+def _a6_plan_summary(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    planner_incidents = set()
+    fallback_incidents = set()
+    frozen_black_local_plans = set()
+    for run in runs:
+        run_id = run["meta"].get("run_id")
+        for event in run["events"]:
+            if event["kind"] != "plan":
+                continue
+            source = event["payload"].get("source")
+            incident_id = event.get("incident_id") or f"seq:{event['seq']}"
+            key = (run_id, incident_id)
+            if run["meta"].get("fault") == "frozen_black" and source == "rules":
+                frozen_black_local_plans.add(key)
+                continue
+            planner_incidents.add(key)
+            if source == "fallback":
+                fallback_incidents.add(key)
+
+    planner_count = len(planner_incidents)
+    fallback_count = len(fallback_incidents)
+    return {
+        "planner_incidents": planner_count,
+        "fallback_incidents": fallback_count,
+        "fallback_ratio": fallback_count / planner_count if planner_count else 0.0,
+        "fallback_for_all_planner_incidents": (
+            planner_count > 0 and fallback_count == planner_count
+        ),
+        "frozen_black_local_plans": len(frozen_black_local_plans),
+        "frozen_black_local_plan_label": (
+            "deterministic local plan, planner not called"
+        ),
+    }
+
+
 def _load_runs(out_dir: str | Path) -> list[dict[str, Any]]:
     runs = []
     for path in sorted(Path(out_dir).rglob("*.sqlite")):
@@ -785,10 +839,18 @@ def _load_runs(out_dir: str | Path) -> list[dict[str, Any]]:
             run_events = [event for event in events if event["kind"] == "experiment_run"]
             if not run_events:
                 continue
+            if len(run_events) > 1:
+                raise ValueError(
+                    f"{path} contains more than one experiment_run event"
+                )
+            metadata = copy.deepcopy(run_events[0]["payload"])
+            for event in events:
+                if event["kind"] == "experiment_metadata":
+                    metadata.update(event["payload"])
             runs.append({
                 "db": str(path),
                 "events": events,
-                "meta": run_events[-1]["payload"],
+                "meta": metadata,
                 "spend_usd": store.spent_usd(),
                 "chain_valid": store.verify_chain(),
             })
@@ -927,6 +989,11 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
                 and event["payload"].get("status") == "success"
                 for run in values for event in run["events"]
             ),
+            "device_executions": sum(
+                event["kind"] == "execution"
+                and event["payload"].get("status") in ("success", "failed")
+                for run in values for event in run["events"]
+            ),
             "rollbacks": event_counts["rollback"],
             "controls": len(controls),
             "false_confirmations": false_confirmations,
@@ -970,11 +1037,7 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             ]
             row["regression_gate"] = regression_gate(regression_rows)
         if arm == "A6_token_factory_outage":
-            row["fallback_plans"] = sum(
-                event["kind"] == "plan"
-                and event["payload"].get("source") == "fallback"
-                for run in values for event in run["events"]
-            )
+            row.update(_a6_plan_summary(values))
             row["unhandled_exceptions"] = sum(
                 event["kind"] == "experiment_error"
                 for run in values for event in run["events"]
@@ -1006,9 +1069,6 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             row["circuit_threshold"] = max(
                 (run["meta"].get("circuit_threshold", 0) for run in values), default=0
             )
-            row["fallback_for_all_plans"] = (
-                row["plans"] > 0 and row["fallback_plans"] == row["plans"]
-            )
             row["circuit_open_after_threshold"] = any(
                 run["meta"].get("circuit_open", False)
                 and run["meta"].get("circuit_failures", 0)
@@ -1021,9 +1081,13 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         key: value for key, value in recovery.items()
     }
     a6_recovery: dict[str, dict[str, Any]] = {}
-    for run in arm_runs.get("A6_token_factory_outage", []):
+    a6_runs = arm_runs.get("A6_token_factory_outage", [])
+    for run in a6_runs:
         fault = run["meta"].get("fault")
-        if fault not in CLASSIFIER_FAULT:
+        if (
+            fault not in CLASSIFIER_FAULT
+            or run["meta"].get("phase") == "regression"
+        ):
             continue
         result = _classifier_result(run["events"], fault)
         counts = a6_recovery.setdefault(
@@ -1053,7 +1117,28 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
 
     a3_detection = detection_pair("A3_full_loop")
     a5_detection = detection_pair("A5_single_baseline")
-    a6_recovery_equal = a6_recovery == a3_recovery
+    a3_recovery_runs = [
+        run for run in a3 if run["meta"].get("fault") in CLASSIFIER_FAULT
+    ]
+    a6_recovery_runs = [
+        run for run in a6_runs
+        if run["meta"].get("fault") in CLASSIFIER_FAULT
+        and run["meta"].get("phase") != "regression"
+    ]
+    a6_recovery_same_run_set = (
+        bool(a3_recovery_runs and a6_recovery_runs)
+        and _same_recovery_run_set(a3_recovery_runs, a6_recovery_runs)
+    )
+    a6_recovery_equal = (
+        a6_recovery_same_run_set
+        and set(a6_recovery) == set(a3_recovery)
+        and all(
+            a6_recovery[fault]["recoverable"] == a3_recovery[fault]["recoverable"]
+            and a6_recovery[fault]["recovered_auto"]
+            == a3_recovery[fault]["recovered_auto"]
+            for fault in a3_recovery
+        )
+    )
 
     a4_regression_runs = [
         run for run in arm_runs.get("A4_no_downstream_metric", [])
@@ -1093,6 +1178,7 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "recovery_a3": a3_recovery,
         "recovery_a4": a4_recovery,
         "recovery_a6": a6_recovery,
+        "a6_recovery_same_run_set": a6_recovery_same_run_set,
         "a6_recovery_equals_a3": a6_recovery_equal,
         "a5_vs_a3_detection": {
             "a3": a3_detection,
@@ -1267,7 +1353,7 @@ def run_experiments(
               if row["arm"] == "A2_detector_no_actions")
     if not (
         a2["plans"] > 0
-        and a2["successful_executions"] == 0
+        and a2["device_executions"] == 0
         and a2["unchanged_settings_runs"] == a2["runs"]
     ):
         raise AssertionError("A2 must plan, never execute, and preserve settings")
@@ -1321,14 +1407,10 @@ def _run_a8(
             out_dir, "A8_trace", f"{scenario}-full-seed{seeds[0]}"
         ))
         try:
-            events = store.events()
-            meta = next(
-                event["payload"] for event in reversed(events)
-                if event["kind"] == "experiment_run"
-            )
-            meta["reachable_states"] = sorted(reachable[scenario])
-            meta["unreachable_states"] = sorted(all_states - reachable[scenario])
-            _append_run(store, meta)
+            store.append("experiment_metadata", {
+                "reachable_states": sorted(reachable[scenario]),
+                "unreachable_states": sorted(all_states - reachable[scenario]),
+            })
         finally:
             store.close()
 
@@ -1381,12 +1463,18 @@ def _report_data(out_dir: str | Path) -> dict[str, Any]:
             },
             {
                 "category": "Diagnosis",
-                "source": "docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md",
+                "source": (
+                    "docs/evidence/f6/"
+                    "golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md"
+                ),
                 "status": "SIMULATION evidence; REAL HARDWARE pending F4",
             },
             {
                 "category": "LLM structure",
-                "source": "docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md",
+                "source": (
+                    "docs/evidence/f6/"
+                    "golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md"
+                ),
                 "status": "SIMULATION evidence; REAL HARDWARE pending F4",
             },
             {
@@ -1435,8 +1523,8 @@ def _markdown(report: dict[str, Any]) -> str:
         "",
         "## Per-arm results",
         "",
-        "| Arm | Runs | Incidents | Plans | Successful executions | Controls / false confirmations | "
-        "Rollbacks | Key result | Status |",
+        "| Arm | Runs | Incidents | Plans | Successful executions | "
+        "Controls / false confirmations | Rollbacks | Key result | Status |",
         "|---|---:|---:|---:|---:|---:|---:|---|---|",
     ]
     for row in summary["arms"]:
@@ -1450,6 +1538,7 @@ def _markdown(report: dict[str, Any]) -> str:
         elif row["arm"] == "A2_detector_no_actions":
             key_result = (
                 f"unchanged={row['unchanged_settings_runs']}/{row['runs']}; "
+                f"device executions={row['device_executions']}; "
                 f"ticket requests={row['ticket_requests']}; auto-execution disabled"
             )
         elif row["arm"] == "A3_full_loop":
@@ -1477,8 +1566,8 @@ def _markdown(report: dict[str, Any]) -> str:
             )
         elif row["arm"] == "A6_token_factory_outage":
             key_result = (
-                f"fallback={row.get('fallback_plans', 0)}; "
-                f"all plans fallback={row.get('fallback_for_all_plans', False)}; "
+                f"fallback={row.get('fallback_incidents', 0)}/"
+                f"{row.get('planner_incidents', 0)} planner incidents; "
                 f"unhandled={row.get('unhandled_exceptions', 0)}; "
                 f"circuit opened after threshold="
                 f"{row.get('circuit_open_after_threshold', False)}; "
@@ -1497,9 +1586,25 @@ def _markdown(report: dict[str, Any]) -> str:
         )
     lines.extend([
         "",
-        "For A2, policy-designated human-ticket requests are reported separately; "
-        "they do not count as successful or failed device actions. Settings are compared "
-        "with the SyntheticSource state immediately after fault injection.",
+        "For A2, device executions count only `success` and `failed` statuses; "
+        "policy-designated human-ticket requests are reported separately. Settings are "
+        "compared with the SyntheticSource state immediately after fault injection.",
+        "",
+        "## A6 plan routing",
+        "",
+        "| Path | Incidents | Result |",
+        "|---|---:|---|",
+    ])
+    a6 = next(
+        row for row in summary["arms"]
+        if row["arm"] == "A6_token_factory_outage"
+    )
+    lines.extend([
+        f"| Planner-routed | {a6['planner_incidents']} | fallback "
+        f"{a6['fallback_incidents']}/{a6['planner_incidents']} incidents "
+        f"({a6['fallback_ratio']:.3f}) |",
+        f"| frozen_black | {a6['frozen_black_local_plans']} | "
+        f"{a6['frozen_black_local_plan_label']} |",
     ])
     lines.extend(["", "## A3 recovery by fault", "",
                   "| Fault | Runs | Recoverable | Recovered auto | Needs human | Timeout |",
@@ -1533,7 +1638,8 @@ def _markdown(report: dict[str, Any]) -> str:
         )
     lines.extend([
         "",
-        f"A6 fallback recovery equals A3 on the same grid: "
+        f"A6 recovery matches A3 on the identical fault/strength/seed run set "
+        f"({summary['a6_recovery_same_run_set']}): "
         f"{summary['a6_recovery_equals_a3']}.",
         "",
         "## A8 restart coverage",

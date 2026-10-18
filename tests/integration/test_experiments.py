@@ -5,15 +5,18 @@ import json
 import pytest
 
 from benchmarks.experiments import (
-    _NoCallPlanner,
+    _a6_plan_summary,
     _a6_planner,
+    _NoCallPlanner,
     _run_custom,
     _run_standard,
     _run_training_baseline,
+    _same_recovery_run_set,
+    _summarize_runs,
     generate_report,
     run_experiments,
 )
-from benchmarks.recovery import ScriptedPlanner, REGRESSION_ACTIONS
+from benchmarks.recovery import REGRESSION_ACTIONS, ScriptedPlanner
 from reliability_agent.config import load_config
 from reliability_agent.contracts.models import Incident
 from reliability_agent.storage import EventStore
@@ -34,7 +37,8 @@ def test_a1_detector_only_never_calls_its_failing_planner(tmp_path):
         planner=planner, detector_only=True, warmup=3, fault_windows=12,
     )
     events, chain_valid = _read_store(
-        tmp_path / "db" / "A1_local_detector_only" / "dark-0.99-seed0.sqlite"
+        tmp_path / "db" / "A1_local_detector_only" / "recovery"
+        / "dark-0.99-seed0.sqlite"
     )
 
     assert chain_valid
@@ -45,11 +49,12 @@ def test_a1_detector_only_never_calls_its_failing_planner(tmp_path):
 
 def test_a2_emits_a_plan_without_executing_or_changing_settings(tmp_path):
     _run_standard(
-        tmp_path, "test-revision", "A2_detector_no_actions", "dark", 0.99, 0,
+        tmp_path, "test-revision", "A2_detector_no_actions", "occlusion", 1.0, 0,
         auto_execute=False, warmup=3, fault_windows=12,
     )
     events, chain_valid = _read_store(
-        tmp_path / "db" / "A2_detector_no_actions" / "dark-0.99-seed0.sqlite"
+        tmp_path / "db" / "A2_detector_no_actions" / "recovery"
+        / "occlusion-1.0-seed0.sqlite"
     )
     run = next(event["payload"] for event in reversed(events)
                if event["kind"] == "experiment_run")
@@ -59,6 +64,11 @@ def test_a2_emits_a_plan_without_executing_or_changing_settings(tmp_path):
     assert not any(
         event["kind"] == "execution"
         and event["payload"].get("status") in ("success", "failed")
+        for event in events
+    )
+    assert any(
+        event["kind"] == "execution"
+        and event["payload"].get("status") == "ticket"
         for event in events
     )
     assert run["settings_unchanged"]
@@ -76,10 +86,15 @@ def test_a3_and_a4_smoke_recovery_and_visual_metric_ablation(tmp_path):
         warmup=3, fault_windows=12, extra_metadata={"phase": "regression"},
     )
 
-    for arm in ("A3_full_loop", "A4_no_downstream_metric"):
-        files = list((tmp_path / "db" / arm).glob("*.sqlite"))
-        assert len(files) == 1
-        events, chain_valid = _read_store(files[0])
+    recovery = tmp_path / "db" / "A3_full_loop" / "recovery"
+    regression = tmp_path / "db" / "A4_no_downstream_metric" / "regression"
+    assert (recovery / "dark-0.99-seed0.sqlite").exists()
+    assert (regression / "dark-0.99-seed0.sqlite").exists()
+    for path in (
+        recovery / "dark-0.99-seed0.sqlite",
+        regression / "dark-0.99-seed0.sqlite",
+    ):
+        events, chain_valid = _read_store(path)
         assert chain_valid
         assert any(event["kind"] == "incident" for event in events)
 
@@ -91,17 +106,19 @@ def test_a5_reuses_a_frozen_baseline_learned_on_another_scene(tmp_path):
         baseline_data=baseline, warmup=3, fault_windows=12,
     )
     events, chain_valid = _read_store(
-        tmp_path / "db" / "A5_single_baseline" / "dark-0.99-seed0.sqlite"
+        tmp_path / "db" / "A5_single_baseline" / "recovery"
+        / "dark-0.99-seed0.sqlite"
     )
 
     assert chain_valid
     assert any(event["kind"] == "incident" for event in events)
     trained = _read_store(
-        tmp_path / "db" / "A5_training" / "clean-0.0-seed1000.sqlite"
+        tmp_path / "db" / "A5_training" / "recovery"
+        / "clean-0.0-seed1000.sqlite"
     )[0]
-    training_run = next(event["payload"] for event in reversed(trained)
-                        if event["kind"] == "experiment_run")
-    assert training_run["trained_baseline"]["updates"] > 0
+    metadata = next(event["payload"] for event in trained
+                    if event["kind"] == "experiment_metadata")
+    assert metadata["trained_baseline"]["updates"] > 0
 
 
 def test_a6_fake_outage_falls_back_and_opens_circuit_without_spend(tmp_path):
@@ -111,7 +128,9 @@ def test_a6_fake_outage_falls_back_and_opens_circuit_without_spend(tmp_path):
         "dark", 0.99, 0,
         planner=planner, warmup=3, fault_windows=12,
     )
-    stores = list((tmp_path / "db" / "A6_token_factory_outage").glob("*.sqlite"))
+    stores = list(
+        (tmp_path / "db" / "A6_token_factory_outage").rglob("*.sqlite")
+    )
     events = [event for path in stores for event in _read_store(path)[0]]
     incident = next(event["payload"] for event in events
                     if event["kind"] == "incident")
@@ -135,7 +154,10 @@ def test_a6_fake_outage_falls_back_and_opens_circuit_without_spend(tmp_path):
             store.close()
 
 
-def test_one_seed_smoke_covers_every_arm(tmp_path):
+def test_one_seed_smoke_covers_every_arm(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "benchmarks.experiments._code_revision", lambda: "test-revision"
+    )
     summary = run_experiments(
         tmp_path / "smoke", seeds=[0], smoke=True
     )
@@ -144,6 +166,113 @@ def test_one_seed_smoke_covers_every_arm(tmp_path):
     assert len(arms) == 8
     assert all(row["runs"] for row in arms.values())
     assert all(row["valid_chains"] for row in arms.values())
+    stores = list((tmp_path / "smoke" / "db").rglob("*.sqlite"))
+    assert stores
+    for path in stores:
+        events, _ = _read_store(path)
+        assert sum(event["kind"] == "experiment_run" for event in events) == 1
+    for arm in ("A3_full_loop", "A4_no_downstream_metric"):
+        assert (
+            tmp_path / "smoke" / "db" / arm / "recovery"
+            / "dark-0.99-seed0.sqlite"
+        ).exists()
+        assert (
+            tmp_path / "smoke" / "db" / arm / "regression"
+            / "dark-0.99-seed0.sqlite"
+        ).exists()
+
+
+def test_a6_fallback_ratio_excludes_the_frozen_black_local_plan():
+    runs = [
+        {
+            "meta": {"run_id": "dark-seed0", "fault": "dark"},
+            "events": [
+                {
+                    "kind": "plan",
+                    "incident_id": "dark-incident",
+                    "seq": 1,
+                    "payload": {"source": "fallback"},
+                }
+            ],
+        },
+        {
+            "meta": {"run_id": "black-seed0", "fault": "frozen_black"},
+            "events": [
+                {
+                    "kind": "plan",
+                    "incident_id": "black-incident",
+                    "seq": 1,
+                    "payload": {"source": "rules"},
+                }
+            ],
+        },
+    ]
+
+    result = _a6_plan_summary(runs)
+
+    assert result["planner_incidents"] == 1
+    assert result["fallback_incidents"] == 1
+    assert result["fallback_ratio"] == 1.0
+    assert result["frozen_black_local_plans"] == 1
+    assert result["frozen_black_local_plan_label"] == (
+        "deterministic local plan, planner not called"
+    )
+
+
+def test_a6_recovery_comparison_requires_identical_run_sets():
+    a3_runs = [
+        {"meta": {"fault": "dark", "strength": 0.99, "seed": 0}},
+        {"meta": {"fault": "defocus", "strength": 1.0, "seed": 0}},
+        {
+            "meta": {
+                "fault": "dark",
+                "strength": 0.99,
+                "seed": 0,
+                "phase": "regression",
+            }
+        },
+    ]
+    a6_runs = [
+        {"meta": {"fault": "dark", "strength": 0.99, "seed": 0}},
+        {"meta": {"fault": "defocus", "strength": 1.0, "seed": 0}},
+    ]
+
+    assert _same_recovery_run_set(a3_runs, a6_runs)
+    assert not _same_recovery_run_set(
+        a3_runs,
+        [
+            {"meta": {"fault": "dark", "strength": 0.99, "seed": 0}},
+            {"meta": {"fault": "defocus", "strength": 1.0, "seed": 1}},
+        ],
+    )
+
+
+def test_a2_ticket_requests_do_not_count_as_device_executions():
+    summary = _summarize_runs([
+        {
+            "meta": {
+                "arm": "A2_detector_no_actions",
+                "fault": "occlusion",
+                "settings_unchanged": True,
+            },
+            "events": [
+                {
+                    "kind": "execution",
+                    "incident_id": "incident-1",
+                    "payload": {"status": "ticket"},
+                }
+            ],
+            "chain_valid": True,
+            "spend_usd": 0.0,
+        }
+    ])
+    a2 = next(
+        row for row in summary["arms"]
+        if row["arm"] == "A2_detector_no_actions"
+    )
+
+    assert a2["device_executions"] == 0
+    assert a2["ticket_requests"] == 1
 
 
 def test_a7_never_commits_verification_without_frames(tmp_path):
@@ -154,7 +283,7 @@ def test_a7_never_commits_verification_without_frames(tmp_path):
     )
     events, chain_valid = _read_store(
         tmp_path / "db" / "A7_rtsp_failure_during_action"
-        / "dark-full-seed0.sqlite"
+        / "recovery" / "dark-full-seed0.sqlite"
     )
 
     assert chain_valid
@@ -192,7 +321,7 @@ def test_a8_restart_preserves_invariants_in_acting_and_verifying(tmp_path, targe
 
 
 def test_report_regenerates_identically_from_saved_eventstores(tmp_path):
-    db = tmp_path / "db" / "A3_full_loop" / "dark.sqlite"
+    db = tmp_path / "db" / "A3_full_loop" / "recovery" / "dark.sqlite"
     store = EventStore(db)
     try:
         store.append("incident", {"candidate_faults": ["blackout"]}, "incident-1")
