@@ -94,16 +94,18 @@ hardware.
 **Human-only.** Activa el entorno virtual y ejecuta:
 
 ```powershell
-ra-demo dashboard --live --uri 0
+ra-demo dashboard --live --uri 0 --db runs/owner-webcam-check.sqlite
 ```
 
 Abre `http://127.0.0.1:8000/`. Esperado: fuente webcam y etiqueta REAL HARDWARE; sin API key,
 el modo local debe explicarse y no debe aparentar una llamada live. Pega si la webcam abrió,
-el modo mostrado y cualquier error (sin claves ni URI privados).
+el modo mostrado y cualquier error (sin claves ni URI privados). Al iniciar, la CLI muestra
+`Mode: REAL HARDWARE`, la ruta de la base de datos y la URL del dashboard.
 
 Para el vídeo, cubre el objetivo de la cámara durante una entrada física visible. Esperado: un
 incidente confirmado, un plan visible y una decisión del gate limitada a
-`enter_safe_mode` / `request_manual_cleaning` / `needs_human`, seguida de un ticket o safe mode.
+`enter_safe_mode` / `request_manual_cleaning` / `needs_human`, seguida de un ticket, safe mode o
+escalamiento `needs_human`.
 El adapter real no implementa control UVC/ONVIF de exposición/foco; no afirmes que la webcam
 confirma un commit de exposición ni de autofocus. Mantén el badge REAL HARDWARE visible durante
 esta toma.
@@ -138,24 +140,29 @@ dashboard debe permanecer visible.
 **SIMULATION:** desde el entorno virtual, inicia los escenarios:
 
 ```powershell
-ra-demo dashboard --scenario dark --planner nemotron
-ra-demo dashboard --scenario bad_action
+ra-demo dashboard --scenario dark --planner nemotron --db runs/owner-dark.sqlite
+ra-demo dashboard --scenario bad_action --db runs/owner-bad-action.sqlite
 ```
 
 Esperado: `dark` muestra exposición acotada y COMMITTED; `bad_action` muestra ROLLED BACK. La
 grabación debe captar al menos una llamada Nemotron live exitosa usando `NEBIUS_API_KEY` en `.env`.
 No muestres la clave. Si Token Factory falla, di “local mode—Token Factory unavailable”; el
-fallback local no sustituye la llamada live requerida.
+fallback local no sustituye la llamada live requerida. Al iniciar cada dashboard, la CLI muestra
+`Mode: SIMULATION`, el planner, su base de datos y la URL.
+
+Antes de repetir un comando dashboard, borra el archivo de base de datos indicado por `--db` o elige
+una ruta nueva.
 
 **REAL HARDWARE:** graba la webcam del propietario durante al menos 60 segundos:
 
 ```powershell
-ra-demo dashboard --live --uri 0
+ra-demo dashboard --live --uri 0 --db runs/owner-webcam-demo.sqlite
 ```
 
 Cubre el objetivo con la mano visible; espera el incidente, muestra el plan y el gate, y después
-el ticket de limpieza o safe mode. En hardware real no se debe mostrar ni afirmar commit/rollback
-de exposición o foco: ese control está demostrado solo en SIMULATION.
+el ticket de limpieza, safe mode o escalamiento `needs_human`. En hardware real no se debe mostrar ni
+afirmar commit/rollback de exposición o foco: ese control está demostrado solo en SIMULATION. Al
+iniciar, la CLI muestra `Mode: REAL HARDWARE`, la base de datos seleccionada y la URL.
 
 Sigue el resto de `docs/demo-script.md`; cierra notificaciones, usa silencio o audio autorizado y
 mantén la entrada física en cuadro. No se incluye una secuencia stream-down/restart: no hay una

@@ -115,7 +115,16 @@ ra-demo all                            # deterministic SIMULATION of every scena
 Start the read-only SIMULATION dashboard:
 
 ```bash
-ra-demo dashboard
+ra-demo dashboard --db runs/readme-simulation.sqlite
+```
+
+Expected startup output:
+
+```text
+Mode: SIMULATION
+Planner: rules
+Database: runs/readme-simulation.sqlite
+Dashboard: http://127.0.0.1:8000
 ```
 
 In another terminal, check that the page responds successfully, then stop the server with Ctrl+C:
@@ -124,10 +133,17 @@ In another terminal, check that the page responds successfully, then stop the se
 curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8000/
 ```
 
-Expected: `HTTP 200`. For a REAL HARDWARE webcam dashboard, use
-`ra-demo dashboard --live --uri 0`. The static page is
-[`apps/dashboard/index.html`](apps/dashboard/index.html). No dashboard screenshots are committed,
+Expected: `HTTP 200`. For a REAL HARDWARE webcam dashboard, run:
+
+```bash
+ra-demo dashboard --live --uri 0 --db runs/readme-webcam-check.sqlite
+```
+
+Expected: `Mode: REAL HARDWARE`, the selected database path, and the dashboard URL. The static page
+is [`apps/dashboard/index.html`](apps/dashboard/index.html). No dashboard screenshots are committed,
 so none is shown here.
+
+Before rerunning a dashboard command, delete the database file named by `--db` or choose a new path.
 
 Use Nemotron (spends a few cents of Token Factory credits):
 
@@ -142,9 +158,12 @@ Real camera (physical demo path):
 
 ```bash
 ra-demo live --uri 0                   # REAL HARDWARE when URI 0 is a webcam
-ra-demo dashboard --live --uri 0       # read-only dashboard plus live webcam agent
+ra-demo dashboard --live --uri 0 --db runs/readme-webcam-live.sqlite  # read-only dashboard plus live webcam agent
 uvicorn --factory apps.api.main:create_app --port 8000   # read-only incident API
 ```
+
+Expected: the dashboard reports `Mode: REAL HARDWARE`, its database path, and its URL. Use an
+available webcam; this command is not a hardware result by itself.
 
 Without `NEBIUS_API_KEY` the agent starts in **local mode** (rule-based planner) and says so.
 
