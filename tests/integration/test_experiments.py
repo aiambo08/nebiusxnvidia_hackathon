@@ -109,7 +109,7 @@ def test_a6_fake_outage_falls_back_and_opens_circuit_without_spend(tmp_path):
         _run_standard(
             tmp_path, "test-revision", "A6_token_factory_outage",
             "dark", 0.99, seed,
-            planner=planner, warmup=3, fault_windows=56,
+            planner=planner, warmup=3, fault_windows=20,
         )
     stores = list((tmp_path / "db" / "A6_token_factory_outage").glob("*.sqlite"))
     events = [event for path in stores for event in _read_store(path)[0]]

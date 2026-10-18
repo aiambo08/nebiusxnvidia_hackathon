@@ -377,7 +377,7 @@ def _run_standard(
 
 
 def _run_training_baseline(
-    out_dir: Path, code_revision: str, seed: int
+    out_dir: Path, code_revision: str, seed: int, *, smoke: bool = False
 ) -> dict[str, Any]:
     captured: dict[str, Any] = {}
 
@@ -387,7 +387,7 @@ def _run_training_baseline(
 
     meta = _run_standard(
         out_dir, code_revision, "A5_training", "clean", 0.0, seed,
-        warmup=30, fault_windows=0, on_window=save_baseline,
+        warmup=6 if smoke else 30, fault_windows=0, on_window=save_baseline,
         extra_metadata={"training_scene_seed": seed},
     )
     if "baseline" not in captured:
@@ -1148,7 +1148,7 @@ def run_experiments(
     a6_planner = _a6_planner(cfg)
     for seed in seeds:
         baseline_for_seed = _run_training_baseline(
-            out_dir, revision, 1000 + seed
+            out_dir, revision, 1000 + seed, smoke=smoke
         )
         for fault, strength in FAULT_GRID:
             planner = _NoCallPlanner()
