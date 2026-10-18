@@ -224,16 +224,21 @@ class PolicyGate:
                 if isinstance(v, bool) or not isinstance(v, (int, float)):
                     errors.append(f"{key} must be a number")
                     continue
-                if not math.isfinite(float(v)):
+                try:
+                    fv = float(v)
+                except OverflowError:
                     errors.append(f"{key} must be finite")
                     continue
-                if p.type == "int" and not float(v).is_integer():
+                if not math.isfinite(fv):
+                    errors.append(f"{key} must be finite")
+                    continue
+                if p.type == "int" and not fv.is_integer():
                     errors.append(f"{key} must be an integer")
                     continue
-                if (p.min is not None and v < p.min) or (p.max is not None and v > p.max):
-                    errors.append(f"{key}={v} outside [{p.min}, {p.max}]")
+                if (p.min is not None and fv < p.min) or (p.max is not None and fv > p.max):
+                    errors.append(f"{key}={fv} outside [{p.min}, {p.max}]")
                     continue
-                clean[key] = int(v) if p.type == "int" else float(v)
+                clean[key] = int(fv) if p.type == "int" else fv
             elif p.type == "str":
                 if not isinstance(v, str) or len(v) > 32:
                     errors.append(f"{key} must be a short string")
