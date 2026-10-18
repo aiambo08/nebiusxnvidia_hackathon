@@ -280,7 +280,7 @@ def render_generated_section(
         "Generated from `pyproject.toml` and installed distribution metadata. "
         "Transitive requirements are included; markers are resolved for Linux and win32.",
         "",
-        "versions as resolved on the generating machine; --check compares names and licences.",
+        "Versions as resolved on the generating machine; --check compares names and licences.",
         "",
         "| Name | Version | Licence | Homepage | Pulled in by |",
         "|---|---|---|---|---|",

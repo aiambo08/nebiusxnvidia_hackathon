@@ -107,8 +107,12 @@ CREDENTIAL_PATTERNS = {
     "Hugging Face token": re.compile(rb"\bhf_[A-Za-z0-9]{8,}\b", re.IGNORECASE),
 }
 API_KEY_ASSIGNMENT_PATTERN = re.compile(
-    rb"\b(NEBIUS_API_KEY|api_key)\s*=\s*[\"']?([^\"'\s,;#]+)",
+    rb"\b(NEBIUS_API_KEY|api_key)[\"']?\s*\]?\s*(?:=|:)\s*[\"']?"
+    rb"([^\"'\s,;#}\]]+)",
     re.IGNORECASE,
+)
+YAML_KEY_ASSIGNMENT_PATTERN = re.compile(
+    rb"(?m)^[ \t]*KEY\s*:\s*[\"']?([^\"'\s,;#}\]]+)"
 )
 PLACEHOLDER_VALUES = {
     "",
@@ -125,6 +129,7 @@ PLACEHOLDER_VALUES = {
     "redacted",
     "replace-me",
     "your-api-key",
+    "your-key-here",
 }
 
 
@@ -176,6 +181,8 @@ def _is_placeholder_value(value: bytes) -> bool:
         "todo",
         "your_key_here",
         "your_api_key",
+        "your-key-here",
+        "str",
     }
     return (
         normalized in placeholders
@@ -189,12 +196,11 @@ def _is_placeholder_value(value: bytes) -> bool:
                 "fake-",
                 "placeholder-",
                 "replace-",
-                "your-",
-                "your_",
             )
         )
-        or normalized.startswith("<")
-        or (len(normalized) >= 8 and set(normalized) <= {"x", "*", "0"})
+        or (normalized.startswith("<") and normalized.endswith(">"))
+        or (len(normalized) >= 3 and set(normalized) == {"x"})
+        or (len(normalized) >= 8 and set(normalized) <= {"*", "0"})
     )
 
 
@@ -206,7 +212,18 @@ def _credential_findings_bytes(data: bytes) -> set[str]:
         if not _is_placeholder_value(match.group(2)):
             name = match.group(1).decode("ascii", errors="ignore").casefold()
             findings.add(f"{name} assignment")
+    for match in YAML_KEY_ASSIGNMENT_PATTERN.finditer(data):
+        if not _is_placeholder_value(match.group(1)):
+            findings.add("key assignment")
     return findings
+
+
+def _is_credential_finding(reason: str) -> bool:
+    return (
+        reason in CREDENTIAL_PATTERNS
+        or reason.endswith(" assignment")
+        or reason.startswith("credential pattern:")
+    )
 
 
 def _credential_findings(path: Path) -> list[str]:
@@ -258,7 +275,11 @@ def _history_paths(repo: Path) -> set[PurePosixPath]:
 
 def _history_blob_records(
     repo: Path,
-) -> tuple[list[tuple[str, PurePosixPath | None, int]], list[str]]:
+) -> tuple[
+    list[tuple[str, PurePosixPath | None, int]],
+    list[str],
+    list[tuple[PurePosixPath, int]],
+]:
     output = _git_output(repo, "rev-list", "--all", "--objects")
     object_paths: dict[str, PurePosixPath] = {}
     object_ids = []
@@ -274,7 +295,7 @@ def _history_blob_records(
                 PurePosixPath(path.decode("utf-8", errors="surrogateescape")),
             )
     if not object_ids:
-        return [], []
+        return [], [], []
 
     result = subprocess.run(
         [
@@ -293,6 +314,7 @@ def _history_blob_records(
 
     blobs = []
     warnings = []
+    oversized = []
     for line in result.stdout.splitlines():
         object_id, object_type, object_size = line.split()
         if object_type != b"blob":
@@ -303,11 +325,14 @@ def _history_blob_records(
         if size > MAX_HISTORY_BLOB_BYTES:
             label = str(path) if path else f"blob {identifier}"
             warnings.append(
-                f"Skipped credential scan for history blob over 5 MB: {label} ({size} bytes)."
+                f"Skipped content scan for history blob over 5 MB: {label} ({size} bytes)."
+            )
+            oversized.append(
+                (path or PurePosixPath(f"blob-{identifier}"), size)
             )
         else:
             blobs.append((identifier, path, size))
-    return blobs, warnings
+    return blobs, warnings, oversized
 
 
 def _scan_history_blob_chunks(
@@ -350,14 +375,18 @@ def _scan_history_blob_chunks(
 def history_findings(
     repo: Path,
 ) -> tuple[dict[PurePosixPath, set[str]], list[str]]:
-    blobs, warnings = _history_blob_records(repo)
+    blobs, warnings, oversized = _history_blob_records(repo)
     blob_paths = [path for _, path, _ in blobs if path is not None]
     path_sizes: dict[PurePosixPath, int] = {}
     for _, path, size in blobs:
         if path is not None:
             path_sizes[path] = max(size, path_sizes.get(path, 0))
+    for path, size in oversized:
+        path_sizes[path] = max(size, path_sizes.get(path, 0))
 
     findings: dict[PurePosixPath, set[str]] = defaultdict(set)
+    for path, _size in oversized:
+        findings[path].add("oversized_blob")
     for path in _history_paths(repo) | set(blob_paths):
         reasons = _path_name_reasons(path)
         suffixes = [suffix.casefold() for suffix in path.suffixes]
@@ -373,18 +402,29 @@ def history_findings(
     return dict(findings), sorted(set(warnings))
 
 
-def _allowlist(path: Path) -> dict[str, str]:
+def _allowlist(path: Path) -> dict[str, dict[str, Any]]:
     loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     entries = loaded.get("files", {})
     if not isinstance(entries, dict):
         raise ValueError("allowlist 'files' must be a mapping")
-    result = {}
+    result: dict[str, dict[str, Any]] = {}
     for name, value in entries.items():
-        if isinstance(value, dict):
-            value = value.get("justification", "")
-        if not isinstance(name, str) or not isinstance(value, str) or not value.strip():
-            raise ValueError("every allowlist entry needs a path and justification")
-        result[name] = value.strip()
+        if not isinstance(name, str) or not isinstance(value, dict):
+            raise ValueError("every allowlist entry must map a path to types and justification")
+        justification = value.get("justification")
+        types = value.get("types")
+        if (
+            not isinstance(justification, str)
+            or not justification.strip()
+            or not isinstance(types, list)
+            or not types
+            or any(not isinstance(reason, str) or not reason.strip() for reason in types)
+        ):
+            raise ValueError("every allowlist entry needs finding types and a justification")
+        result[name] = {
+            "types": set(types),
+            "justification": justification.strip(),
+        }
     return result
 
 
@@ -396,29 +436,54 @@ def _display_justification(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
 
 
+def _allowlist_description(entry: dict[str, Any] | None, waived: set[str]) -> str | None:
+    if not entry or not waived:
+        return None
+    types = ", ".join(sorted(waived))
+    return f"{types}: {entry['justification']}"
+
+
 def build_report(
     rows: list[dict[str, Any]],
     history: dict[PurePosixPath, set[str]],
     history_warnings: list[str],
-    allowlist: dict[str, str],
+    allowlist: dict[str, dict[str, Any]],
 ) -> tuple[str, list[str]]:
     unapproved = set()
     active_allowlist_paths = set()
+
+    def waived_findings(path: str, reasons: set[str] | list[str]) -> set[str]:
+        entry = allowlist.get(path)
+        if not entry:
+            return set()
+        return {
+            reason
+            for reason in reasons
+            if reason in entry["types"] and not _is_credential_finding(reason)
+        }
+
     for row in rows:
         path = str(row["path"])
-        row["justification"] = allowlist.get(path)
+        flags = set(row["flags"])
+        waived = waived_findings(path, flags)
+        entry = allowlist.get(path)
+        row["justification"] = _allowlist_description(entry, waived)
         if row["flags"]:
-            if row["justification"]:
+            if waived:
                 active_allowlist_paths.add(path)
-            else:
+            if flags - waived:
                 unapproved.add(path)
 
-    for path, _reasons in history.items():
+    history_justifications = {}
+    for path, reasons in history.items():
         display_path = str(path)
-        justification = allowlist.get(display_path)
-        if justification:
+        waived = waived_findings(display_path, reasons)
+        entry = allowlist.get(display_path)
+        justification = _allowlist_description(entry, waived)
+        history_justifications[path] = justification
+        if waived:
             active_allowlist_paths.add(display_path)
-        else:
+        if set(reasons) - waived:
             unapproved.add(display_path)
 
     stale_allowlist = sorted(set(allowlist) - active_allowlist_paths)
@@ -438,12 +503,14 @@ def build_report(
         "",
         "History detection checks file names for media, model-weight, dataset, archive, and "
         "environment-file indicators, and scans blob content for credential patterns. "
+        "Blobs over 5 MB are reported as `oversized_blob`; their content scan is skipped and "
+        "they require an explicit path-and-type allowlist entry. "
         "CI also runs the `secrets` job's `gitleaks (full history)` step "
         "(`.github/workflows/ci.yml`).",
         "",
         "## Tracked-file inventory",
         "",
-        "| Path | Size (bytes) | Findings | Allowlist justification |",
+        "| Path | Size (bytes) | Findings | Allowlisted types and justification |",
         "|---|---:|---|---|",
     ]
     for row in rows:
@@ -462,12 +529,12 @@ def build_report(
                 "Historical media, dataset, model-weight, environment-file, or credential "
                 "hits require a justified allowlist entry. History was not rewritten.",
                 "",
-                "| Path | Findings | Allowlist justification |",
+                "| Path | Findings | Allowlisted types and justification |",
                 "|---|---|---|",
             ]
         )
         for path, reasons in sorted(history.items(), key=lambda item: str(item[0])):
-            justification = allowlist.get(str(path), "—")
+            justification = history_justifications.get(path) or "—"
             lines.append(
                 f"| `{_display_path(path)}` | {', '.join(sorted(reasons))} | "
                 f"{_display_justification(justification)} |"
