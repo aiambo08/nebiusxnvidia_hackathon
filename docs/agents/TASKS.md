@@ -87,4 +87,5 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
 - [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
 - [ ] [F9][product] Complete F9 product evidence
+- [ ] [F10][evaluation] Implement the 4-hour SIMULATION soak and ≤ 1 false alarm/h report; implementation in progress, no F10 gate boxes ticked
 - [ ] [F12][product] Video + Devpost text
