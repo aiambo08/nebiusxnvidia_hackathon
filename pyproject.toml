@@ -33,7 +33,7 @@ dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5"]
 ra-demo = "reliability_agent.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/reliability_agent"]
+packages = ["src/reliability_agent", "apps"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Physical AI Reliability Agent</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--fg:#e6edf3;--mut:#8b949e;--ok:#3fb950;--warn:#d29922;--bad:#f85149;--info:#58a6ff;--nv:#76b900}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{font-size:17px;margin:0 8px 0 0}
+h2{font-size:13px;margin:0 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.badge{padding:3px 10px;border-radius:999px;font-weight:700;font-size:12px;border:1px solid}
+.b-sim{color:#f0b429;border-color:#f0b429;background:#3a2a00}
+.b-real{color:#fff;border-color:var(--ok);background:#1a4d26}
+.b-replay{color:var(--info);border-color:var(--info);background:#0c2d4d}
+.b-off{color:var(--mut);border-color:var(--line)}
+.chip{color:var(--mut);font-size:12px}.chip b{color:var(--fg);font-weight:600}
+.spacer{flex:1}
+main{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.25fr);gap:14px;padding:14px 18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.cam{position:relative;background:#000;border-radius:8px;overflow:hidden;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center}
+.cam img{width:100%;height:100%;object-fit:contain}
+.cam .ov{position:absolute;left:10px;top:10px;display:flex;gap:6px}
+.cam .nofeed{color:var(--mut)}
+.state{padding:3px 10px;border-radius:6px;font-weight:700;font-size:12px;background:#21262d}
+.s-HEALTHY{background:#1a4d26;color:#7ee787}.s-SUSPECT{background:#3a2a00;color:#f0b429}
+.s-CONFIRMED,.s-DIAGNOSING,.s-PLANNED,.s-ACTING,.s-VERIFYING{background:#0c2d4d;color:#79c0ff}
+.s-RECOVERED{background:#1a4d26;color:#7ee787}.s-NEEDS_HUMAN,.s-REJECTED{background:#4d2d00;color:#ffa657}
+.s-ROLLING_BACK,.s-ROLLED_BACK,.s-FAILED{background:#4d1416;color:#ff7b72}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+.metric{background:#0d1117;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.metric .k{color:var(--mut);font-size:11px}.metric .v{font-size:16px;font-weight:600}
+.metric canvas{width:100%;height:34px;display:block}
+.flow{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px}
+.step{border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center;font-size:11px;color:var(--mut);background:#0d1117}
+.step b{display:block;font-size:12px;color:var(--fg)}
+.st-done{border-color:var(--ok)}.st-done b{color:#7ee787}
+.st-bad{border-color:var(--bad)}.st-bad b{color:#ff7b72}
+.st-warn{border-color:var(--warn)}.st-warn b{color:#f0b429}
+.st-run{border-color:var(--info)}.st-run b{color:#79c0ff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:#0d1117;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+.card h3{margin:0 0 6px;font-size:12px;color:var(--mut);font-weight:600}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px}
+.kv>span:nth-child(odd){color:var(--mut)}
+.kv span{overflow-wrap:anywhere}
+pre{margin:6px 0 0;background:#010409;border:1px solid var(--line);border-radius:6px;padding:8px;font-size:11.5px;max-height:190px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.nv{color:var(--nv);font-weight:700}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}.mut{color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600}
+tr.sel{background:#1f2a37}tbody tr{cursor:pointer}
+.tl{font-size:12px;max-height:150px;overflow:auto}
+.tl div{padding:2px 0;border-bottom:1px dashed #21262d}
+.tl .t{color:var(--mut);display:inline-block;width:52px}
+footer{color:var(--mut);font-size:11.5px;padding:0 18px 14px}
+@media (max-width:1000px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Physical AI Reliability Agent</h1>
+  <span id="mode" class="badge b-off">CONNECTING…</span>
+  <span class="chip">source <b id="src">–</b></span>
+  <span class="chip">scenario <b id="scn">–</b></span>
+  <span class="spacer"></span>
+  <span class="chip">planner <b id="plnr">–</b></span>
+  <span class="chip">model <b id="model" class="nv">–</b></span>
+  <span class="chip">prompt <b id="prompt">–</b></span>
+  <span class="chip">Token Factory spend <b id="spend">–</b></span>
+  <span class="chip">event chain <b id="chain">–</b></span>
+</header>
+<main>
+  <div class="stack">
+    <section class="panel">
+      <h2>Camera</h2>
+      <div class="cam"><img id="frame" alt="latest camera frame" hidden><span class="nofeed" id="nofeed">no frame yet</span>
+        <div class="ov"><span id="state" class="state">–</span><span id="ovmode" class="badge b-off"></span></div></div>
+      <div class="metrics" id="metrics"></div>
+    </section>
+    <section class="panel">
+      <h2>Incidents</h2>
+      <table><thead><tr><th>Opened</th><th>Fault</th><th>Action</th><th>Outcome</th><th>Cost</th></tr></thead>
+      <tbody id="hist"><tr><td colspan="5" class="mut">no incidents yet — the camera is healthy</td></tr></tbody></table>
+    </section>
+  </div>
+  <section class="panel" id="detail">
+    <h2>Incident loop <span id="incid" class="mut" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div class="flow" id="flow"></div>
+    <div class="grid2">
+      <div class="card"><h3>1 · Detect (local probes, no LLM)</h3><div class="kv" id="detect"></div></div>
+      <div class="card"><h3 id="diagh">2 · Diagnose</h3><div class="kv" id="diag"></div></div>
+      <div class="card"><h3>3 · Policy gate (deterministic)</h3><div class="kv" id="gate"></div></div>
+      <div class="card"><h3>4 · Act (executor, snapshot first)</h3><div class="kv" id="act"></div></div>
+      <div class="card" style="grid-column:1/-1"><h3>5 · Verify — before vs after</h3><div id="verify" class="mut">waiting</div></div>
+      <div class="card"><h3>Plan JSON (validated <code>NemotronPlan</code>)</h3><pre id="plan">–</pre></div>
+      <div class="card"><h3>State timeline</h3><div class="tl" id="tl"></div></div>
+    </div>
+  </section>
+</main>
+<footer>Read-only view of the hash-chained event store. The LLM never executes anything: every action passes the policy gate, takes a snapshot, is verified, and is rolled back if it does not help.</footer>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=(v,d=2)=>v==null||Number.isNaN(+v)?"–":(+v).toFixed(d);
+const usd=v=>v==null?"–":"$"+(+v).toFixed(5);
+let selected=null, autoFollow=true, lastIncidents=[], plannerStatus=null;
+const MODE_CLASS={"SIMULATION":"b-sim","REAL HARDWARE":"b-real","REPLAY":"b-replay"};
+const METRICS=[["brightness","Brightness"],["blur","Blur effect"],["occluded","Occluded cells"],["fps","Capture FPS"],["task_success","Task success"],["exact_repeat_ratio","Frozen frames"]];
+$("metrics").innerHTML=METRICS.map(([k,l])=>`<div class="metric"><div class="k">${esc(l)}</div><div class="v" id="m-${esc(k)}">–</div><canvas id="c-${esc(k)}" width="300" height="34"></canvas></div>`).join("");
+
+function kv(el,rows){
+  el.replaceChildren();
+  for(const [k,v] of rows.filter(r=>r)){
+    const key=document.createElement("span"),value=document.createElement("span");
+    key.textContent=k;
+    if(Array.isArray(v)){
+      for(const part of v){
+        const span=document.createElement("span");
+        span.textContent=part.text==null?"–":String(part.text);
+        if(part.cls)span.className=part.cls;
+        value.append(span);
+      }
+    }else if(v&&typeof v==="object"&&"text" in v){
+      value.textContent=v.text==null?"–":String(v.text);
+      if(v.cls)value.className=v.cls;
+    }else value.textContent=v==null?"–":String(v);
+    el.append(key,value);
+  }
+}
+function plannerLabel(p,source){
+  if(p?.kind==="rules")return "rules (local planner, no LLM call)";
+  if(p?.kind==="nemotron"&&(source===undefined?p.api_key_present===false:source!=="nemotron"))return "local fallback (no LLM call)";
+  return p?.kind||source||"–";
+}
+async function getJSON(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw new Error(u+" "+r.status);return r.json()}
+
+function spark(id,vals){const c=$(id);if(!c)return;const g=c.getContext("2d"),w=c.width,h=c.height;g.clearRect(0,0,w,h);
+  const v=vals.filter(x=>x!=null&&isFinite(x));if(v.length<2)return;let lo=Math.min(...v),hi=Math.max(...v);if(hi-lo<1e-9){hi+=1;lo-=1}
+  g.strokeStyle="#58a6ff";g.lineWidth=1.5;g.beginPath();let first=true;
+  vals.forEach((x,i)=>{if(x==null||!isFinite(x))return;const px=i/(vals.length-1)*w,py=h-2-(x-lo)/(hi-lo)*(h-4);first?g.moveTo(px,py):g.lineTo(px,py);first=false});g.stroke()}
+
+async function status(){
+  try{const s=await getJSON("/api/status");
+    const m=s.mode||"OFFLINE";const cls=MODE_CLASS[m]||"b-off";
+    $("mode").className="badge "+cls;$("mode").textContent=m;$("ovmode").className="badge "+cls;$("ovmode").textContent=m;
+    $("src").textContent=s.source_label||"event store";$("scn").textContent=s.scenario||"–";
+    const st=s.state||"–";$("state").textContent=st;$("state").className="state s-"+st;
+    const p=s.planner||{};plannerStatus=p;$("plnr").textContent=plannerLabel(p);
+    $("model").textContent=p.model||"–";$("prompt").textContent=p.prompt_version||"–";
+    const b=s.budget||{};$("spend").textContent=b.spent_usd_estimate!=null?`$${(+b.spent_usd_estimate).toFixed(4)} / $${b.hard_cap_usd} cap`:"–";
+    $("chain").innerHTML=s.chain_valid?'<span class="ok">verified</span>':'<span class="bad">BROKEN</span>';
+  }catch(e){$("mode").textContent="DISCONNECTED";$("mode").className="badge b-off"}
+}
+async function windows(){
+  try{const w=await getJSON("/api/windows?n=120");if(!w.length)return;const last=w[w.length-1];
+    for(const [k] of METRICS){const v=last[k];$("m-"+k).textContent=v==null?"–":(k==="fps"?num(v,1):num(v,k==="brightness"?1:2));spark("c-"+k,w.map(x=>x[k]))}
+  }catch(e){}
+}
+async function frame(){
+  try{const r=await fetch("/api/frame.jpg?t="+Date.now(),{cache:"no-store"});
+    if(r.status===200){const u=URL.createObjectURL(await r.blob());const img=$("frame");const old=img.src;img.src=u;img.hidden=false;$("nofeed").hidden=true;if(old.startsWith("blob:"))setTimeout(()=>URL.revokeObjectURL(old),1000)}
+  }catch(e){}
+}
+
+function summarize(inc){
+  const ev=inc.events||[];const by=k=>ev.filter(e=>e.kind===k);const one=k=>{const x=by(k);return x.length?x[x.length-1]:null};
+  return {inc,ev,incident:one("incident"),plan:one("plan"),policy:one("policy"),exec:one("execution"),ver:one("verification"),rb:one("rollback"),closed:one("closed"),states:by("state")};
+}
+function outcome(s){
+  if(s.ver&&s.ver.payload.status==="committed")return {label:"committed",state:"done",cls:"ok"};
+  if(s.rb)return {label:"rolled back",state:"bad",cls:"bad"};
+  if(s.exec&&s.exec.payload.status==="ticket")return {label:"ticket → human",state:"warn",cls:"warn"};
+  if(s.policy&&!s.policy.payload.approved)return {label:"rejected by gate",state:"bad",cls:"bad"};
+  const last=s.states.length?s.states[s.states.length-1].payload.to:inc_state(s);
+  if(last==="NEEDS_HUMAN")return {label:"needs human",state:"warn",cls:"warn"};
+  if(s.closed)return {label:"closed",state:"done",cls:"ok"};
+  return {label:"in progress",state:"run",cls:"mut"};
+}
+function inc_state(s){return s.inc.state}
+function t0(s){return s.incident?Date.parse(s.incident.ts):null}
+function rel(s,e){const a=t0(s);return a?((Date.parse(e.ts)-a)/1000).toFixed(1)+"s":""}
+
+function renderHist(list){
+  if(!list.length){$("hist").innerHTML='<tr><td colspan="5" class="mut">no incidents yet — the camera is healthy</td></tr>';return}
+  $("hist").innerHTML=list.map(inc=>{const s=summarize(inc);const a=s.plan?s.plan.payload.plan.action.name:"–";const c=s.plan?s.plan.payload.usage.estimated_cost_usd:null;
+    const result=outcome(s);
+    return `<tr data-id="${esc(inc.incident_id)}" class="${esc(inc.incident_id===selected?"sel":"")}"><td>${esc(new Date(inc.opened).toLocaleTimeString())}</td><td>${esc((inc.faults||[]).join(", "))}</td><td>${esc(a)}</td><td class="${esc(result.cls)}">${esc(result.label)}</td><td>${usd(c)}</td></tr>`}).join("");
+  for(const tr of $("hist").querySelectorAll("tr[data-id]"))tr.onclick=()=>{selected=tr.dataset.id;autoFollow=selected===list[0].incident_id;renderHist(list);renderDetail(list.find(i=>i.incident_id===selected))};
+}
+function verificationReason(v){
+  const reasons=Array.isArray(v.reasons)?v.reasons:[];
+  const metric=reasons.map(r=>String(r).match(/^([^:]+):\s*-?\d/)).find(Boolean)?.[1];
+  const before=metric?v.before?.[metric]:null,after=metric?v.after?.[metric]:null;
+  if(v.status==="committed"&&before!=null&&after!=null&&Number.isFinite(Number(before))&&Number(before)===Number(after))
+    return `Fault cleared; primary metric already at baseline. ${reasons.join("; ")}`;
+  return reasons.join("; ");
+}
+function renderVerification(v){
+  const root=$("verify"),summary=document.createElement("div"),badge=document.createElement("b"),reason=document.createElement("span");
+  summary.style.marginBottom="6px";
+  badge.className=v.status==="committed"?"ok":"bad";
+  badge.textContent=v.status==="committed"?"COMMITTED":v.status==="rolled_back"?"ROLLED BACK (snapshot restored)":String(v.status).toUpperCase().replace(/_/g," ")+" → ROLLBACK";
+  reason.className="mut";reason.textContent=verificationReason(v);summary.append(badge," ",reason);
+  const table=document.createElement("table"),thead=document.createElement("thead"),header=document.createElement("tr"),body=document.createElement("tbody");
+  for(const label of ["metric","before","after"]){const cell=document.createElement("th");cell.textContent=label;header.append(cell)}
+  thead.append(header);
+  const keys=[...new Set([...Object.keys(v.before||{}),...Object.keys(v.after||{})])];
+  for(const key of keys){
+    const row=document.createElement("tr");
+    for(const value of [key,num(v.before?.[key],3),num(v.after?.[key],3)]){
+      const cell=document.createElement("td");cell.textContent=value;row.append(cell);
+    }
+    body.append(row);
+  }
+  table.append(thead,body);root.replaceChildren(summary,table);
+}
+function renderTimeline(root,s){
+  const fragment=document.createDocumentFragment();
+  for(const event of s.states){
+    const row=document.createElement("div"),time=document.createElement("span"),state=document.createElement("span"),reason=document.createElement("span");
+    time.className="t";time.textContent=rel(s,event);
+    state.className="state s-"+String(event.payload.to);state.textContent=event.payload.to;
+    reason.className="mut";reason.textContent=event.payload.reason||"";
+    row.append(time,state," ",reason);fragment.append(row);
+  }
+  if(s.closed){
+    const row=document.createElement("div"),time=document.createElement("span"),label=document.createElement("b"),reason=document.createElement("span");
+    time.className="t";time.textContent=rel(s,s.closed);label.textContent="closed";
+    reason.className="mut";reason.textContent=s.closed.payload.reason||"";
+    row.append(time,label," ",reason);fragment.append(row);
+  }
+  root.replaceChildren(fragment);
+}
+function renderDiagnosisHeading(source){
+  const root=$("diagh");
+  root.replaceChildren(document.createTextNode("2 · Diagnose — "));
+  if(source==="nemotron"){
+    const model=document.createElement("span");
+    model.className="nv";model.textContent="NVIDIA Nemotron";
+    root.append(model,document.createTextNode(" on Nebius Token Factory"));
+  }else root.append(document.createTextNode(plannerLabel(plannerStatus,source)));
+}
+function renderDetail(inc){
+  if(!inc){$("incid").textContent="";return}
+  const s=summarize(inc);$("incid").textContent="· "+inc.incident_id.slice(0,8)+(autoFollow?" (latest)":"");
+  const ocs=outcome(s).state;
+  const steps=[["Detect",s.incident?"done":"run"],["Diagnose",s.plan?"done":(s.incident?"run":"")],
+    ["Policy gate",s.policy?(s.policy.payload.approved?"done":"bad"):(s.plan&&s.plan.payload.plan.action.name==="needs_human"?"warn":(s.plan?"run":""))],
+    ["Act",s.exec?(s.exec.payload.status==="success"?"done":s.exec.payload.status==="ticket"?"warn":"bad"):(s.policy&&s.policy.payload.approved?"run":"")],
+    ["Verify",s.ver?(s.ver.payload.status==="committed"?"done":"bad"):(s.exec&&s.exec.payload.status==="success"?"run":"")],
+    ["Outcome",s.closed||s.rb||ocs!=="run"?ocs:""]];
+  $("flow").innerHTML=steps.map(([n,c])=>`<div class="step ${esc(c?"st-"+c:"")}"><b>${esc(n)}</b>${esc(c==="done"?"✓":c==="bad"?"✗":c==="warn"?"!":c==="run"?"…":"")}</div>`).join("");
+  const I=s.incident&&s.incident.payload;
+  kv($("detect"),I?[["faults",I.candidate_faults.join(", ")],["scores",Object.entries(I.fault_scores||{}).map(([k,v])=>k+" "+num(v)).join(", ")||"–"],
+    ["capabilities",(I.capabilities||[]).join(", ")||"none"],["offered actions",(I.allowed_actions||[]).join(", ")]]:[["status","waiting"]]);
+  const P=s.plan&&s.plan.payload;
+  if(P){const u=P.usage||{},pl=P.plan;
+    renderDiagnosisHeading(P.source);
+    $("plnr").textContent=plannerLabel(plannerStatus,P.source);
+    kv($("diag"),[["source",P.source==="nemotron"?[{text:P.source},{text:" ● live runtime call",cls:"nv"}]:plannerLabel(plannerStatus,P.source)],["model",{text:u.model||"–",cls:"nv"}],["prompt",u.prompt_version||"–"],
+      ["tokens",`${num(u.input_tokens,0)} in / ${num(u.output_tokens,0)} out${u.cached?" (cache)":""}`],["cost",usd(u.estimated_cost_usd)],["latency",u.latency_ms!=null?num(u.latency_ms,0)+" ms":"–"],
+      ["attempts",P.attempts],["diagnosis",`${pl.diagnosis} (${num(pl.confidence)})`],["proposes",`${pl.action.name} ${JSON.stringify(pl.action.arguments)}`],["message",pl.human_message||"–"]]);
+    $("plan").textContent=JSON.stringify(pl,null,2);
+  }else{kv($("diag"),[["status",s.incident?"calling planner…":"waiting"]]);$("plan").textContent="–"}
+  const G=s.policy&&s.policy.payload;
+  kv($("gate"),G?[["decision",{text:G.approved?"APPROVED":"REJECTED",cls:G.approved?"ok":"bad"}],["action",G.action+" "+JSON.stringify(G.arguments||{})],["reasons",(G.reasons||[]).join("; ")||"all checks passed"]]
+    :[["status",P&&P.plan.action.name==="needs_human"?"planner escalated to a human: nothing to approve":"waiting"]]);
+  const E=s.exec&&s.exec.payload;
+  kv($("act"),E?[["status",E.status==="success"?{text:"applied",cls:"ok"}:E.status==="ticket"?{text:"ticket opened",cls:"warn"}:{text:E.status,cls:"bad"}],["action",E.action],["applied",JSON.stringify(E.applied||{})],
+    ["snapshot",s.rb?(s.rb.payload.ok?{text:"restored "+JSON.stringify(s.rb.payload.restored),cls:"ok"}:{text:"restore failed",cls:"bad"}):"saved before acting"],E.error?["error",E.error]:null]:[["status","waiting"]]);
+  const V=s.ver&&s.ver.payload;
+  if(V)renderVerification(V);
+  else{
+    const waiting=document.createElement("span");
+    waiting.className="mut";
+    waiting.textContent=E&&E.status==="success"?"observing the effect…":E&&E.status==="ticket"?"waiting for a human fix; closes when the camera is healthy again":"waiting";
+    $("verify").replaceChildren(waiting);
+  }
+  renderTimeline($("tl"),s);
+}
+async function incidents(){
+  try{const list=await getJSON("/api/incidents?limit=20");lastIncidents=list;
+    if(list.length&&(autoFollow||!list.find(i=>i.incident_id===selected)))selected=list[0].incident_id;
+    renderHist(list);renderDetail(list.find(i=>i.incident_id===selected));
+  }catch(e){}
+}
+status();windows();frame();incidents();
+setInterval(status,2000);setInterval(windows,1000);setInterval(frame,250);setInterval(incidents,1000);
+</script>
+</body>
+</html>
