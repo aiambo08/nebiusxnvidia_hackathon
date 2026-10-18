@@ -22,7 +22,7 @@ recalibrated with real camera data.
 | F6 | Nemotron integration | 3 | Nebius | scaffolded |
 | F7 | Executor & safety | 3 | Safety | scaffolded |
 | F8 | Verification & rollback | 3 | Safety + Evaluation | scaffolded |
-| F9 | Product & demo experience | 4 | Product | not started |
+| F9 | Product & demo experience | 4 | Product | in progress |
 | F10 | End-to-end validation | 4 | Evaluation | not started |
 | F11 | Hardening & security | 4 | Integrator | partially scaffolded |
 | F12 | Submission | 4 | Product + human | not started |

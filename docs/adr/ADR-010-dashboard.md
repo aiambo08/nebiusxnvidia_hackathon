@@ -21,4 +21,4 @@ the dashboard in the main thread. Do not add a build step or CDN dependency.
 - The shared event store and live feed are injected into the API process.
 - HTTP endpoints expose status, telemetry, frames, incidents, and budget only; they never trigger
   actions or scenarios.
-- The owner will provide the finished `apps/dashboard/index.html` page.
+- The static dashboard page is implemented in `apps/dashboard/index.html`.

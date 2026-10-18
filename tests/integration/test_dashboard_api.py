@@ -1,5 +1,7 @@
+import re
 from datetime import timedelta
 from itertools import cycle
+from pathlib import Path
 from types import SimpleNamespace
 
 import cv2
@@ -11,8 +13,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from reliability_agent.cli import mode_label  # noqa: E402
 from reliability_agent.config import load_config  # noqa: E402
-from reliability_agent.demo import run_scenario  # noqa: E402
+from reliability_agent.demo import SCENARIOS, demo_config, run_scenario  # noqa: E402
 from reliability_agent.feed import LiveFeed  # noqa: E402
+from reliability_agent.nemotron.planner import RuleBasedPlanner  # noqa: E402
 from reliability_agent.storage.event_store import EventStore  # noqa: E402
 from tests.conftest import make_window  # noqa: E402
 
@@ -60,6 +63,7 @@ def test_dashboard_api_and_legacy_routes_read_shared_store(monkeypatch):
     client = TestClient(app)
     try:
         assert client.get("/api/frame.jpg").status_code == 204
+        assert client.get("/docs").status_code == 404
         feed.on_frame(np.zeros((120, 160, 3), dtype=np.uint8))
         frame = client.get("/api/frame.jpg")
         assert frame.status_code == 200
@@ -114,6 +118,22 @@ def test_dashboard_api_and_legacy_routes_read_shared_store(monkeypatch):
         store.close()
 
 
+def test_dashboard_html_escapes_template_interpolations():
+    """A deliberately simple regex checks template literals assigned to HTML sinks."""
+    page = (Path(__file__).resolve().parents[2] / "apps/dashboard/index.html").read_text()
+    assert "Fault cleared; primary metric already at baseline." in page
+    assignments = re.findall(
+        r"(?s)(?:\.innerHTML\s*=|\.insertAdjacentHTML\s*\([^,]+,)\s*(.*?);", page)
+    for assignment in assignments:
+        for template in re.findall(r"`([^`]*)`", assignment, re.S):
+            if "<" not in template:
+                continue
+            interpolations = re.findall(r"\$\{([^{}]*)\}", template)
+            assert template.count("${") == len(interpolations), template
+            for expression in interpolations:
+                assert re.match(r"\s*(?:esc|num|usd)\s*\(", expression), expression
+
+
 def _without_timestamps(value):
     if isinstance(value, dict):
         return {
@@ -161,3 +181,38 @@ def test_scenario_hooks_without_pacing_preserve_events(monkeypatch):
 )
 def test_mode_label(args_or_uri, expected):
     assert mode_label(args_or_uri) == expected
+
+
+@pytest.mark.parametrize("name", tuple(SCENARIOS))
+def test_scenarios_close_within_90_simulated_seconds(name):
+    store = EventStore()
+    warmup = 15
+    window_clock = []
+    close_clock = None
+
+    def on_window(_window, agent):
+        nonlocal close_clock
+        now = agent.clock()
+        window_clock.append(now)
+        if close_clock is None and store.events(kind="closed"):
+            close_clock = now
+
+    try:
+        result = run_scenario(
+            name,
+            RuleBasedPlanner(),
+            cfg=demo_config(),
+            store=store,
+            warmup=warmup,
+            seed=0,
+            on_window=on_window,
+            pace_s=0,
+        )
+        assert any(event["kind"] == "closed" for event in result.events), name
+        assert len(window_clock) >= warmup, name
+        assert close_clock is not None, name
+        elapsed = close_clock - window_clock[warmup - 1]
+        print(f"{name}: {elapsed:.1f}s")
+        assert 0 <= elapsed <= 90, f"{name}: {elapsed:.1f}s"
+    finally:
+        store.close()

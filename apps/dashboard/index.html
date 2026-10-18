@@ -109,12 +109,23 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=(v,d=2)=>v==null||Number.isNaN(+v)?"–":(+v).toFixed(d);
 const usd=v=>v==null?"–":"$"+(+v).toFixed(5);
-let selected=null, autoFollow=true, lastIncidents=[];
+let selected=null, autoFollow=true, lastIncidents=[], plannerStatus=null;
 const MODE_CLASS={"SIMULATION":"b-sim","REAL HARDWARE":"b-real","REPLAY":"b-replay"};
 const METRICS=[["brightness","Brightness"],["blur","Blur effect"],["occluded","Occluded cells"],["fps","Capture FPS"],["task_success","Task success"],["exact_repeat_ratio","Frozen frames"]];
-$("metrics").innerHTML=METRICS.map(([k,l])=>`<div class="metric"><div class="k">${l}</div><div class="v" id="m-${k}">–</div><canvas id="c-${k}" width="300" height="34"></canvas></div>`).join("");
+$("metrics").innerHTML=METRICS.map(([k,l])=>`<div class="metric"><div class="k">${esc(l)}</div><div class="v" id="m-${esc(k)}">–</div><canvas id="c-${esc(k)}" width="300" height="34"></canvas></div>`).join("");
 
-function kv(el,rows){el.innerHTML=rows.filter(r=>r).map(([k,v])=>`<span>${esc(k)}</span><span>${v}</span>`).join("")}
+function kv(el,rows){
+  el.replaceChildren();
+  for(const [k,v] of rows.filter(r=>r)){
+    const key=document.createElement("span"),value=document.createElement("span");
+    key.textContent=k;value.textContent=v==null?"–":String(v);el.append(key,value);
+  }
+}
+function plannerLabel(p,source){
+  if(p?.kind==="rules")return "rules (local planner, no LLM call)";
+  if(p?.kind==="nemotron"&&(source===undefined?p.api_key_present===false:source!=="nemotron"))return "local fallback (no LLM call)";
+  return p?.kind||source||"–";
+}
 async function getJSON(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw new Error(u+" "+r.status);return r.json()}
 
 function spark(id,vals){const c=$(id);if(!c)return;const g=c.getContext("2d"),w=c.width,h=c.height;g.clearRect(0,0,w,h);
@@ -128,7 +139,7 @@ async function status(){
     $("mode").className="badge "+cls;$("mode").textContent=m;$("ovmode").className="badge "+cls;$("ovmode").textContent=m;
     $("src").textContent=s.source_label||"event store";$("scn").textContent=s.scenario||"–";
     const st=s.state||"–";$("state").textContent=st;$("state").className="state s-"+st;
-    const p=s.planner||{};$("plnr").textContent=(p.kind||"–")+(p.kind==="nemotron"&&p.api_key_present===false?" (no key → local rules)":"");
+    const p=s.planner||{};plannerStatus=p;$("plnr").textContent=plannerLabel(p);
     $("model").textContent=p.model||"–";$("prompt").textContent=p.prompt_version||"–";
     const b=s.budget||{};$("spend").textContent=b.spent_usd_estimate!=null?`$${(+b.spent_usd_estimate).toFixed(4)} / $${b.hard_cap_usd} cap`:"–";
     $("chain").innerHTML=s.chain_valid?'<span class="ok">verified</span>':'<span class="bad">BROKEN</span>';
@@ -150,14 +161,14 @@ function summarize(inc){
   return {inc,ev,incident:one("incident"),plan:one("plan"),policy:one("policy"),exec:one("execution"),ver:one("verification"),rb:one("rollback"),closed:one("closed"),states:by("state")};
 }
 function outcome(s){
-  if(s.ver&&s.ver.payload.status==="committed")return['<span class="ok">committed</span>',"done"];
-  if(s.rb)return['<span class="bad">rolled back</span>',"bad"];
-  if(s.exec&&s.exec.payload.status==="ticket")return['<span class="warn">ticket → human</span>',"warn"];
-  if(s.policy&&!s.policy.payload.approved)return['<span class="bad">rejected by gate</span>',"bad"];
+  if(s.ver&&s.ver.payload.status==="committed")return {label:"committed",state:"done"};
+  if(s.rb)return {label:"rolled back",state:"bad"};
+  if(s.exec&&s.exec.payload.status==="ticket")return {label:"ticket → human",state:"warn"};
+  if(s.policy&&!s.policy.payload.approved)return {label:"rejected by gate",state:"bad"};
   const last=s.states.length?s.states[s.states.length-1].payload.to:inc_state(s);
-  if(last==="NEEDS_HUMAN")return['<span class="warn">needs human</span>',"warn"];
-  if(s.closed)return['<span class="ok">closed</span>',"done"];
-  return['<span class="mut">in progress</span>',"run"];
+  if(last==="NEEDS_HUMAN")return {label:"needs human",state:"warn"};
+  if(s.closed)return {label:"closed",state:"done"};
+  return {label:"in progress",state:"run"};
 }
 function inc_state(s){return s.inc.state}
 function t0(s){return s.incident?Date.parse(s.incident.ts):null}
@@ -166,42 +177,86 @@ function rel(s,e){const a=t0(s);return a?((Date.parse(e.ts)-a)/1000).toFixed(1)+
 function renderHist(list){
   if(!list.length){$("hist").innerHTML='<tr><td colspan="5" class="mut">no incidents yet — the camera is healthy</td></tr>';return}
   $("hist").innerHTML=list.map(inc=>{const s=summarize(inc);const a=s.plan?s.plan.payload.plan.action.name:"–";const c=s.plan?s.plan.payload.usage.estimated_cost_usd:null;
-    return `<tr data-id="${esc(inc.incident_id)}" class="${inc.incident_id===selected?"sel":""}"><td>${esc(new Date(inc.opened).toLocaleTimeString())}</td><td>${esc((inc.faults||[]).join(", "))}</td><td>${esc(a)}</td><td>${outcome(s)[0]}</td><td>${usd(c)}</td></tr>`}).join("");
+    const result=outcome(s);
+    return `<tr data-id="${esc(inc.incident_id)}" class="${esc(inc.incident_id===selected?"sel":"")}"><td>${esc(new Date(inc.opened).toLocaleTimeString())}</td><td>${esc((inc.faults||[]).join(", "))}</td><td>${esc(a)}</td><td>${esc(result.label)}</td><td>${usd(c)}</td></tr>`}).join("");
   for(const tr of $("hist").querySelectorAll("tr[data-id]"))tr.onclick=()=>{selected=tr.dataset.id;autoFollow=selected===list[0].incident_id;renderHist(list);renderDetail(list.find(i=>i.incident_id===selected))};
+}
+function verificationReason(v){
+  const reasons=Array.isArray(v.reasons)?v.reasons:[];
+  const metric=reasons.map(r=>String(r).match(/^([^:]+):\s*-?\d/)).find(Boolean)?.[1];
+  const before=metric?v.before?.[metric]:null,after=metric?v.after?.[metric]:null;
+  if(v.status==="committed"&&before!=null&&after!=null&&Number.isFinite(Number(before))&&Number(before)===Number(after))
+    return `Fault cleared; primary metric already at baseline. ${reasons.join("; ")}`;
+  return reasons.join("; ");
+}
+function renderVerification(v){
+  const root=$("verify"),summary=document.createElement("div"),badge=document.createElement("b"),reason=document.createElement("span");
+  summary.style.marginBottom="6px";
+  badge.className=v.status==="committed"?"ok":"bad";
+  badge.textContent=v.status==="committed"?"COMMITTED":v.status==="rolled_back"?"ROLLED BACK (snapshot restored)":String(v.status).toUpperCase().replace(/_/g," ")+" → ROLLBACK";
+  reason.className="mut";reason.textContent=verificationReason(v);summary.append(badge," ",reason);
+  const table=document.createElement("table"),thead=document.createElement("thead"),header=document.createElement("tr"),body=document.createElement("tbody");
+  for(const label of ["metric","before","after"]){const cell=document.createElement("th");cell.textContent=label;header.append(cell)}
+  thead.append(header);
+  const keys=[...new Set([...Object.keys(v.before||{}),...Object.keys(v.after||{})])];
+  for(const key of keys){
+    const row=document.createElement("tr");
+    for(const value of [key,num(v.before?.[key],3),num(v.after?.[key],3)]){
+      const cell=document.createElement("td");cell.textContent=value;row.append(cell);
+    }
+    body.append(row);
+  }
+  table.append(thead,body);root.replaceChildren(summary,table);
+}
+function renderTimeline(root,s){
+  const fragment=document.createDocumentFragment();
+  for(const event of s.states){
+    const row=document.createElement("div"),time=document.createElement("span"),state=document.createElement("span"),reason=document.createElement("span");
+    time.className="t";time.textContent=rel(s,event);
+    state.className="state s-"+String(event.payload.to);state.textContent=event.payload.to;
+    reason.className="mut";reason.textContent=event.payload.reason||"";
+    row.append(time,state," ",reason);fragment.append(row);
+  }
+  if(s.closed){
+    const row=document.createElement("div"),time=document.createElement("span"),label=document.createElement("b"),reason=document.createElement("span");
+    time.className="t";time.textContent=rel(s,s.closed);label.textContent="closed";
+    reason.className="mut";reason.textContent=s.closed.payload.reason||"";
+    row.append(time,label," ",reason);fragment.append(row);
+  }
+  root.replaceChildren(fragment);
 }
 function renderDetail(inc){
   if(!inc){$("incid").textContent="";return}
   const s=summarize(inc);$("incid").textContent="· "+inc.incident_id.slice(0,8)+(autoFollow?" (latest)":"");
-  const [oc,ocs]=outcome(s);
+  const ocs=outcome(s).state;
   const steps=[["Detect",s.incident?"done":"run"],["Diagnose",s.plan?"done":(s.incident?"run":"")],
     ["Policy gate",s.policy?(s.policy.payload.approved?"done":"bad"):(s.plan&&s.plan.payload.plan.action.name==="needs_human"?"warn":(s.plan?"run":""))],
     ["Act",s.exec?(s.exec.payload.status==="success"?"done":s.exec.payload.status==="ticket"?"warn":"bad"):(s.policy&&s.policy.payload.approved?"run":"")],
     ["Verify",s.ver?(s.ver.payload.status==="committed"?"done":"bad"):(s.exec&&s.exec.payload.status==="success"?"run":"")],
     ["Outcome",s.closed||s.rb||ocs!=="run"?ocs:""]];
-  $("flow").innerHTML=steps.map(([n,c])=>`<div class="step ${c?"st-"+c:""}"><b>${n}</b>${c==="done"?"✓":c==="bad"?"✗":c==="warn"?"!":c==="run"?"…":""}</div>`).join("");
+  $("flow").innerHTML=steps.map(([n,c])=>`<div class="step ${esc(c?"st-"+c:"")}"><b>${esc(n)}</b>${esc(c==="done"?"✓":c==="bad"?"✗":c==="warn"?"!":c==="run"?"…":"")}</div>`).join("");
   const I=s.incident&&s.incident.payload;
-  kv($("detect"),I?[["faults",esc(I.candidate_faults.join(", "))],["scores",esc(Object.entries(I.fault_scores||{}).map(([k,v])=>k+" "+num(v)).join(", ")||"–")],
-    ["capabilities",esc((I.capabilities||[]).join(", ")||"none")],["offered actions",esc((I.allowed_actions||[]).join(", "))]]:[["status","waiting"]]);
+  kv($("detect"),I?[["faults",I.candidate_faults.join(", ")],["scores",Object.entries(I.fault_scores||{}).map(([k,v])=>k+" "+num(v)).join(", ")||"–"],
+    ["capabilities",(I.capabilities||[]).join(", ")||"none"],["offered actions",(I.allowed_actions||[]).join(", ")]]:[["status","waiting"]]);
   const P=s.plan&&s.plan.payload;
-  if(P){const u=P.usage||{},pl=P.plan;$("diagh").innerHTML=P.source==="nemotron"?'2 · Diagnose — <span class="nv">NVIDIA Nemotron</span> on Nebius Token Factory':"2 · Diagnose — "+esc(P.source)+" (local fallback, no LLM call)";
-    kv($("diag"),[["source",esc(P.source)+(P.source==="nemotron"?' <span class="nv">● live runtime call</span>':"")],["model",'<span class="nv">'+esc(u.model||"–")+"</span>"],["prompt",esc(u.prompt_version||"–")],
-      ["tokens",`${u.input_tokens??0} in / ${u.output_tokens??0} out${u.cached?" (cache)":""}`],["cost",usd(u.estimated_cost_usd)],["latency",u.latency_ms!=null?num(u.latency_ms,0)+" ms":"–"],
-      ["attempts",esc(P.attempts)],["diagnosis",`<b>${esc(pl.diagnosis)}</b> (${num(pl.confidence)})`],["proposes",`<b>${esc(pl.action.name)}</b> ${esc(JSON.stringify(pl.action.arguments))}`],["message",esc(pl.human_message||"–")]]);
+  if(P){const u=P.usage||{},pl=P.plan;
+    $("diagh").textContent=P.source==="nemotron"?"2 · Diagnose — NVIDIA Nemotron on Nebius Token Factory":"2 · Diagnose — "+plannerLabel(plannerStatus,P.source);
+    $("plnr").textContent=plannerLabel(plannerStatus,P.source);
+    kv($("diag"),[["source",plannerLabel(plannerStatus,P.source)],["model",u.model||"–"],["prompt",u.prompt_version||"–"],
+      ["tokens",`${num(u.input_tokens,0)} in / ${num(u.output_tokens,0)} out${u.cached?" (cache)":""}`],["cost",usd(u.estimated_cost_usd)],["latency",u.latency_ms!=null?num(u.latency_ms,0)+" ms":"–"],
+      ["attempts",P.attempts],["diagnosis",`${pl.diagnosis} (${num(pl.confidence)})`],["proposes",`${pl.action.name} ${JSON.stringify(pl.action.arguments)}`],["message",pl.human_message||"–"]]);
     $("plan").textContent=JSON.stringify(pl,null,2);
   }else{kv($("diag"),[["status",s.incident?"calling planner…":"waiting"]]);$("plan").textContent="–"}
   const G=s.policy&&s.policy.payload;
-  kv($("gate"),G?[["decision",G.approved?'<b class="ok">APPROVED</b>':'<b class="bad">REJECTED</b>'],["action",esc(G.action)+" "+esc(JSON.stringify(G.arguments||{}))],["reasons",esc((G.reasons||[]).join("; ")||"all checks passed")]]
+  kv($("gate"),G?[["decision",G.approved?"APPROVED":"REJECTED"],["action",G.action+" "+JSON.stringify(G.arguments||{})],["reasons",(G.reasons||[]).join("; ")||"all checks passed"]]
     :[["status",P&&P.plan.action.name==="needs_human"?"planner escalated to a human: nothing to approve":"waiting"]]);
   const E=s.exec&&s.exec.payload;
-  kv($("act"),E?[["status",E.status==="success"?'<b class="ok">applied</b>':E.status==="ticket"?'<b class="warn">ticket opened</b>':'<b class="bad">'+esc(E.status)+"</b>"],["action",esc(E.action)],["applied",esc(JSON.stringify(E.applied||{}))],
-    ["snapshot",s.rb?(s.rb.payload.ok?'<span class="ok">restored</span> '+esc(JSON.stringify(s.rb.payload.restored)):'<span class="bad">restore failed</span>'):"saved before acting"],E.error?["error",esc(E.error)]:null]:[["status","waiting"]]);
+  kv($("act"),E?[["status",E.status==="success"?"applied":E.status==="ticket"?"ticket opened":E.status],["action",E.action],["applied",JSON.stringify(E.applied||{})],
+    ["snapshot",s.rb?(s.rb.payload.ok?"restored "+JSON.stringify(s.rb.payload.restored):"restore failed"):"saved before acting"],E.error?["error",E.error]:null]:[["status","waiting"]]);
   const V=s.ver&&s.ver.payload;
-  if(V){const ks=[...new Set([...Object.keys(V.before||{}),...Object.keys(V.after||{})])];
-    $("verify").innerHTML=`<div style="margin-bottom:6px">${V.status==="committed"?'<b class="ok">COMMITTED</b>':(V.status==="rolled_back"?'<b class="bad">ROLLED BACK (snapshot restored)</b>':'<b class="bad">'+esc(String(V.status).toUpperCase().replace(/_/g," "))+" → ROLLBACK</b>")} <span class="mut">${esc((V.reasons||[]).join("; "))}</span></div>`+
-      `<table><thead><tr><th>metric</th><th>before</th><th>after</th></tr></thead><tbody>${ks.map(k=>`<tr><td>${esc(k)}</td><td>${num(V.before?.[k],3)}</td><td>${num(V.after?.[k],3)}</td></tr>`).join("")}</tbody></table>`;
-  }else{$("verify").innerHTML='<span class="mut">'+(E&&E.status==="success"?"observing the effect…":E&&E.status==="ticket"?"waiting for a human fix; closes when the camera is healthy again":"waiting")+"</span>"}
-  $("tl").innerHTML=s.states.map(e=>`<div><span class="t">${rel(s,e)}</span><span class="state s-${esc(e.payload.to)}">${esc(e.payload.to)}</span> <span class="mut">${esc(e.payload.reason||"")}</span></div>`).join("")+
-    (s.closed?`<div><span class="t">${rel(s,s.closed)}</span><b>closed</b> <span class="mut">${esc(s.closed.payload.reason)}</span></div>`:"");
+  if(V)renderVerification(V);
+  else $("verify").textContent=E&&E.status==="success"?"observing the effect…":E&&E.status==="ticket"?"waiting for a human fix; closes when the camera is healthy again":"waiting";
+  renderTimeline($("tl"),s);
 }
 async function incidents(){
   try{const list=await getJSON("/api/incidents?limit=20");lastIncidents=list;

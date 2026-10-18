@@ -84,5 +84,6 @@ Format: `- [ ] [Fx][role] task — acceptance`
 
 ## F9–F12
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
-- [ ] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` and complete F9 product evidence
+- [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html`
+- [ ] [F9][product] Complete F9 product evidence
 - [ ] [F12][product] Video + Devpost text

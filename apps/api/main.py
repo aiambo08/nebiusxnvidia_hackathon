@@ -25,7 +25,8 @@ def create_app(
 ) -> FastAPI:
     cfg = cfg if cfg is not None else load_config()
     store = store if store is not None else EventStore(db_path or cfg["storage"]["db_path"])
-    app = FastAPI(title="Physical AI Reliability Agent", version="0.1.0")
+    app = FastAPI(title="Physical AI Reliability Agent", version="0.1.0",
+                  docs_url=None, redoc_url=None)
 
     def budget_summary() -> dict:
         b = cfg["budget"]
