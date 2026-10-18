@@ -352,8 +352,12 @@ def _run_standard(
             if any(event["kind"] == "execution" for event in events):
                 raise AssertionError("A1 must not execute actions")
         if arm == "A2_detector_no_actions":
-            if any(event["kind"] == "execution" for event in events):
-                raise AssertionError("A2 must not execute actions")
+            if any(
+                event["kind"] == "execution"
+                and event["payload"].get("status") in ("success", "failed")
+                for event in events
+            ):
+                raise AssertionError("A2 must not execute device actions")
             if not metadata["settings_unchanged"]:
                 raise AssertionError("A2 must leave device settings unchanged")
             incident_ids = {
@@ -931,8 +935,7 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             "valid_chains": all(run["chain_valid"] for run in values),
             "spend_usd": round(sum(run["spend_usd"] for run in values), 8),
             "unchanged_settings_runs": sum(
-                run["meta"].get("initial_settings")
-                == run["meta"].get("final_settings")
+                run["meta"].get("settings_unchanged", False)
                 for run in values
             ),
             "planner_calls": sum(run["meta"].get("planner_calls", 0) for run in values),
@@ -986,6 +989,12 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
                 and run["meta"].get("plan_count_unchanged", True)
                 and run["meta"].get("execution_ids_unique", True)
                 for run in values
+            )
+        if arm == "A2_detector_no_actions":
+            row["ticket_requests"] = sum(
+                event["kind"] == "execution"
+                and event["payload"].get("status") == "ticket"
+                for run in values for event in run["events"]
             )
         if arm == "A6_token_factory_outage":
             row["circuit_open_runs"] = sum(
@@ -1436,7 +1445,7 @@ def _markdown(report: dict[str, Any]) -> str:
         elif row["arm"] == "A2_detector_no_actions":
             key_result = (
                 f"unchanged={row['unchanged_settings_runs']}/{row['runs']}; "
-                "auto-execution disabled"
+                f"ticket requests={row['ticket_requests']}; auto-execution disabled"
             )
         elif row["arm"] == "A3_full_loop":
             f1 = row.get("macro_f1_mvp")
@@ -1481,6 +1490,12 @@ def _markdown(report: dict[str, Any]) -> str:
             f"{row['false_confirmations']} | {row['rollbacks']} | "
             f"{key_result} | {status} |"
         )
+    lines.extend([
+        "",
+        "For A2, policy-designated human-ticket requests are reported separately; "
+        "they do not count as successful or failed device actions. Settings are compared "
+        "with the SyntheticSource state immediately after fault injection.",
+    ])
     lines.extend(["", "## A3 recovery by fault", "",
                   "| Fault | Runs | Recoverable | Recovered auto | Needs human | Timeout |",
                   "|---|---:|---:|---:|---:|---:|"])

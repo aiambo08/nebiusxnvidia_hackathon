@@ -55,8 +55,12 @@ def test_a2_emits_a_plan_without_executing_or_changing_settings(tmp_path):
 
     assert chain_valid
     assert any(event["kind"] == "plan" for event in events)
-    assert not any(event["kind"] == "execution" for event in events)
-    assert run["initial_settings"] == run["final_settings"]
+    assert not any(
+        event["kind"] == "execution"
+        and event["payload"].get("status") in ("success", "failed")
+        for event in events
+    )
+    assert run["settings_unchanged"]
 
 
 def test_a3_and_a4_smoke_recovery_and_visual_metric_ablation(tmp_path):
