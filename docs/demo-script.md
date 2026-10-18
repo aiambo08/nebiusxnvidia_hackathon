@@ -26,7 +26,7 @@ Use these commands:
 ra-demo dashboard --scenario dark --planner nemotron --db runs/demo-dark.sqlite
 
 # [SIMULATION] deterministic harmful action and rollback
-ra-demo dashboard --scenario bad_action --db runs/demo-bad-action.sqlite
+ra-demo dashboard --scenario bad_action --planner rules --db runs/demo-bad-action.sqlite
 
 # [REAL HARDWARE] owner's webcam; keep it running for at least one minute
 ra-demo dashboard --live --uri 0 --db runs/demo-webcam.sqlite

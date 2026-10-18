@@ -146,7 +146,7 @@ dashboard debe permanecer visible.
 
 ```powershell
 ra-demo dashboard --scenario dark --planner nemotron --db runs/owner-dark.sqlite
-ra-demo dashboard --scenario bad_action --db runs/owner-bad-action.sqlite
+ra-demo dashboard --scenario bad_action --planner rules --db runs/owner-bad-action.sqlite
 ```
 
 Esperado: `dark` muestra exposición acotada y COMMITTED; `bad_action` muestra ROLLED BACK. La
