@@ -28,11 +28,13 @@ FAULTS = (
     ("overexpose", 1.0),
     ("occlude", 1.0),
 )
+# Only a decoder restart clears its fault in the harness; exposure and focus faults stay active for
+# their whole episode, and the SyntheticSource physics decides whether an applied setting helps.
 REMEDIATIONS = {
-    "dark": {"set_exposure_bounded"},
-    "defocus": {"trigger_autofocus"},
+    "dark": set(),
+    "defocus": set(),
     "freeze": {"restart_capture"},
-    "overexpose": {"set_exposure_bounded"},
+    "overexpose": set(),
     "occlude": set(),
 }
 ROOT = Path(__file__).resolve().parents[1]
@@ -291,8 +293,9 @@ def run_soak(*, hours: float = 4.0, out: str | Path | None = None, sample_s: flo
         if active_fault is None:
             return
         source.set_fault(None)
-        if reason in {"duration", "run_end"} and active_fault["fault"] == "defocus":
-            source.apply_settings({"focus_ok": active_fault["focus_ok"]})
+        settings_reset = reason in {"duration", "run_end"}
+        if settings_reset:  # end of the scripted episode: scene and camera back to pre-fault state
+            source.apply_settings(dict(active_fault["settings_before"]))
         end_wall = _wall_now()
         store.append("soak_fault", {
             **active_fault,
@@ -300,6 +303,7 @@ def run_soak(*, hours: float = 4.0, out: str | Path | None = None, sample_s: flo
             "end_wall": _iso(end_wall),
             "elapsed_end_s": elapsed,
             "clear_reason": reason,
+            "settings_reset": settings_reset,
             "label": "SIMULATION",
         })
         active_fault = None
@@ -337,6 +341,7 @@ def run_soak(*, hours: float = 4.0, out: str | Path | None = None, sample_s: flo
                 "start_wall": _iso(start),
                 "scheduled_end_wall": _iso(start + timedelta(seconds=fault_duration_s)),
                 "focus_ok": settings.get("focus_ok", True),
+                "settings_before": settings,
                 "start_seq": store.events()[-1]["seq"] if store.events() else 0,
             }
             source.set_fault(fault, strength)
