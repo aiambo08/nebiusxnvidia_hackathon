@@ -25,17 +25,20 @@ def run_live(cfg: dict | None = None, *, duration_s: float | None = None,
              on_window: Callable[[TelemetryWindow, ReliabilityAgent], None] | None = None,
              on_frame: Callable[[Any], None] | None = None,
              store: EventStore | None = None,
-             stop_event: threading.Event | None = None) -> None:
+             stop_event: threading.Event | None = None,
+             source: Any | None = None,
+             planner: Any | None = None) -> None:
     cfg = cfg or load_config()
     cam = cfg["camera"]
     owns_store = store is None
     store = store if store is not None else EventStore(cfg["storage"]["db_path"])
     budget = BudgetGuard.from_config(cfg, spent_usd=store.spent_usd())
-    key = api_key()
-    if key is None:
-        log.warning("NEBIUS_API_KEY not set: running in LOCAL MODE (rule-based planner)")
-    planner = make_planner(cfg, key, budget)
-    source = OpenCVSource(cam["uri"])
+    if planner is None:
+        key = api_key()
+        if key is None:
+            log.warning("NEBIUS_API_KEY not set: running in LOCAL MODE (rule-based planner)")
+        planner = make_planner(cfg, key, budget)
+    source = source if source is not None else OpenCVSource(cam["uri"])
     rc = cam["reconnect"]
     worker = CaptureWorker(source, cam["ring_buffer_size"], cam["frame_age_timeout_s"],
                            BackoffPolicy(rc["initial_backoff_s"], rc["max_backoff_s"],

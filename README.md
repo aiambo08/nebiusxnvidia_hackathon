@@ -9,8 +9,10 @@ recovers** — otherwise it rolls back and escalates to a human.
 > Working name · Nebius x NVIDIA Global AI Hackathon 2026 · **Physical AI track** ·
 > License: [Apache-2.0](LICENSE) · F5, F6 and F8 are the gates currently marked passed in
 > [`docs/phases-and-gates.md`](docs/phases-and-gates.md). F3, F4, F7 and F9 remain open.
-> F10 A1–A8 SIMULATION evidence is merged on `main`, but its soak and REAL HARDWARE evidence
-> remain pending. F11 license-inventory and public-repo-audit boxes are ticked on `main`
+> F10 A1–A8 and 4 h SIMULATION soak evidence are merged on `main`. The soak report records
+> 4.0 h, 23/24 faults detected, 0.25 false alarms/h, +7.2 MB RSS and $0; REAL HARDWARE
+> validation remains pending, so F10 is in progress and the gate is not passed
+> ([soak report](docs/evidence/f10/soak/soak.md)). F11 license-inventory and public-repo-audit boxes are ticked on `main`
 > (`4b5b929`; 218 tracked files, 35 distributions); the independent README-install box is open,
 > so the F11 gate is not passed ([audit](docs/evidence/f11/public-repo-audit.md);
 > [licenses](docs/third-party-licenses.md)).
@@ -93,8 +95,8 @@ client-side budget caps · a Token Factory outage degrades to local rules + huma
 | F6 · REAL TOKEN FACTORY | Golden-v2 test: 264 calls, 100% schema validity, 98.864% action accuracy, and $0.03057240 run cost (about $0.031). The local selector also scored 100% by action name, so this is not evidence of independent diagnosis. | [test report](docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md), [rules baseline](docs/evidence/f6/golden-rules-baseline-test.md) |
 | F7 · SIMULATION | A subprocess crash-recovery test verifies snapshot restoration and conservative rollback/escalation after restart; the real webcam adapter remains open. | [`test_crash_recovery.py`](tests/integration/test_crash_recovery.py), [`PROJECT_STATE.md`](docs/agents/PROJECT_STATE.md) |
 | F8 · SIMULATION | Recovered 87/100 recoverable cases. Regression results were 45/50 raw; all 45/45 executed cases were contained. Five `dark:0.8` cases did not execute because no incident was confirmed. | [`recovery-bench.md`](docs/evidence/f8/recovery-bench.md) |
-| F10 · SIMULATION | The merged A1–A8 report has 454 valid EventStores; A3 recovery was 25/25 (20/20 on the F8-comparable subset); A4 COMMITTED was 0/20 versus 0/20 in A3, so no difference was demonstrated. The soak and REAL HARDWARE evidence remain pending. | [`experiments.md`](docs/evidence/f10/experiments.md) |
-| F10 soak | **Pending**; the four-hour soak has not completed, and no soak result is claimed. | — |
+| F10 · SIMULATION | The merged A1–A8 report has 454 valid EventStores; A3 recovery was 25/25 (20/20 on the F8-comparable subset); A4 COMMITTED was 0/20 versus 0/20 in A3, so no difference was demonstrated. The 4 h SIMULATION soak is also merged; REAL HARDWARE validation remains pending, so F10 is in progress and not passed. | [`experiments.md`](docs/evidence/f10/experiments.md); [`soak.md`](docs/evidence/f10/soak/soak.md) |
+| F10 soak | 4.0 h, 23/24 faults detected, 0.25 false alarms/h, +7.2 MB RSS, $0. SIMULATION evidence is merged; REAL HARDWARE validation remains pending, so the F10 gate is not passed. | [`soak.md`](docs/evidence/f10/soak/soak.md) |
 
 These results do not claim that the submission video, five-user test, final tag or Devpost
 submission exist. Each row identifies whether its evidence is SIMULATION, REAL HARDWARE, or a live
@@ -227,16 +229,17 @@ foundation model · managing thousands of cameras · replacing an NVR (Frigate, 
   [baseline](docs/evidence/f6/golden-rules-baseline-test.md)).
 - The merged F10 report records a 0-vs-0 COMMITTED result for the full-loop and no-downstream-metric
   arms; it does not demonstrate a difference. The report is SIMULATION evidence only
-  ([experiments](docs/evidence/f10/experiments.md)); the soak and REAL HARDWARE evidence remain
-  pending.
+  ([experiments](docs/evidence/f10/experiments.md)). The 4 h SIMULATION soak is also merged, but
+  REAL HARDWARE validation remains pending; F10 is in progress and not passed
+  ([soak](docs/evidence/f10/soak/soak.md)).
 - The frozen check examines only the confirming window, so window alignment can miss freeze onset
   around a dark frame. Frozen overexposure/focus-drift may be classified as those faults instead of
   blackout and can receive one exposure/autofocus action before snapshot-backed rollback and human
   escalation; checking recent windows remains open work
   ([ADR-003](docs/adr/ADR-003-freeze-needs-a-measurable-scene.md),
   [project state](docs/agents/PROJECT_STATE.md)).
-- F10 soak and hardware evidence remain pending. Do not interpret simulation evidence as REAL
-  HARDWARE.
+- The F10 SIMULATION soak is merged, but REAL HARDWARE validation remains pending. Do not
+  interpret simulation evidence as REAL HARDWARE.
 
 ## Documentation
 

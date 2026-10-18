@@ -59,8 +59,9 @@ snapshot-backed verification and rollback/escalation. Recent-window checking rem
   ([source](evidence/f8/recovery-bench.md)).
 - Merged F10 A1–A8 SIMULATION report: 454 valid EventStores; A3 recovery 25/25 (20/20 on the
   F8-comparable subset); A4 COMMITTED 0/20 versus 0/20 in A3, so the ablation did not demonstrate
-  a difference. The soak and REAL HARDWARE evidence remain pending
-  ([source](evidence/f10/experiments.md)).
+  a difference. The 4 h SIMULATION soak is merged on `main`: 4.0 h, 23/24 faults detected,
+  0.25 false alarms/h, +7.2 MB RSS and $0 ([soak report](evidence/f10/soak/soak.md)).
+  REAL HARDWARE validation remains pending, so F10 is in progress and the gate is not passed.
 
 ## What we learned
 
@@ -70,8 +71,8 @@ rollback evidence must distinguish executed actions from cases where no incident
 
 ## What's next
 
-Complete the independent product review, run the F4 REAL HARDWARE benchmark, complete the F10 soak
-and hardware work, record the public demo, conduct the five-user test, verify links and submit the
+Complete the independent product review, run the F4 REAL HARDWARE benchmark, validate F10 on REAL
+HARDWARE (the SIMULATION soak is already merged), record the public demo, conduct the five-user test, verify links and submit the
 final commit through the owner's account. Real UVC/ONVIF exposure/focus control is not implemented
 yet: `OpenCVSource.capabilities()` returns only `restart`, so on a real webcam the gate offers only
 restart, safe mode, cleaning/human tickets. Bounded exposure/focus commit/rollback is demonstrated

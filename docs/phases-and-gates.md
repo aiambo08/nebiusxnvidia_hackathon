@@ -19,11 +19,11 @@ recalibrated with real camera data.
 | F3 | Visual monitors | 2 | Vision | in progress |
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | passed |
-| F6 | Nemotron integration | 3 | Nebius | scaffolded |
+| F6 | Nemotron integration | 3 | Nebius | passed |
 | F7 | Executor & safety | 3 | Safety | in progress |
 | F8 | Verification & rollback | 3 | Safety + Evaluation | passed |
 | F9 | Product & demo experience | 4 | Product | in progress |
-| F10 | End-to-end validation | 4 | Evaluation | not started |
+| F10 | End-to-end validation | 4 | Evaluation | in progress |
 | F11 | Hardening & security | 4 | Integrator | partially scaffolded |
 | F12 | Submission | 4 | Product + human | not started |
 
@@ -123,7 +123,7 @@ Gate review (independent, 2026-10-17, main d425c03): passed 6/6 in SIMULATION �
 - [x] Measured mean cost compatible with total budget ($0.0347/300 incidents, below the $23 gate; [v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md))
 - [x] Offline mode produces a safe, useful escalation (`RuleBasedPlanner` / `needs_human`)
 
-Independent F6 gate review pending; F6 is not yet passed.
+Gate review (independent, 2026-10-18, `bda836a`): first pass FAIL on `69b389e` (B1 wording), re-check PASS with no blockers — https://app.devin.ai/sessions/4ad9cabd2a5c4cb383b2e743273ef06e.
 
 **Block:** if validity or action selection misses the gate, Nemotron is limited to explanation and
 classification; automatic planning stays disabled (`configs/default.yaml: planner.auto_execute`).
@@ -174,6 +174,9 @@ during an action · process restart in every state · 4-hour soak.
 | LLM structure | ≥ 98% valid responses |
 | Budget | cumulative dev spend ≤ 23 USD before demo |
 | Reproducibility | clean install + one-command demo |
+
+- Robustness evidence (SIMULATION): 4 h without crash or sustained leak ([soak report](evidence/f10/soak/soak.md)).
+- Normal operation evidence (SIMULATION): 0.25 false alarms/h ([soak report](evidence/f10/soak/soak.md)).
 
 Results must be generated from event files, never typed into the README by hand.
 
