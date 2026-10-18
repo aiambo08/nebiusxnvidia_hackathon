@@ -139,7 +139,7 @@ classification; automatic planning stays disabled (`configs/default.yaml: planne
 - [x] 100 adversarial cases cannot bypass allowlist, ranges or cooldown
 - [x] Unsupported actions end in NEEDS_HUMAN, never a false confirmation
 
-Independent F7 gate review: PASS on 788dc10 + #67 (76797de), all 8 boxes verified, 28+5 mutants; box 5 proven in SIMULATION; the box-2 OverflowError blocker was fixed in #67 (https://app.devin.ai/sessions/89606c2deb464b06ade1f4dd47b2eb77).
+Independent F7 gate review: PASS on 788dc10 + #67 (76797de), all 8 boxes verified, 28+5 mutants; box 5 proven in SIMULATION; the box-2 OverflowError blocker was fixed in #67 (https://app.devin.ai/sessions/89606c2deb464b06ade1f4dd47b2eb77). Of the 28 mutants, 5 survived the first pass: #67's tests now kill the capability-check and cooldown mutants, and three were judged non-blocking (unreachable registry/implementation mutants). Known non-blocking risk: an exception raised during rollback escapes the camera loop; the next start recovers the incident to NEEDS_HUMAN without replanning.
 
 ## F8 — Verification & rollback
 - [x] Each MVP action has a full commit test and a rollback test (simulated device) (SIMULATION; `tests/e2e/test_action_commit_rollback.py`)

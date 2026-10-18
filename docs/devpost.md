@@ -50,7 +50,9 @@ snapshot-backed verification and rollback/escalation. Recent-window checking rem
   ([test](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md),
   [baseline](evidence/f6/golden-rules-baseline-test.md)).
 - SIMULATION crash recovery restores the persisted snapshot and escalates without replanning after
-  restart; the real webcam adapter remains open work
+  restart; the independent F7 gate review passed on `76797de`. Real-webcam exposure/autofocus
+  capability discovery is a follow-up outside the eight gate boxes (the real `OpenCVSource`
+  exposes `restart` only)
   ([test](../tests/integration/test_crash_recovery.py),
   [project state](agents/PROJECT_STATE.md)).
 - SIMULATION recovery benchmark: 87/100 recoverable cases. Regression raw result was 45/50; all
