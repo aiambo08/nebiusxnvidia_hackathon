@@ -78,8 +78,9 @@ yet: `OpenCVSource.capabilities()` returns only `restart`, so on a real webcam t
 restart, safe mode, cleaning/human tickets. Bounded exposure/focus commit/rollback is demonstrated
 in SIMULATION only ([source](../src/reliability_agent/capture/sources.py)). F11 license-inventory
 and public-repo-audit boxes are ticked on `main` (`4b5b929`; 218 tracked files, 35 distributions);
-the independent README-install box is open, so the F11 gate is not passed
-([audit](evidence/f11/public-repo-audit.md); [licenses](third-party-licenses.md)).
+an independent agent installed and ran it from the README alone
+([transcript](evidence/f11/readme-install.md)); the independent F11 gate review is pending, so F11
+is not yet marked passed ([audit](evidence/f11/public-repo-audit.md); [licenses](third-party-licenses.md)).
 
 ## Built with
 
