@@ -6,7 +6,7 @@ files:
   "benchmarks/golden/golden_v2.jsonl":
     types:
       - dataset extension
-    justification: "Synthetic v2 cases added in commit a245332 under ADR-009; no repository script generates v2 yet (scripts/build_golden.py writes v1 only); labels/actions only, no recordings or personal data."
+    justification: "Synthetic v2 cases added in commit a245332 under ADR-009; produced by scripts/build_golden.py --out <path>, with the frozen file protected from accidental overwrite; labels/actions only, no recordings or personal data."
   "docs/evidence/f0/nemotron-fast-thinking-off.jsonl":
     types:
       - dataset extension

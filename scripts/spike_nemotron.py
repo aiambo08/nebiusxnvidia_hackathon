@@ -41,7 +41,9 @@ HEALTHY = dict(brightness_p50=110.0, contrast_p50=45.0, black_pixel_ratio=0.01,
 CAPS = ["exposure", "autofocus", "profiles", "restart"]
 
 
-def make_incident(fault: FaultType, i: int) -> Incident:
+def make_incident(
+    fault: FaultType, i: int, capabilities: list[str] | None = None
+) -> Incident:
     from datetime import UTC, datetime
 
     vis = dict(HEALTHY, **CASES[fault])
@@ -53,8 +55,10 @@ def make_incident(fault: FaultType, i: int) -> Incident:
                          task=TaskMetrics(success_rate=0.0, confidence_p50=0.0,
                                           latency_ms_p95=3.0))
     gate = PolicyGate()
-    return Incident(camera_id=f"spike-{i}", candidate_faults=[fault], capabilities=CAPS,
-                    allowed_actions=gate.allowed_for(CAPS), telemetry=tw,
+    capabilities = CAPS if capabilities is None else capabilities
+    return Incident(camera_id=f"spike-{i}", candidate_faults=[fault],
+                    capabilities=capabilities,
+                    allowed_actions=gate.offered_for(capabilities, [fault]), telemetry=tw,
                     evidence=[Evidence(metric=f"visual.{k}", value=v, baseline=HEALTHY.get(k))
                               for k, v in CASES[fault].items()])
 
