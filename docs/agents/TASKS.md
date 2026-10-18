@@ -100,3 +100,5 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F12][product] Confirm video and final commit match; create and push the submission tag
 - [ ] [F12][product] Verify public evidence links in an incognito session
 - [ ] [F12][product] Complete Devpost fields and submit with operational margin
+- [ ] [F10][evaluation] Independently review the A1–A8 SIMULATION experiment report (`docs/evidence/f10/experiments.md`; 454 valid EventStores, A3 recovery 25/25, F8-comparable subset 20/20, A8 restarts include REJECTED and FAILED, A4 COMMITTED delta 0 vs 0)
+- [ ] [F10][evaluation] Complete robustness evidence with the four-hour SIMULATION soak and REAL HARDWARE validation; PR1 soak and F4 hardware evidence remain pending
