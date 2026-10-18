@@ -218,7 +218,6 @@ def test_no_secret_reaches_api_html_logs_or_store(
 
     monkeypatch.setenv("NEBIUS_API_KEY", SENTINEL)
     caplog.set_level(logging.DEBUG)
-    external_calls = _forbid_external_drivers(monkeypatch)
     cfg = demo_config()
     cfg["planner"]["kind"] = "nemotron"
     sdk = FakeSDK([NEEDS_HUMAN_REPLY] * len(SCENARIOS))
@@ -238,9 +237,12 @@ def test_no_secret_reaches_api_html_logs_or_store(
     feed = LiveFeed("SIMULATION", "SyntheticSource")
     stop_event = threading.Event()
     try:
-        cli._run_dashboard_scenarios(
-            _args(SCENARIOS), cfg, feed, store, "nemotron", stop_event
-        )
+        with monkeypatch.context() as runner_guard:
+            external_calls = _forbid_external_drivers(runner_guard)
+            cli._run_dashboard_scenarios(
+                _args(SCENARIOS), cfg, feed, store, "nemotron", stop_event
+            )
+            assert external_calls == []
         assert not stop_event.is_set()
         assert sdk.calls
         app = create_app(store=store, feed=feed, cfg=cfg)
