@@ -197,12 +197,19 @@ def summarize(rows: list[dict[str, Any]], cfg: dict[str, Any], *,
     test_rows = [row for row in rows if row["split"] == "test"]
     row_total_cost = sum(float(row["cost"]) for row in rows)
     test_cost = sum(float(row["cost"]) for row in test_rows)
+    dev_cost = sum(float(row["cost"]) for row in rows if row["split"] == "dev")
+    has_dev_rows = any(row["split"] == "dev" for row in rows)
     test_only_run = split == "test" if split is not None else (
         bool(rows) and all(row["split"] == "test" for row in rows))
-    reconciled_test_cost = (
-        max(test_cost, budget_spent_usd or 0.0) if test_only_run else test_cost)
-    total_cost = (
-        max(row_total_cost, budget_spent_usd or 0.0) if test_only_run else row_total_cost)
+    mixed_run = split == "all" if split is not None else bool(test_rows and has_dev_rows)
+    spent = budget_spent_usd or 0.0
+    if test_only_run:
+        reconciled_test_cost = max(test_cost, spent)
+    elif mixed_run:
+        reconciled_test_cost = max(test_cost, spent - dev_cost)
+    else:
+        reconciled_test_cost = test_cost
+    total_cost = max(row_total_cost, spent)
     attempts = sum(max(0, int(row["attempts"])) for row in test_rows)
     mean_cost_per_call = test_cost / attempts if attempts else None
     mean_cost_per_incident = (

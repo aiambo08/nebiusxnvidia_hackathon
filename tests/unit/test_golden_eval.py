@@ -259,6 +259,23 @@ def test_rules_source_is_valid_only_in_baseline_mode():
     assert result["valid"] and result["policy_ok"] and result["correct"]
 
 
+@pytest.mark.parametrize(("source", "error"), [
+    ("fallback", "timeout"),
+    ("cache", "cached result"),
+    ("rules", "planner error"),
+    ("fallback", None),
+    ("cache", None),
+])
+def test_baseline_rejects_non_rules_sources_and_errors(source, error):
+    outcome = _outcome(
+        "set_exposure_bounded", {"delta_ev": 1.0}, source=source, error=error)
+    result = grade(_simple_case(), outcome, PolicyGate(), baseline=True)
+    assert not result["valid"]
+    assert not result["correct"]
+    assert not result["diagnosis_ok"]
+    assert not result["valid_first_try"]
+
+
 def test_fallback_diagnosis_and_first_try_are_invalid_when_plan_is_invalid():
     outcome = _outcome("needs_human", diagnosis=FaultType.BLACKOUT,
                        source="fallback", error="timeout", valid_first_try=True)
@@ -511,6 +528,54 @@ def test_budget_spend_reconciles_timeout_after_invalid_first_reply(cfg):
     assert summary["gate"]["projected_300"] == pytest.approx(spent * 300)
 
 
+def test_all_split_projection_attributes_unaccounted_spend_to_test(cfg):
+    rows = [
+        _summary_row(split="dev", cost=0.0003),
+        _summary_row(split="test", cost=0.0002),
+    ]
+    summary = summarize(rows, cfg, budget_spent_usd=0.001, split="all")
+    assert summary["row_total_usd"] == pytest.approx(0.0005)
+    assert summary["budget_spent_usd"] == pytest.approx(0.001)
+    assert summary["run_total_usd"] == pytest.approx(0.001)
+    assert summary["gate"]["run_total_usd"] == pytest.approx(0.0007)
+    assert summary["gate"]["projected_300"] == pytest.approx(0.21)
+
+
+@pytest.mark.parametrize(("split", "case_splits"), [
+    ("test", ("test",)),
+    ("dev", ("dev",)),
+    ("all", ("dev", "test")),
+])
+def test_cli_reconciles_budget_spend_for_every_split(
+        split, case_splits, monkeypatch, tmp_path):
+    cases = [_simple_case(split=case_split) for case_split in case_splits]
+    for case, case_split in zip(cases, case_splits, strict=True):
+        case["case_id"] = f"dark-base-{case_split}"
+    cases_path = tmp_path / "cases.jsonl"
+    _write_cases(cases_path, cases)
+    sdk = FakeSDK(["not json", TimeoutError()] * len(cases))
+    monkeypatch.setattr(eval_nemotron, "api_key", lambda: "sentinel-test-key")
+
+    result = eval_nemotron.main(
+        ["--split", split, "--repeats", "1", "--yes", "--max-usd", "1"],
+        sdk_client=sdk,
+        cases_path=cases_path,
+        report_dir=tmp_path / "reports",
+        runs_dir=tmp_path / "runs",
+    )
+
+    assert result == 0
+    assert len(sdk.calls) == len(cases) * 2
+    report = next((tmp_path / "reports").glob("*.json"))
+    summary = json.loads(report.read_text(encoding="utf-8"))["summary"]
+    assert summary["row_total_usd"] == 0
+    assert summary["run_total_usd"] == summary["budget_spent_usd"] > 0
+    if split in ("test", "all"):
+        assert summary["gate"]["projected_300"] > 0
+    else:
+        assert summary["gate"]["projected_300"] is None
+
+
 def test_max_usd_exact_boundary_proceeds_but_just_under_exits_three(
         monkeypatch, tmp_path, capsys, cfg):
     case_path = tmp_path / "cases.jsonl"
@@ -566,6 +631,47 @@ def test_rules_baseline_needs_no_key_or_yes_and_writes_named_report(
             encoding="utf-8"))
     assert summary["summary"]["gate"]["schema_valid_rate"] == 1.0
     assert summary["summary"]["gate"]["action_accuracy"] == 1.0
+
+
+def test_main_passes_baseline_only_for_rules_planner(monkeypatch, tmp_path):
+    case_path = tmp_path / "cases.jsonl"
+    _write_cases(case_path, [_simple_case()])
+    run_eval_baselines = []
+    grade_baselines = []
+    real_run_eval = eval_nemotron.run_eval
+    real_grade = eval_nemotron.grade
+
+    def run_eval_spy(cases, planner, repeats=3, output_path=None, *, baseline=False):
+        run_eval_baselines.append(baseline)
+        return real_run_eval(cases, planner, repeats, output_path, baseline=baseline)
+
+    def grade_spy(case, outcome, gate, *, baseline=False):
+        grade_baselines.append(baseline)
+        return real_grade(case, outcome, gate, baseline=baseline)
+
+    monkeypatch.setattr(eval_nemotron, "run_eval", run_eval_spy)
+    monkeypatch.setattr(eval_nemotron, "grade", grade_spy)
+    monkeypatch.setattr(eval_nemotron, "api_key", lambda: "sentinel-test-key")
+
+    nemotron_result = eval_nemotron.main(
+        ["--split", "test", "--repeats", "1", "--yes", "--max-usd", "1",
+         "--planner", "nemotron"],
+        sdk_client=FakeSDK([_model_reply()]),
+        cases_path=case_path,
+        report_dir=tmp_path / "nemotron-reports",
+        runs_dir=tmp_path / "nemotron-runs",
+    )
+    rules_result = eval_nemotron.main(
+        ["--split", "test", "--repeats", "1", "--planner", "rules"],
+        sdk_client=FakeSDK([]),
+        cases_path=case_path,
+        report_dir=tmp_path / "rules-reports",
+        runs_dir=tmp_path / "rules-runs",
+    )
+
+    assert nemotron_result == rules_result == 0
+    assert run_eval_baselines == [False, True]
+    assert grade_baselines == [False, True]
 
 
 def test_dev_eval_filters_cases_and_ledger(tmp_path):
