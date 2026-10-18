@@ -133,7 +133,8 @@ classification; automatic planning stays disabled (`configs/default.yaml: planne
 - [x] Invalid args rejected before touching the device
 - [x] Previous state persisted before execution
 - [x] Two repeated executions cause no corruption
-- [ ] Crash during an action → recover or revert on next start
+- [x] Crash during an action → recover or revert on next start
+  (`tests/integration/test_crash_recovery.py::test_real_process_kill_restores_pending_action`)
 - [x] No risky physical action available
 - [x] 100 adversarial cases cannot bypass allowlist, ranges or cooldown
 - [x] Unsupported actions end in NEEDS_HUMAN, never a false confirmation

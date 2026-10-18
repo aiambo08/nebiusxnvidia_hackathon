@@ -79,6 +79,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F6][nebius] Investigate whether unknown plan args should be stripped/rejected before the gate; invented `trigger_autofocus` args caused all three test misses (the gate rejected them)
 - [ ] [F6][evaluation] Resolve the missing `golden-rules-baseline-dev.md` target linked by the golden-v2 dev-2 eval report (target absent; leave frozen reports unchanged)
 - [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
+- [x] [F7][safety] Real subprocess crash recovery at snapshot, device-apply, and VERIFYING checkpoints (`tests/integration/test_crash_recovery.py`)
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
 - [ ] [F8][safety] Persist pending VERIFYING decisions across restarts
 
