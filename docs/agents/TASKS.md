@@ -94,7 +94,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 ## F9–F12
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
 - [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
-- [ ] [F9][product] Complete F9 product evidence (`tests/integration/test_dashboard_f9.py`, `docs/evidence/f9/demo-flow.md`; five-user product validation and gate review remain open)
+- [ ] [F9][product] Complete F9 product evidence (`tests/integration/test_dashboard_f9.py`, `docs/evidence/f9/demo-flow.md`; secret check covers the real `_dashboard`/`_planner` path with FakeSDK; final-video no-secrets check, five-user product validation and gate review remain open)
 - F12 documentation drafts and the author-run fresh-clone quickstart transcript are prepared in `docs/evidence/f12/quickstart.md`. A PR reviewer also reproduced the fresh-clone quickstart, but that review transcript is not committed as judge-open evidence; all F12 boxes below remain unchecked. Real UVC/ONVIF exposure/focus control is not implemented (`OpenCVSource.capabilities()` exposes only `restart`), and the webcam demo claims only detection plus a cleaning ticket, safe mode or `needs_human` escalation; bounded exposure/focus commit/rollback is SIMULATION only. No stream-down/restart segment is claimed because the live-dashboard outage-to-verification path lacks an end-to-end test.
 - [ ] [F12][product] Independent fresh reviewer reproduces the README happy path
 - [ ] [F12][product] Run F4 REAL HARDWARE recordings and benchmark with the owner
