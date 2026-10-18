@@ -124,6 +124,16 @@ def test_dashboard_html_escapes_template_interpolations():
         Path(__file__).resolve().parents[2] / "apps/dashboard/index.html"
     ).read_text(encoding="utf-8")
     assert "Fault cleared; primary metric already at baseline." in page
+    for source, label in {
+        "rules": "rules (local planner, no LLM call)",
+        "scripted": "scripted (demo planner, no LLM call)",
+        "fallback": "local fallback (no LLM call)",
+        "cache": "nemotron (cached plan, no new call)",
+    }.items():
+        assert f'{source}:"{label}"' in page
+    # Header and panel must agree on the plan source, or the header flickers.
+    assert "plannerLabel(p,lastPlanSource)" in page
+    assert "lastPlanSource=P.source" in page
     kv = re.search(r"function kv\(el,rows\)\s*\{(.*?)\n\}", page, re.S).group(1)
     assert ".innerHTML" not in kv
     assignments = re.findall(

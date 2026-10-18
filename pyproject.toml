@@ -35,6 +35,10 @@ ra-demo = "reliability_agent.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/reliability_agent", "apps"]
 
+[tool.hatch.build]
+# Editable installs must expose both src/ (reliability_agent) and the repo root (apps).
+dev-mode-dirs = ["src", "."]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", ".", "scripts"]

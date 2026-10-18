@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -38,6 +39,15 @@ HEALTHY_VISUAL = {
 }
 
 
+def _write_kill_marker(marker_path: Path, kill_point: str) -> None:
+    temporary_path = marker_path.with_suffix(".tmp")
+    temporary_path.write_text(
+        json.dumps({"kill_point": kill_point}),
+        encoding="utf-8",
+    )
+    os.replace(temporary_path, marker_path)
+
+
 class FileBackedDevice(SyntheticSource):
     """SyntheticSource controls whose settings survive process death."""
 
@@ -70,10 +80,7 @@ class FileBackedDevice(SyntheticSource):
             return
         self._blocked = True
         assert self.marker_path is not None
-        self.marker_path.write_text(
-            json.dumps({"kill_point": self.kill_point}),
-            encoding="utf-8",
-        )
+        _write_kill_marker(self.marker_path, self.kill_point)
         self._release.wait()
 
     def apply_settings(self, settings: dict) -> None:
@@ -100,10 +107,7 @@ class BlockingEventStore:
         if self._blocked:
             return
         self._blocked = True
-        self._marker_path.write_text(
-            json.dumps({"kill_point": self._kill_point}),
-            encoding="utf-8",
-        )
+        _write_kill_marker(self._marker_path, self._kill_point)
         self._release.wait()
 
     def save_snapshot(self, execution_id: str, incident_id: str, action: str,
