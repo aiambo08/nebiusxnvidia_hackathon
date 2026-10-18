@@ -720,5 +720,5 @@ def test_allowlist_justifications_cite_git_verified_producers():
     assert "2275652" in allowlist
     assert "a245332" in allowlist
     assert "ADR-009" in allowlist
-    assert "no repository script generates v2 yet" in allowlist
-    assert "scripts/build_golden.py writes v1 only" in allowlist
+    assert "produced by scripts/build_golden.py --out <path>" in allowlist
+    assert "frozen file protected from accidental overwrite" in allowlist

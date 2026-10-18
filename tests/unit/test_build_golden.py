@@ -13,11 +13,12 @@ def _run(monkeypatch, *args):
     return builder.main()
 
 
-def test_build_golden_requires_output_path(monkeypatch):
+def test_build_golden_requires_output_path(monkeypatch, capsys):
     with pytest.raises(SystemExit) as exc:
         _run(monkeypatch)
 
     assert exc.value.code == 2
+    assert "the following arguments are required: --out" in capsys.readouterr().err
 
 
 def test_build_golden_writes_to_requested_path(tmp_path, monkeypatch):
