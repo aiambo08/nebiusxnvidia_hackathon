@@ -16,6 +16,7 @@ from reliability_agent.orchestrator import (
 )
 from reliability_agent.policy.gate import PolicyGate
 from reliability_agent.storage import EventStore
+from scripts.incident_report import report_for_incident
 
 S = IncidentState
 DARK = {"brightness_p50": 5.0, "black_pixel_ratio": 0.95}
@@ -153,31 +154,55 @@ def test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan(
         cfg, window, tmp_path):
     db = tmp_path / "agent.sqlite"
     rig = Rig(cfg, store=EventStore(db))
-    drive_to_verifying(rig, window)
-    incident_id = rig.store.events(kind="incident")[0]["incident_id"]
-    version = rig.agent.tracker.baseline.version
-    rig.store.close()
-    rig.store = EventStore(db)  # the process is gone; only the SQLite file survives
+    open_stores = [rig.store]
+    try:
+        drive_to_verifying(rig, window)
+        incident_id = rig.store.events(kind="incident")[0]["incident_id"]
+        version = rig.agent.tracker.baseline.version
+        before_restart = {
+            kind: rig.store.events(kind=kind)
+            for kind in ("plan", "policy", "execution")
+        }
+        rig.store.close()
+        open_stores.remove(rig.store)
+        rig.store = EventStore(db)  # the process is gone; only the SQLite file survives
+        open_stores.append(rig.store)
 
-    agent = rig.start()
-    assert agent.state is S.NEEDS_HUMAN
-    assert agent.active.incident.incident_id == incident_id
-    assert rig.device.settings["exposure"] == 0.0, "pre-action snapshot restored"
-    assert rig.store.pending_snapshots() == []
-    assert agent.tracker.baseline.version == version
-    restore = rig.store.events(kind="restore")[-1]["payload"]
-    assert restore["restored"] and restore["state"] == "NEEDS_HUMAN"
-    assert restore["rolled_back"][0]["ok"]
-    assert ActionName.SET_EXPOSURE_BOUNDED.value in agent.gate.export_history()
+        agent = rig.start()
+        assert agent.state is S.NEEDS_HUMAN
+        assert agent.active.incident.incident_id == incident_id
+        assert rig.device.settings["exposure"] == 0.0, "pre-action snapshot restored"
+        assert rig.store.pending_snapshots() == []
+        assert agent.tracker.baseline.version == version
+        restore = rig.store.events(kind="restore")[-1]["payload"]
+        assert restore["restored"] and restore["state"] == "NEEDS_HUMAN"
+        assert restore["rolled_back"][0]["ok"]
+        assert ActionName.SET_EXPOSURE_BOUNDED.value in agent.gate.export_history()
 
-    learned = agent.tracker.baseline.updates
-    rng = np.random.default_rng(9)
-    for _ in range(cfg["fusion"]["exit_windows"]):
-        rig.feed(healthy(window, rng))
-    assert agent.state is S.HEALTHY
-    assert rig.planner.calls == 0, "no plan and no LLM call after a restart"
-    assert agent.tracker.baseline.updates == learned
-    assert rig.store.verify_chain()
+        for kind, previous in before_restart.items():
+            current = [
+                event for event in rig.store.events(kind=kind)
+                if event["incident_id"] == incident_id
+            ]
+            assert current == previous
+        rollback = rig.store.events(kind="rollback")[-1]
+        assert rollback["incident_id"] == incident_id
+        assert rollback["payload"]["reason"] == "restart with an uncommitted action"
+        report = report_for_incident(rig.store.events(), incident_id)
+        assert report["restart_resolution"] == "rolled back on restart"
+        assert report["restart_rollbacks"]
+
+        learned = agent.tracker.baseline.updates
+        rng = np.random.default_rng(9)
+        for _ in range(cfg["fusion"]["exit_windows"]):
+            rig.feed(healthy(window, rng))
+        assert agent.state is S.HEALTHY
+        assert rig.planner.calls == 0, "no plan and no LLM call after a restart"
+        assert agent.tracker.baseline.updates == learned
+        assert rig.store.verify_chain()
+    finally:
+        for store in open_stores:
+            store.close()
 
 
 def test_a_crash_between_checkpoints_still_rolls_back_the_action(cfg, window):

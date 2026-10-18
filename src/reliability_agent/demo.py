@@ -79,12 +79,16 @@ def demo_config() -> dict[str, Any]:
 
 def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None = None,
                  store: EventStore | None = None, warmup: int = 15, fault_windows: int = 20,
-                 seed: int = 0, on_window=None, on_frame: Callable[[Any], None] | None = None,
+                 seed: int = 0, fault_strength: float | None = None, on_window=None,
+                 on_frame: Callable[[Any], None] | None = None,
+                 on_source: Callable[[Any], None] | None = None,
                  pace_s: float = 0.0, stop_event: Event | None = None) -> ScenarioResult:
     if pace_s < 0:
         raise ValueError("pace_s must be >= 0")
     cfg = cfg or demo_config()
     fault, strength, human_fix = SCENARIOS[name]
+    if fault_strength is not None:
+        strength = fault_strength
     t = [0.0]
 
     def clock() -> float:
@@ -92,6 +96,8 @@ def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None 
 
     fps = cfg["camera"]["analytic_fps"]
     src = SyntheticSource(width=320, height=240, seed=seed, clock=clock)
+    if on_source:
+        on_source(src)
     src.open()
 
     def read_frame():
