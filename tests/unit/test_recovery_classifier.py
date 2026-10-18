@@ -172,11 +172,30 @@ def test_successful_execution_without_rollback_or_safe_mode_fails():
     assert result["regression_gate_pass"] is False
 
 
+def test_successful_execution_with_non_exact_rollback_fails():
+    snapshot = {"gain": 1.0}
+    result = classify_regression(
+        [
+            _event("execution", {"status": "success"}),
+            _event("rollback", {"ok": True, "restored": snapshot}),
+        ],
+        snapshot,
+        {"gain": 0.5, "safe_mode": False},
+    )
+
+    assert result["regression_executed"] is True
+    assert result["rollback_ok"] is True
+    assert result["snapshot_equal"] is False
+    assert result["regression_pass"] is False
+    assert result["regression_gate_pass"] is False
+
+
 def test_non_executed_run_with_changed_settings_fails():
     result = classify_regression([], {"gain": 1.0}, {"gain": 0.5})
 
     assert result["regression_executed"] is False
     assert result["settings_unchanged"] is False
+    assert result["regression_pass"] is False
     assert result["regression_gate_pass"] is False
 
 
@@ -231,10 +250,12 @@ def test_regression_gate_fails_non_executed_run_with_changed_settings():
         initial={"gain": 1.0},
         final={"gain": 0.5},
     )
+    rows.append(_gate_row("dark"))
 
     result = regression_gate(rows)
 
     assert result["by_fault"]["dark"]["not_executed_unchanged"] == 0
+    assert result["coverage_floor"]["pass"] is True
     assert result["gate_pass"] is False
 
 
