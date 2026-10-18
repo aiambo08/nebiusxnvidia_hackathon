@@ -160,6 +160,18 @@ def test_successful_execution_in_safe_mode_passes():
     assert result["regression_gate_pass"] is True
 
 
+def test_successful_execution_without_rollback_or_safe_mode_fails():
+    result = classify_regression(
+        [_event("execution", {"status": "success"})],
+        {"gain": 1.0},
+        {"gain": 0.5, "safe_mode": False},
+    )
+
+    assert result["regression_executed"] is True
+    assert result["snapshot_equal"] is False
+    assert result["regression_gate_pass"] is False
+
+
 def test_successful_execution_with_non_exact_rollback_fails():
     snapshot = {"gain": 1.0}
     result = classify_regression(

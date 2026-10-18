@@ -120,7 +120,7 @@ Last update: 2026-10-18 · Current phase: **F8** (F8 simulation gate evidence co
 
 ## F8 review revalidation
 - SIMULATION on clean code commit `20c4126c218229646395ba7bff3aa8dd50399891`: recovery remained 87/100 (3 needs-human, 10 timeouts); raw regression remained 45/50. All 45/45 executed runs rolled back with exact snapshot restoration, and all five non-executed dark:0.8 runs left settings unchanged. The executed-coverage floor passed for dark, defocus, overexpose, and frozen_black. Recovery classification and incident reports are EventStore-only; regression uses EventStore events, initial/pre-action/final device settings, and `ScenarioResult.final_state`. Defocus and frozen_black `enter_safe_mode` proposals are non-remediating actions. Full report: `docs/evidence/f8/recovery-bench.md` and `.json`.
-- Classifier follow-up: `tests/unit/test_recovery_classifier.py` pins `snapshot_equal` when a rollback reports success but settings differ, and pins `regression_pass` for non-executed runs; mutation checks kill M6a, M7, and the non-executed changed-settings gate mutant.
+- Classifier follow-up: `tests/unit/test_recovery_classifier.py` retains the no-rollback execution failure test and separately pins non-exact rollback diagnostics (`snapshot_equal=False`) and non-executed changed-settings rejection; M14, M6a and M7 mutation checks kill their respective mutants.
 
 ## Blockers
 - Token Factory console balance to be confirmed by Aibo.
