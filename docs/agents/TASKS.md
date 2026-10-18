@@ -68,7 +68,9 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F5][architecture] Add a unit test proving the baseline does not learn in CONFIRMED, ACTING or VERIFYING (current unit coverage checks SUSPECT only)
 - [ ] [F5][architecture] Record in `DECISIONS.md` that a crash before the first 10-window checkpoint loses baseline samples (32 vs 38 updates) without changing state sequences
 - [ ] [F5][evaluation] Add a legitimate non-fault scenario that reaches SUSPECT and returns to HEALTHY; currently only short MVP fault transients exercise SUSPECT → HEALTHY
-- [ ] [F6][nebius] Golden set (20 cases × fault) + ambiguity cases
+- [x] [F6][nebius] Offline golden-set recipe, grader, and deterministic baseline report (136 cases; `benchmarks/golden/golden_v1.jsonl`, `docs/evidence/f6/golden-rules-baseline-test.md`)
+- [ ] [F6][nebius] Live golden-set run (test split, 3 repeats) → `docs/evidence/f6/`
+- [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
 - [ ] [F8][safety] Persist pending VERIFYING decisions across restarts
 

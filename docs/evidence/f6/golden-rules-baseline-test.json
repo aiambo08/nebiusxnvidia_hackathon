@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "commit": "a7cd262",
+    "generated": "2026-10-18T00:07:14.451198Z",
+    "golden_sha256": "3f0c5699f4d8f5464c6c020b799648d81f9a8f59fdfe5dcd694e1c84d8199d44",
+    "model": "local-rules",
+    "planner": "rules",
+    "prompt_version": "rules",
+    "split": "test"
+  },
+  "summary": {
+    "action_confusion": {
+      "enter_safe_mode|needs_human -> needs_human": 12,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> needs_human": 12,
+      "request_manual_cleaning -> request_manual_cleaning": 48,
+      "restart_capture -> restart_capture": 48,
+      "set_exposure_bounded -> set_exposure_bounded": 96,
+      "trigger_autofocus -> trigger_autofocus": 48
+    },
+    "budget_spent_usd": 0.0,
+    "diagnosis_accuracy": 1.0,
+    "gate": {
+      "action_accuracy": 1.0,
+      "boxes": {
+        "action_accuracy": {
+          "status": "PASS",
+          "threshold": 0.9,
+          "value": 1.0
+        },
+        "projected_300": {
+          "status": "PASS",
+          "threshold": 23.0,
+          "value": 0.0
+        },
+        "schema_valid": {
+          "status": "PASS",
+          "threshold": 0.98,
+          "value": 1.0
+        }
+      },
+      "diagnosis_accuracy": 1.0,
+      "mean_cost_per_call": null,
+      "mean_cost_per_incident": 0.0,
+      "policy_ok_rate": 1.0,
+      "projected_300": 0.0,
+      "row_count": 264,
+      "run_total_usd": 0.0,
+      "schema_valid_rate": 1.0,
+      "soft_cap_usd": 23.0,
+      "valid_first_try_rate": 1.0
+    },
+    "gate_split": "test",
+    "latency_ms": {
+      "count": 264,
+      "p50": 0.0,
+      "p95": 0.0
+    },
+    "model": [
+      "local-rules"
+    ],
+    "per_scenario_variant_accuracy": {
+      "dark/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "dark/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "dark/no_cap": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "defocus/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "defocus/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "defocus/no_cap": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "freeze/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "freeze/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "freeze/no_cap": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "occlusion/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "occlusion/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "overexposure/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "overexposure/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "overexposure/no_cap": {
+        "accuracy": 1.0,
+        "count": 6
+      }
+    },
+    "policy_ok_rate": 1.0,
+    "prompt_version": [],
+    "row_count": 264,
+    "row_total_usd": 0.0,
+    "run_total_usd": 0.0,
+    "split_counts": {
+      "test": 264
+    },
+    "valid_first_try_rate": 1.0
+  }
+}
