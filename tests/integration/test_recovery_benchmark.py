@@ -10,5 +10,7 @@ def test_recovery_benchmark_smoke_uses_event_store_outcomes():
         "timeout",
     }
     assert result["regression"]["plan_source"] == "scripted"
+    assert result["regression"]["regression_executed"] is True
+    assert result["regression"]["regression_gate_pass"] is True
     assert result["regression"]["rollback_ok"] is True
     assert result["regression"]["snapshot_equal"] is True

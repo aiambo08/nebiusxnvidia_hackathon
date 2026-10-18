@@ -81,26 +81,51 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         "across restart to exercise rollback.",
         "Other regression cases use scripted, policy-gated, non-remediating proposals.",
         "",
-        "| Fault | Strength | Runs | Rollback/safe-mode pass | Rollback events | "
+        "| Fault | Strength | Runs | Raw rollback/safe-mode pass | Executed | "
+        "Executed pass | Not executed / settings unchanged | Rollback events | "
         "Settings restored |",
-        "|---|---:|---:|---:|---:|---:|",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ])
     for key, result in regression["summary"]["by_fault_strength"].items():
         fault, strength = key.rsplit(":", 1)
         lines.append(
             f"| {fault} | {strength} | {result['runs']} | "
-            f"{result['passed']} / {result['runs']} | {result['rollback_ok']} | "
+            f"{result['passed']} / {result['runs']} | "
+            f"{result['executed']} | {result['executed_passed']} / "
+            f"{result['executed']} | {result['not_executed']} / "
+            f"{result['settings_unchanged']} | {result['rollback_ok']} | "
             f"{result['settings_identical']} |"
         )
     lines.extend([
         "",
-        f"Rollback/safe-mode pass: **{regression_summary['passed']} / "
+        f"Raw rollback/safe-mode result: **{regression_summary['passed']} / "
         f"{regression_summary['runs']}**; successful rollback events: "
         f"{regression_summary['rollback_ok']}; settings equal restored snapshots: "
-        f"{regression_summary['settings_identical']}. "
-        f"100% gate: {'PASS' if regression_summary['gate_pass'] else 'FAIL'}.",
+        f"{regression_summary['settings_identical']}.",
+        f"Executed regressions ending in rollback with exact snapshot restoration "
+        f"or safe mode: **{regression_summary['executed_passed']} / "
+        f"{regression_summary['executed']}**.",
+        f"Non-executed runs with unchanged settings: "
+        f"**{regression_summary['not_executed_settings_unchanged']} / "
+        f"{regression_summary['not_executed']}**. Revised 100% gate: "
+        f"{'PASS' if regression_summary['gate_pass'] else 'FAIL'}.",
         "Regression misses by fault/strength: "
         f"{', '.join(regression_misses) if regression_misses else 'none'}.",
+        "",
+        "Non-executed runs (reason from EventStore):",
+    ])
+    if regression["non_executed_runs"]:
+        for run in regression["non_executed_runs"]:
+            strength = run["strength"] if run["strength"] is not None else "n/a"
+            lines.append(
+                f"- {run['fault']}:{strength}, seed {run['seed']}: "
+                f"{run['reason']}; settings_unchanged={run['settings_unchanged']} "
+                f"(final_state={run['final_state']}, "
+                f"plan_source={run['plan_source'] or 'null'})."
+            )
+    else:
+        lines.append("- None.")
+    lines.extend([
         "",
         "Per-case event-derived outcomes and regression checks are in the companion JSON.",
         "",

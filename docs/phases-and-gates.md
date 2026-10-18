@@ -20,7 +20,7 @@ recalibrated with real camera data.
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | passed |
 | F6 | Nemotron integration | 3 | Nebius | scaffolded |
-| F7 | Executor & safety | 3 | Safety | scaffolded |
+| F7 | Executor & safety | 3 | Safety | in progress |
 | F8 | Verification & rollback | 3 | Safety + Evaluation | in progress |
 | F9 | Product & demo experience | 4 | Product | in progress |
 | F10 | End-to-end validation | 4 | Evaluation | not started |

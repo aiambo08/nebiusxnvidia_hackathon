@@ -86,6 +86,51 @@ def classify_events(events: list[dict], fault: str) -> dict[str, Any]:
     }
 
 
+def classify_regression(
+    events: list[dict],
+    initial_settings: dict[str, Any],
+    final_settings: dict[str, Any],
+) -> dict[str, Any]:
+    """Classify rollback coverage and untouched settings from events and device state."""
+    regression_executed = any(
+        event["kind"] == "execution"
+        and event["payload"].get("status") == "success"
+        for event in events
+    )
+    rollback = next(
+        (event["payload"] for event in reversed(events)
+         if event["kind"] == "rollback"),
+        None,
+    )
+    rollback_ok = bool(rollback and rollback.get("ok"))
+    snapshot_equal = bool(rollback_ok and final_settings == rollback.get("restored"))
+    safe_mode = final_settings.get("safe_mode") is True
+    settings_unchanged = (
+        final_settings == initial_settings if not regression_executed else None
+    )
+    regression_pass = snapshot_equal or safe_mode
+    regression_gate_pass = (
+        regression_pass if regression_executed else settings_unchanged is True
+    )
+    incident_confirmed = any(event["kind"] == "incident" for event in events)
+    non_executed_reason = (
+        None if regression_executed else (
+            "no incident confirmed" if not incident_confirmed
+            else "no successful execution event"
+        )
+    )
+    return {
+        "regression_executed": regression_executed,
+        "settings_unchanged": settings_unchanged,
+        "incident_confirmed": incident_confirmed,
+        "non_executed_reason": non_executed_reason,
+        "rollback_ok": rollback_ok,
+        "snapshot_equal": snapshot_equal,
+        "regression_pass": regression_pass,
+        "regression_gate_pass": regression_gate_pass,
+    }
+
+
 def _run_case(
     scenario: str,
     strength: float | None,
@@ -97,6 +142,7 @@ def _run_case(
 ):
     store = EventStore()
     observed_source = []
+    initial_settings = []
     planner = (
         ScriptedPlanner(*REGRESSION_ACTIONS[scenario])
         if regression else RuleBasedPlanner()
@@ -104,6 +150,7 @@ def _run_case(
 
     def observe_source(source):
         observed_source.append(source)
+        initial_settings.append(source.get_settings())
         if regression and scenario == "frozen_black":
             set_fault = source.set_fault
 
@@ -128,6 +175,7 @@ def _run_case(
         )
         events = store.events()
         classified = classify_events(events, scenario)
+        final_settings = observed_source[0].get_settings()
         rollback = next(
             (event["payload"] for event in reversed(events)
              if event["kind"] == "rollback"),
@@ -136,20 +184,9 @@ def _run_case(
         snapshot_equal = bool(
             rollback
             and rollback.get("ok")
-            and observed_source
-            and observed_source[0].get_settings() == rollback.get("restored")
+            and final_settings == rollback.get("restored")
         )
-        regression_pass = bool(
-            regression
-            and (
-                snapshot_equal
-                or (
-                    observed_source
-                    and observed_source[0].get_settings().get("safe_mode") is True
-                )
-            )
-        )
-        return {
+        run = {
             "scenario": scenario,
             "fault": scenario,
             "strength": strength,
@@ -158,8 +195,12 @@ def _run_case(
             "final_state": result.final_state,
             "rollback_ok": bool(rollback and rollback.get("ok")),
             "snapshot_equal": snapshot_equal,
-            "regression_pass": regression_pass,
         }
+        if regression:
+            run.update(classify_regression(
+                events, initial_settings[0], final_settings
+            ))
+        return run
     finally:
         store.close()
 
@@ -219,6 +260,12 @@ def run_regression_benchmark(seeds=range(5)) -> dict[str, Any]:
         for strength in strengths
         for seed in seeds
     ]
+    executed = [run for run in runs if run["regression_executed"]]
+    not_executed = [run for run in runs if not run["regression_executed"]]
+    executed_passed = sum(run["regression_gate_pass"] for run in executed)
+    not_executed_unchanged = sum(
+        run["settings_unchanged"] is True for run in not_executed
+    )
     grouped: dict[tuple[str, float | None], list[dict[str, Any]]] = defaultdict(list)
     for run in runs:
         grouped[(run["fault"], run["strength"])].append(run)
@@ -228,21 +275,51 @@ def run_regression_benchmark(seeds=range(5)) -> dict[str, Any]:
             "passed": sum(item["regression_pass"] for item in values),
             "rollback_ok": sum(item["rollback_ok"] for item in values),
             "settings_identical": sum(item["snapshot_equal"] for item in values),
+            "executed": sum(item["regression_executed"] for item in values),
+            "executed_passed": sum(
+                item["regression_executed"] and item["regression_gate_pass"]
+                for item in values
+            ),
+            "not_executed": sum(not item["regression_executed"] for item in values),
+            "settings_unchanged": sum(
+                not item["regression_executed"] and item["settings_unchanged"] is True
+                for item in values
+            ),
         }
         for (fault, strength), values in sorted(grouped.items(), key=lambda item: (
             item[0][0], -1 if item[0][1] is None else item[0][1]
         ))
     }
+    non_executed_runs = [
+        {
+            "fault": run["fault"],
+            "strength": run["strength"],
+            "seed": run["seed"],
+            "reason": run["non_executed_reason"],
+            "settings_unchanged": run["settings_unchanged"],
+            "final_state": run["final_state"],
+            "plan_source": run["plan_source"],
+        }
+        for run in not_executed
+    ]
     return {
         "summary": {
             "runs": len(runs),
             "passed": sum(item["regression_pass"] for item in runs),
             "failed": sum(not item["regression_pass"] for item in runs),
-            "gate_pass": all(item["regression_pass"] for item in runs),
+            "executed": len(executed),
+            "executed_passed": executed_passed,
+            "not_executed": len(not_executed),
+            "not_executed_settings_unchanged": not_executed_unchanged,
+            "gate_pass": (
+                executed_passed == len(executed)
+                and not_executed_unchanged == len(not_executed)
+            ),
             "rollback_ok": sum(item["rollback_ok"] for item in runs),
             "settings_identical": sum(item["snapshot_equal"] for item in runs),
             "by_fault_strength": by_fault_strength,
         },
+        "non_executed_runs": non_executed_runs,
         "runs": runs,
     }
 
