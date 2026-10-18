@@ -57,3 +57,16 @@ confirmed; this demonstrates the REPLAY label and dashboard startup, not an end-
 recovery result.
 
 No F9 phase or evidence checkbox was changed.
+
+## Rendered labels
+
+Both screenshots come from headless Chrome against the servers above:
+
+- `dashboard-simulation-bad-action.png` shows the `SIMULATION` badge, a rollback, `planner scripted (demo planner, no LLM call)` and `$0`.
+- `dashboard-replay.png` shows the `REPLAY` badge with source `Video replay`.
+
+## Known limitation (REPLAY)
+
+A file source is read as fast as it decodes, so the replay panel showed Capture FPS ≈ 13110 for the synthetic 15 fps clip. When the clip ends, the watchdog reports `stream_down` and the agent plans `restart_capture`. The deterministic demo for the video is therefore the SIMULATION mode (`SyntheticSource`). REPLAY proves the label and the read-only loop on a recorded file, not real-time playback.
+
+Still open for F9: the five-user check, the no-secrets check on the final video, and the real-webcam (`--live --uri 0`) run on the owner's machine.
