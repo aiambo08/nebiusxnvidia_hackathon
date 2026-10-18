@@ -107,8 +107,8 @@ CREDENTIAL_PATTERNS = {
     "Hugging Face token": re.compile(rb"\bhf_[A-Za-z0-9]{8,}\b", re.IGNORECASE),
 }
 API_KEY_ASSIGNMENT_PATTERN = re.compile(
-    rb"\b(NEBIUS_API_KEY|api_key)[\"']?\s*\]?\s*(?:=|:)\s*[\"']?"
-    rb"([^\"'\s,;#}\]]+)",
+    rb"\b(NEBIUS_API_KEY|api_key)[\"']?[ \t]*\]?[ \t]*(?:=|:)[ \t]*[\"']?"
+    rb"([^\"'\s,;#}\]\)]+)",
     re.IGNORECASE,
 )
 YAML_KEY_ASSIGNMENT_PATTERN = re.compile(
@@ -130,6 +130,16 @@ PLACEHOLDER_VALUES = {
     "replace-me",
     "your-api-key",
     "your-key-here",
+    "dummy-key",
+    "dummy-token",
+    "example-key",
+    "example-token",
+    "fake-key",
+    "fake-token",
+    "placeholder-key",
+    "placeholder-token",
+    "replace-key",
+    "replace-token",
 }
 
 
@@ -184,20 +194,18 @@ def _is_placeholder_value(value: bytes) -> bool:
         "your-key-here",
         "str",
     }
+    stripped = value.strip()
+    if (
+        stripped[:1].islower()
+        and re.fullmatch(
+            rb"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*", stripped
+        )
+    ):
+        return True
     return (
         normalized in placeholders
         or "http://" in normalized
         or "https://" in normalized
-        or normalized.startswith(
-            (
-                "change-me-",
-                "changeme-",
-                "example-",
-                "fake-",
-                "placeholder-",
-                "replace-",
-            )
-        )
         or (normalized.startswith("<") and normalized.endswith(">"))
         or (len(normalized) >= 3 and set(normalized) == {"x"})
         or (len(normalized) >= 8 and set(normalized) <= {"*", "0"})
@@ -505,6 +513,8 @@ def build_report(
         "environment-file indicators, and scans blob content for credential patterns. "
         "Blobs over 5 MB are reported as `oversized_blob`; their content scan is skipped and "
         "they require an explicit path-and-type allowlist entry. "
+        "An allowlisted `oversized_blob` is not content-scanned and is covered only by CI "
+        "gitleaks. "
         "CI also runs the `secrets` job's `gitleaks (full history)` step "
         "(`.github/workflows/ci.yml`).",
         "",

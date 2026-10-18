@@ -202,10 +202,20 @@ def test_env_example_and_forwarded_api_key_values_are_not_credentials(tmp_path):
         {
             ".env.example": "NEBIUS_" + "API_KEY=https://api.example.invalid/v1/\n",
             "client.py": "api" + "_key = " + "api" + "_key\n",
+            "constructor.py": "OpenAI(api" + "_key=api" + "_key)\n",
+            "settings.py": "api" + "_key=settings.nebius_key\n",
+            "multiline.py": "api" + "_key =\n" + "Q" * 24,
             "typed.py": "def create(api" + "_key: str | None):\n    pass\n",
             "placeholders.yaml": "NEBIUS_API" + "_KEY: your-key-here\n",
             "placeholders.json": '{"api' + '_key": "<redacted>"}\n',
             "placeholders.txt": "NEBIUS_API" + "_KEY=xxx\n",
+            "known-prefix-placeholders.txt": (
+                "api" + "_key=fake-key\n"
+                "api" + "_key=dummy-key\n"
+                "api" + "_key=example-key\n"
+                "api" + "_key=placeholder-key\n"
+                "api" + "_key=replace-key\n"
+            ),
         },
     )
 
@@ -216,6 +226,20 @@ def test_env_example_and_forwarded_api_key_values_are_not_credentials(tmp_path):
     row = next(line for line in report.splitlines() if "`.env.example`" in line)
     assert "environment file" not in row
     assert "| credential pattern:" not in report
+
+
+def test_placeholder_prefixes_require_a_whole_known_value(tmp_path):
+    repo, allowlist = _new_repo(
+        tmp_path,
+        {"client.py": "api" + "_key=fake-key-with-extra\n"},
+    )
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    report = (tmp_path / "audit.md").read_text(encoding="utf-8")
+    row = next(line for line in report.splitlines() if "`client.py`" in line)
+    assert "api_key assignment" in row
 
 
 def test_your_prefix_alone_does_not_make_a_value_a_placeholder(tmp_path):
@@ -273,16 +297,19 @@ def test_every_credential_pattern_is_flagged_in_current_files(tmp_path):
 
     assert result.returncode == 1
     report = (tmp_path / "audit.md").read_text(encoding="utf-8")
+    tracked_section = report.split("## Tracked-file inventory", 1)[1].split(
+        "## Historical findings", 1
+    )[0]
     for index, (expected_label, _value) in enumerate(fixtures):
-        if expected_label == "sk-proj- API key":
-            row = next(
-                line
-                for line in report.splitlines()
-                if f"`credential-{index}.txt`" in line
-            )
-            assert "sk- API key" in row
-        else:
-            assert expected_label in report
+        row = next(
+            line
+            for line in tracked_section.splitlines()
+            if f"`credential-{index}.txt`" in line
+        )
+        expected_reason = (
+            "sk- API key" if expected_label == "sk-proj- API key" else expected_label
+        )
+        assert expected_reason in row
     for _label, value in fixtures:
         assert value.decode("ascii", errors="ignore") not in report
 
@@ -303,16 +330,19 @@ def test_every_credential_pattern_is_flagged_in_history_only(tmp_path):
     report = (tmp_path / "audit.md").read_text(encoding="utf-8")
     assert "Tracked-file inventory" in report
     assert "Historical findings" in report
+    history_section = report.split("## Historical findings", 1)[1].split(
+        "## History scan warnings", 1
+    )[0]
     for index, (expected_label, _value) in enumerate(fixtures):
-        if expected_label == "sk-proj- API key":
-            row = next(
-                line
-                for line in report.splitlines()
-                if f"`credential-{index}.txt`" in line
-            )
-            assert "sk- API key" in row
-        else:
-            assert expected_label in report
+        row = next(
+            line
+            for line in history_section.splitlines()
+            if f"`credential-{index}.txt`" in line
+        )
+        expected_reason = (
+            "sk- API key" if expected_label == "sk-proj- API key" else expected_label
+        )
+        assert f"credential pattern: {expected_reason}" in row
 
 
 def test_large_images_and_files_are_flagged(tmp_path):
@@ -339,17 +369,21 @@ def test_600kb_uppercase_image_is_flagged_in_current_and_history(tmp_path):
     current_result = _audit(repo, allowlist, report_path)
     assert current_result.returncode == 1
     current_report = report_path.read_text(encoding="utf-8")
-    assert "`capture.JPG`" in current_report
-    assert "image larger than 500 KB" in current_report
-    assert "file larger than 1 MB" not in current_report
+    tracked_section = current_report.split("## Tracked-file inventory", 1)[1].split(
+        "## Historical findings", 1
+    )[0]
+    current_row = next(line for line in tracked_section.splitlines() if "`capture.JPG`" in line)
+    assert "image larger than 500 KB" in current_row
+    assert "file larger than 1 MB" not in current_row
 
     (repo / "capture.JPG").unlink()
     _commit(repo, "remove synthetic uppercase image")
     history_result = _audit(repo, allowlist, report_path)
     assert history_result.returncode == 1
     history_report = report_path.read_text(encoding="utf-8")
-    assert "`capture.JPG`" in history_report
-    assert "image larger than 500 KB" in history_report
+    history_section = history_report.split("## Historical findings", 1)[1]
+    history_row = next(line for line in history_section.splitlines() if "`capture.JPG`" in line)
+    assert "image larger than 500 KB" in history_row
 
 
 def test_allowlisted_dataset_does_not_waive_credential_in_current_or_history(tmp_path):
@@ -382,6 +416,61 @@ def test_allowlisted_dataset_does_not_waive_credential_in_current_or_history(tmp
     assert "credential pattern: sk- API key" in history_report
 
 
+def test_credential_types_are_never_waivable_in_current_and_history(tmp_path):
+    cases = [
+        (
+            "sk",
+            "current.txt",
+            b"sk-proj-" + b"R" * 24,
+            "sk- API key",
+        ),
+        (
+            "assignment",
+            "current.txt",
+            b"NEBIUS_" + b"API_KEY=" + b"S" * 24,
+            "nebius_api_key assignment",
+        ),
+    ]
+    for name, relative, content, reason in cases:
+        case_root = tmp_path / name
+        repo, allowlist = _new_repo(case_root, {"readme.txt": "safe\n"})
+        (repo / relative).write_bytes(content)
+        _run_git(repo, "add", relative)
+        allowlist.write_text(
+            "files:\n"
+            f"  {relative}:\n"
+            f'    types: ["{reason}"]\n'
+            "    justification: explicit credential type for negative test\n",
+            encoding="utf-8",
+        )
+
+        current_result = _audit(repo, allowlist, case_root / "current.md")
+        assert current_result.returncode == 1
+        current_report = (case_root / "current.md").read_text(encoding="utf-8")
+        current_row = next(
+            line for line in current_report.splitlines() if f"`{relative}`" in line
+        )
+        assert reason in current_row
+
+        _commit(repo, "add synthetic credential")
+        (repo / relative).unlink()
+        _commit(repo, "remove synthetic credential")
+        allowlist.write_text(
+            "files:\n"
+            f"  {relative}:\n"
+            f'    types: ["credential pattern: {reason}"]\n'
+            "    justification: explicit historical credential type for negative test\n",
+            encoding="utf-8",
+        )
+        history_result = _audit(repo, allowlist, case_root / "history.md")
+        assert history_result.returncode == 1
+        history_report = (case_root / "history.md").read_text(encoding="utf-8")
+        history_row = next(
+            line for line in history_report.splitlines() if f"`{relative}`" in line
+        )
+        assert f"credential pattern: {reason}" in history_row
+
+
 def test_allowlist_entry_does_not_waive_an_unlisted_finding_type(tmp_path):
     repo, allowlist = _new_repo(
         tmp_path, {"capture.JPG": b"x" * (600 * 1024)}
@@ -400,6 +489,53 @@ def test_allowlist_entry_does_not_waive_an_unlisted_finding_type(tmp_path):
     report = (tmp_path / "audit.md").read_text(encoding="utf-8")
     assert "image larger than 500 KB" in report
     assert "Unallowlisted findings require review" in report
+
+
+def test_current_file_allowlist_type_does_not_waive_another_type(tmp_path):
+    repo, allowlist = _new_repo(tmp_path, {"readme.txt": "safe\n"})
+    path = repo / "current-only.mp4"
+    path.write_bytes(b"x" * 1_000_001)
+    _run_git(repo, "add", "current-only.mp4")
+    allowlist.write_text(
+        "files:\n"
+        "  current-only.mp4:\n"
+        "    types: [video/audio extension]\n"
+        "    justification: synthetic current-only media fixture\n",
+        encoding="utf-8",
+    )
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    report = (tmp_path / "audit.md").read_text(encoding="utf-8")
+    tracked_section = report.split("## Tracked-file inventory", 1)[1].split(
+        "## Historical findings", 1
+    )[0]
+    current_row = next(
+        line for line in tracked_section.splitlines() if "`current-only.mp4`" in line
+    )
+    assert "video/audio extension" in current_row
+    assert "file larger than 1 MB" in current_row
+    history_section = report.split("## Historical findings", 1)[1].split(
+        "## History scan warnings", 1
+    )[0]
+    assert "`current-only.mp4`" not in history_section
+
+
+def test_empty_allowlist_types_are_rejected(tmp_path):
+    repo, allowlist = _new_repo(tmp_path, {"readme.txt": "safe\n"})
+    allowlist.write_text(
+        "files:\n"
+        "  readme.txt:\n"
+        "    types: []\n"
+        "    justification: empty type list must be rejected\n",
+        encoding="utf-8",
+    )
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    assert "allowlist" in result.stdout.lower() + result.stderr.lower()
 
 
 def test_history_blob_over_5mb_requires_oversized_blob_allowlist(tmp_path):
@@ -424,9 +560,9 @@ def test_history_blob_over_5mb_requires_oversized_blob_allowlist(tmp_path):
     )
     allowed = _audit(repo, allowlist, report_path)
     assert allowed.returncode == 0, allowed.stdout + allowed.stderr
-    assert "History blobs skipped above 5 MB: 1" in report_path.read_text(
-        encoding="utf-8"
-    )
+    report = report_path.read_text(encoding="utf-8")
+    assert "History blobs skipped above 5 MB: 1" in report
+    assert "only by CI gitleaks" in report
 
 
 def test_data_directory_is_flagged_case_insensitively(tmp_path):
