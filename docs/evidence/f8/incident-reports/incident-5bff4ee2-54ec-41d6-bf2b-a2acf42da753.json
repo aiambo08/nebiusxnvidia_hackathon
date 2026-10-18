@@ -1,0 +1,366 @@
+{
+  "decisions": [
+    {
+      "action": "set_exposure_bounded",
+      "approved": true,
+      "arguments": {
+        "delta_ev": 2.0
+      },
+      "reasons": [
+        "ok"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "incident",
+      "payload": {
+        "allowed_actions": [
+          "set_exposure_bounded",
+          "enter_safe_mode",
+          "request_manual_cleaning",
+          "needs_human"
+        ],
+        "baseline_ref": "default-15-8bb6aa3548f0",
+        "budget_remaining_usd": null,
+        "camera_id": "cam_01",
+        "candidate_faults": [
+          "blackout"
+        ],
+        "capabilities": [
+          "exposure",
+          "autofocus",
+          "profiles",
+          "restart"
+        ],
+        "current_config": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
+        "evidence": [
+          {
+            "baseline": 128.03388020833333,
+            "metric": "visual.brightness_p50",
+            "note": "blackout",
+            "value": 7.191875,
+            "z_score": null
+          }
+        ],
+        "fault_scores": {
+          "blackout": 1.0
+        },
+        "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+        "opened_at": "2026-10-18T11:20:42.034092Z",
+        "schema_version": "1.0",
+        "state": "CONFIRMED",
+        "telemetry": {
+          "camera_id": "cam_01",
+          "frames_analyzed": 5,
+          "geometry": {
+            "homography_inlier_ratio": 0.7261904761904762,
+            "match_count": 168,
+            "quality": "ok",
+            "rotation_deg": -0.008087676459667285,
+            "translation_px": 0.22742161127198124
+          },
+          "schema_version": "1.0",
+          "task": {
+            "confidence_p50": 0.0,
+            "latency_ms_p95": 0.24504400062141937,
+            "name": "reference_marker_detection",
+            "success_rate": 0.0
+          },
+          "transport": {
+            "capture_fps": 5.0,
+            "connected": true,
+            "decode_errors": 0,
+            "dropped_frames": 0,
+            "frame_age_ms_p95": 20.0,
+            "reconnect_count": 0
+          },
+          "visual": {
+            "black_pixel_ratio": 0.9989192708333333,
+            "blur_effect_p50": 0.09403291716436726,
+            "brightness_p50": 7.191875,
+            "contrast_p50": 2.511406222321379,
+            "edge_density_p50": 0.0,
+            "exact_repeat_ratio": 0.0,
+            "laplacian_variance_p50": 40.882599728732636,
+            "loop_period": null,
+            "noise_ratio_p50": 1.0117038468960344,
+            "occluded_cell_ratio": 0.0,
+            "repeated_hash_ratio": 0.6,
+            "temporal_mse_p50": 1.17927086353302,
+            "temporal_sigma_p50": 1.3683283493972664,
+            "white_pixel_ratio": 0.0
+          },
+          "window_seconds": 1.0,
+          "window_start": "2026-10-18T11:20:41.983695Z"
+        }
+      },
+      "seq": 4,
+      "ts": "2026-10-18T11:20:42.035312+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "state",
+      "payload": {
+        "from": "CONFIRMED",
+        "reason": "incident confirmed",
+        "to": "DIAGNOSING"
+      },
+      "seq": 5,
+      "ts": "2026-10-18T11:20:42.036211+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "plan",
+      "payload": {
+        "attempts": 0,
+        "error": null,
+        "plan": {
+          "action": {
+            "arguments": {
+              "delta_ev": 2.0
+            },
+            "name": "set_exposure_bounded"
+          },
+          "alternatives": [],
+          "confidence": 0.5,
+          "diagnosis": "blackout",
+          "evidence_refs": [
+            "visual.brightness_p50"
+          ],
+          "human_message": "Rule-based: blackout -> set_exposure_bounded",
+          "schema_version": "1.0",
+          "verification": {
+            "guard_metrics": [
+              "transport.capture_fps",
+              "task.latency_ms_p95"
+            ],
+            "minimum_relative_improvement": 0.1,
+            "primary_metric": "task.success_rate",
+            "window_seconds": 15.0
+          }
+        },
+        "source": "rules",
+        "usage": {
+          "cached": false,
+          "estimated_cost_usd": 0.0,
+          "input_tokens": 0,
+          "latency_ms": null,
+          "model": "local-rules",
+          "output_tokens": 0,
+          "prompt_version": null
+        }
+      },
+      "seq": 6,
+      "ts": "2026-10-18T11:20:42.039198+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "state",
+      "payload": {
+        "from": "DIAGNOSING",
+        "reason": "blackout -> set_exposure_bounded",
+        "to": "PLANNED"
+      },
+      "seq": 7,
+      "ts": "2026-10-18T11:20:42.041290+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "policy",
+      "payload": {
+        "action": "set_exposure_bounded",
+        "approved": true,
+        "arguments": {
+          "delta_ev": 2.0
+        },
+        "reasons": [
+          "ok"
+        ]
+      },
+      "seq": 8,
+      "ts": "2026-10-18T11:20:42.042165+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "state",
+      "payload": {
+        "from": "PLANNED",
+        "reason": "set_exposure_bounded",
+        "to": "ACTING"
+      },
+      "seq": 9,
+      "ts": "2026-10-18T11:20:42.044438+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "execution",
+      "payload": {
+        "action": "set_exposure_bounded",
+        "applied": {
+          "exposure": 2.0
+        },
+        "arguments": {
+          "delta_ev": 2.0
+        },
+        "error": null,
+        "execution_id": "44ca22db-03d3-4aee-9da3-0f66b6146deb",
+        "status": "success"
+      },
+      "seq": 10,
+      "ts": "2026-10-18T11:20:42.045765+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "state",
+      "payload": {
+        "from": "ACTING",
+        "reason": "observing effect",
+        "to": "VERIFYING"
+      },
+      "seq": 11,
+      "ts": "2026-10-18T11:20:42.046581+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "verification",
+      "payload": {
+        "after": {
+          "task.latency_ms_p95": 0.5058837001342908,
+          "task.success_rate": 1.0,
+          "transport.capture_fps": 5.0
+        },
+        "before": {
+          "task.latency_ms_p95": 0.31771040048624855,
+          "task.success_rate": 0.0,
+          "transport.capture_fps": 5.0
+        },
+        "reasons": [
+          "task.success_rate: 0.000 -> 1.000 (rel +100%)"
+        ],
+        "status": "committed"
+      },
+      "seq": 12,
+      "ts": "2026-10-18T11:20:42.198568+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "state",
+      "payload": {
+        "from": "VERIFYING",
+        "reason": "task.success_rate: 0.000 -> 1.000 (rel +100%)",
+        "to": "RECOVERED"
+      },
+      "seq": 13,
+      "ts": "2026-10-18T11:20:42.201344+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "state",
+      "payload": {
+        "from": "RECOVERED",
+        "reason": "recovered",
+        "to": "HEALTHY"
+      },
+      "seq": 14,
+      "ts": "2026-10-18T11:20:42.205133+00:00"
+    },
+    {
+      "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+      "kind": "closed",
+      "payload": {
+        "reason": "recovered"
+      },
+      "seq": 15,
+      "ts": "2026-10-18T11:20:42.208433+00:00"
+    }
+  ],
+  "executions": [
+    {
+      "action": "set_exposure_bounded",
+      "applied": {
+        "exposure": 2.0
+      },
+      "arguments": {
+        "delta_ev": 2.0
+      },
+      "error": null,
+      "execution_id": "44ca22db-03d3-4aee-9da3-0f66b6146deb",
+      "status": "success"
+    }
+  ],
+  "faults": [
+    "blackout"
+  ],
+  "incident_id": "5bff4ee2-54ec-41d6-bf2b-a2acf42da753",
+  "opened": "2026-10-18T11:20:42.035312+00:00",
+  "plan": {
+    "cost_usd": 0.0,
+    "input_tokens": 0,
+    "model": "local-rules",
+    "output_tokens": 0,
+    "plan": {
+      "action": {
+        "arguments": {
+          "delta_ev": 2.0
+        },
+        "name": "set_exposure_bounded"
+      },
+      "alternatives": [],
+      "confidence": 0.5,
+      "diagnosis": "blackout",
+      "evidence_refs": [
+        "visual.brightness_p50"
+      ],
+      "human_message": "Rule-based: blackout -> set_exposure_bounded",
+      "schema_version": "1.0",
+      "verification": {
+        "guard_metrics": [
+          "transport.capture_fps",
+          "task.latency_ms_p95"
+        ],
+        "minimum_relative_improvement": 0.1,
+        "primary_metric": "task.success_rate",
+        "window_seconds": 15.0
+      }
+    },
+    "prompt_version": null,
+    "source": "rules",
+    "usage": {
+      "cached": false,
+      "estimated_cost_usd": 0.0,
+      "input_tokens": 0,
+      "latency_ms": null,
+      "model": "local-rules",
+      "output_tokens": 0,
+      "prompt_version": null
+    }
+  },
+  "restart_resolution": null,
+  "restart_rollbacks": [],
+  "rollbacks": [],
+  "verifications": [
+    {
+      "after": {
+        "task.latency_ms_p95": 0.5058837001342908,
+        "task.success_rate": 1.0,
+        "transport.capture_fps": 5.0
+      },
+      "before": {
+        "task.latency_ms_p95": 0.31771040048624855,
+        "task.success_rate": 0.0,
+        "transport.capture_fps": 5.0
+      },
+      "reasons": [
+        "task.success_rate: 0.000 -> 1.000 (rel +100%)"
+      ],
+      "status": "committed"
+    }
+  ]
+}

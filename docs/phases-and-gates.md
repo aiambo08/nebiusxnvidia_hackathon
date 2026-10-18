@@ -21,7 +21,7 @@ recalibrated with real camera data.
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | passed |
 | F6 | Nemotron integration | 3 | Nebius | scaffolded |
 | F7 | Executor & safety | 3 | Safety | scaffolded |
-| F8 | Verification & rollback | 3 | Safety + Evaluation | scaffolded |
+| F8 | Verification & rollback | 3 | Safety + Evaluation | in progress |
 | F9 | Product & demo experience | 4 | Product | in progress |
 | F10 | End-to-end validation | 4 | Evaluation | not started |
 | F11 | Hardening & security | 4 | Integrator | partially scaffolded |
@@ -140,13 +140,13 @@ classification; automatic planning stays disabled (`configs/default.yaml: planne
 - [x] Unsupported actions end in NEEDS_HUMAN, never a false confirmation
 
 ## F8 — Verification & rollback
-- [ ] Each MVP action has a full commit test and a rollback test (simulated device)
-- [ ] ≥ 85% of recoverable incidents resolved without humans on the test bench
-- [ ] 100% of deliberate regressions end in rollback or safe mode
-- [x] Rollback restores exactly the previous versioned config
-- [x] Execution failure distinguished from "no improvement"
-- [ ] Before/after report with metrics and evidence persisted
-- [ ] Restart during VERIFYING does not lose the pending decision
+- [x] Each MVP action has a full commit test and a rollback test (simulated device) (SIMULATION; `tests/e2e/test_action_commit_rollback.py`)
+- [x] ≥ 85% of recoverable incidents resolved without humans on the test bench (SIMULATION; 87/100 = 87%, `docs/evidence/f8/recovery-bench.md`)
+- [ ] 100% of deliberate regressions end in rollback or safe mode (SIMULATION; 45/50, gate failed: all five `dark:0.8` cases timed out without an incident, `docs/evidence/f8/recovery-bench.md`)
+- [x] Rollback restores exactly the previous versioned config (SIMULATION; `tests/e2e/test_action_commit_rollback.py`)
+- [x] Execution failure distinguished from "no improvement" (SIMULATION; `tests/unit/test_policy_actions_verifier.py::test_execution_failure_distinct_from_no_improvement`)
+- [x] Before/after report with metrics and evidence persisted (SIMULATION; `tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
+- [x] Restart during VERIFYING does not lose the pending decision (SIMULATION; `tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
 
 ## F9 — Product & demo
 - [ ] 5 technical users who did not build it can answer: what failed, how detected, what Nemotron

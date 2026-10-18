@@ -81,7 +81,12 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
 - [x] [F7][safety] Real subprocess crash recovery at snapshot, device-apply, and VERIFYING checkpoints (`tests/integration/test_crash_recovery.py`; atomic markers and checkout import path)
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
-- [ ] [F8][safety] Persist pending VERIFYING decisions across restarts
+- [x] [F8][safety] Persist pending VERIFYING decisions across restarts (`tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
+- [x] [F8][safety] Test full-loop commit and rollback for every MVP action (`tests/e2e/test_action_commit_rollback.py`, SIMULATION)
+- [x] [F8][evaluation] Run the pre-registered offline recovery and regression grids (`docs/evidence/f8/recovery-bench.md`; recovery 87/100, regression 45/50)
+- [x] [F8][evaluation] Generate event-derived incident reports (`tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
+- [ ] [F8][evaluation] Investigate the five `dark:0.8` regression timeouts (no confirmed incident); do not adjust thresholds or decision logic without evidence
+- [ ] [F8][evaluation] Independent F8 gate review; the 100% regression box remains open
 
 ## F9–F12
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
