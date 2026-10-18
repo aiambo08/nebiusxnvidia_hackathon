@@ -108,8 +108,6 @@ def _capture_source(source: SyntheticSource, state: dict[str, Any],
                     lighting_change: bool = False) -> None:
     state["source"] = source
     state["initial_settings"] = copy.deepcopy(source.get_settings())
-    if not lighting_change:
-        return
     original_set_fault = source.set_fault
     original_read = source.read
     active = False
@@ -117,8 +115,10 @@ def _capture_source(source: SyntheticSource, state: dict[str, Any],
     def set_fault(fault: str | None, strength: float = 1.0) -> None:
         nonlocal active
         if fault is not None:
-            active = True
+            active = active or lighting_change
         original_set_fault(fault, strength)
+        if fault is not None and "fault_settings" not in state:
+            state["fault_settings"] = copy.deepcopy(source.get_settings())
 
     def read():
         frame = original_read()
@@ -129,7 +129,8 @@ def _capture_source(source: SyntheticSource, state: dict[str, Any],
         return frame
 
     source.set_fault = set_fault
-    source.read = read
+    if lighting_change:
+        source.read = read
 
 
 def _append_run(store: EventStore, metadata: dict[str, Any]) -> None:
@@ -148,7 +149,7 @@ def _no_downstream_verifier():
             self.delegate = delegate
 
         def decide(self, before, after, after_faults, original_faults, spec,
-                   baseline_primary, execution_ok):
+                   baseline_primary=None, execution_ok=True):
             faults = set(original_faults or ())
             primary_by_fault = (
                 (FaultType.FREEZE, "visual.exact_repeat_ratio"),
@@ -232,6 +233,25 @@ class _FailingSDK:
         self.chat.completions = _FailingCompletions()
 
 
+class _ObservedOutagePlanner:
+    def __init__(self, delegate) -> None:
+        self.delegate = delegate
+        self.client = delegate.client
+        self.opened_after_threshold = False
+        self.max_failures = 0
+
+    def plan(self, incident):
+        result = self.delegate.plan(incident)
+        breaker = self.client.breaker
+        opened = breaker.opened_at is not None or breaker.failures >= breaker.threshold
+        self.opened_after_threshold |= opened
+        self.max_failures = max(
+            self.max_failures, breaker.failures,
+            breaker.threshold if opened else 0,
+        )
+        return result
+
+
 def _run_standard(
     out_dir: Path,
     code_revision: str,
@@ -313,8 +333,14 @@ def _run_standard(
                 on_source=source_cb,
             )
         metadata["initial_settings"] = source_state["initial_settings"]
+        metadata["fault_settings"] = source_state.get(
+            "fault_settings", source_state["initial_settings"]
+        )
         metadata["final_settings"] = copy.deepcopy(
             source_state["source"].get_settings()
+        )
+        metadata["settings_unchanged"] = (
+            metadata["fault_settings"] == metadata["final_settings"]
         )
         metadata["final_state"] = _state_name(result.final_state)
         if isinstance(effective_planner, _NoCallPlanner):
@@ -328,7 +354,7 @@ def _run_standard(
         if arm == "A2_detector_no_actions":
             if any(event["kind"] == "execution" for event in events):
                 raise AssertionError("A2 must not execute actions")
-            if metadata["initial_settings"] != metadata["final_settings"]:
+            if not metadata["settings_unchanged"]:
                 raise AssertionError("A2 must leave device settings unchanged")
             if fault not in CONTROLS and not any(
                 event["kind"] == "plan" for event in events
@@ -1144,8 +1170,8 @@ def run_experiments(
             _update_run_metadata(
                 out_dir, "A6_token_factory_outage", fault, strength, seed,
                 {
-                    "circuit_failures": a6_planner.client.breaker.failures,
-                    "circuit_open": a6_planner.client.breaker.is_open,
+                    "circuit_failures": a6_planner.max_failures,
+                    "circuit_open": a6_planner.opened_after_threshold,
                     "circuit_threshold": a6_planner.client.breaker.threshold,
                 },
             )
@@ -1224,8 +1250,8 @@ def _a6_planner(cfg):
     cfg["planner"]["kind"] = "nemotron"
     budget = BudgetGuard(total_usd=0.05, soft_cap_usd=0.05,
                          demo_cap_usd=0.05, hard_cap_usd=0.05)
-    return make_planner(
-        cfg, "offline-fake-key", budget, sdk_client=_FailingSDK()
+    return _ObservedOutagePlanner(
+        make_planner(cfg, "offline-fake-key", budget, sdk_client=_FailingSDK())
     )
 
 

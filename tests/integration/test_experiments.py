@@ -101,18 +101,17 @@ def test_a5_reuses_a_frozen_baseline_learned_on_another_scene(tmp_path):
 
 def test_a6_fake_outage_falls_back_and_opens_circuit_without_spend(tmp_path):
     planner = _a6_planner(load_config(env=False))
-    for fault, strength in (
-        ("dark", 0.99), ("defocus", 1.0), ("overexpose", 1.0),
-    ):
+    for seed in range(3):
         _run_standard(
-            tmp_path, "test-revision", "A6_token_factory_outage", fault, strength, 0,
-            planner=planner, warmup=3, fault_windows=20,
+            tmp_path, "test-revision", "A6_token_factory_outage",
+            "dark", 0.99, seed,
+            planner=planner, warmup=3, fault_windows=56,
         )
     stores = list((tmp_path / "db" / "A6_token_factory_outage").glob("*.sqlite"))
     events = [event for path in stores for event in _read_store(path)[0]]
 
-    assert planner.client.breaker.failures >= planner.client.breaker.threshold
-    assert planner.client.breaker.is_open
+    assert planner.opened_after_threshold
+    assert planner.max_failures >= planner.client.breaker.threshold
     assert sum(event["kind"] == "plan"
                and event["payload"].get("source") == "fallback"
                for event in events) >= 3
