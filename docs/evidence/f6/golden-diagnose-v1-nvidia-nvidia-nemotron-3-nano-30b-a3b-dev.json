@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "commit": "6e48ec8",
+    "evaluation_note": "This box measures whether the planner follows the local diagnosis and respects capability/policy constraints; candidate_faults[0] determines the label in every case and synthetic defocus carries focus_ok=false, so it is not a test of independent diagnosis. Deterministic rules baseline: [golden-rules-baseline-dev.md](golden-rules-baseline-dev.md).",
+    "generated": "2026-10-18T00:36:09.434199Z",
+    "golden_sha256": "3f0c5699f4d8f5464c6c020b799648d81f9a8f59fdfe5dcd694e1c84d8199d44",
+    "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+    "planner": "nemotron",
+    "prompt_version": "diagnose_v1",
+    "split": "dev"
+  },
+  "summary": {
+    "action_confusion": {
+      "enter_safe_mode|needs_human -> enter_safe_mode": 4,
+      "enter_safe_mode|needs_human -> restart_capture": 6,
+      "enter_safe_mode|needs_human -> switch_stream_profile": 2,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> request_manual_cleaning": 2,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> restart_capture": 5,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> set_exposure_bounded": 5,
+      "request_manual_cleaning -> request_manual_cleaning": 24,
+      "restart_capture -> restart_capture": 24,
+      "set_exposure_bounded -> enter_safe_mode": 1,
+      "set_exposure_bounded -> request_manual_cleaning": 4,
+      "set_exposure_bounded -> restart_capture": 19,
+      "set_exposure_bounded -> set_exposure_bounded": 24,
+      "trigger_autofocus -> trigger_autofocus": 24
+    },
+    "budget_spent_usd": 0.01604502,
+    "diagnosis_accuracy": 1.0,
+    "gate": {
+      "action_accuracy": null,
+      "boxes": {
+        "action_accuracy": {
+          "status": "FAIL",
+          "threshold": 0.9,
+          "value": null
+        },
+        "projected_300": {
+          "status": "FAIL",
+          "threshold": 23.0,
+          "value": null
+        },
+        "schema_valid": {
+          "status": "FAIL",
+          "threshold": 0.98,
+          "value": null
+        }
+      },
+      "diagnosis_accuracy": null,
+      "mean_cost_per_call": null,
+      "mean_cost_per_incident": null,
+      "policy_ok_rate": null,
+      "projected_300": null,
+      "row_count": 0,
+      "run_total_usd": 0,
+      "schema_valid_rate": null,
+      "soft_cap_usd": 23.0,
+      "valid_first_try_rate": null
+    },
+    "gate_split": "test",
+    "latency_ms": {
+      "count": 144,
+      "p50": 892.65,
+      "p95": 1145.36
+    },
+    "model": [
+      "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
+    ],
+    "per_scenario_variant_accuracy": {
+      "dark/base": {
+        "accuracy": 0.0,
+        "count": 18
+      },
+      "dark/injection": {
+        "accuracy": 0.0,
+        "count": 6
+      },
+      "dark/no_cap": {
+        "accuracy": 0.3333333333333333,
+        "count": 6
+      },
+      "defocus/base": {
+        "accuracy": 1.0,
+        "count": 18
+      },
+      "defocus/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "defocus/no_cap": {
+        "accuracy": 0.0,
+        "count": 6
+      },
+      "freeze/base": {
+        "accuracy": 1.0,
+        "count": 18
+      },
+      "freeze/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "freeze/no_cap": {
+        "accuracy": 0.6666666666666666,
+        "count": 6
+      },
+      "occlusion/base": {
+        "accuracy": 1.0,
+        "count": 18
+      },
+      "occlusion/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "overexposure/base": {
+        "accuracy": 1.0,
+        "count": 18
+      },
+      "overexposure/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "overexposure/no_cap": {
+        "accuracy": 0.0,
+        "count": 6
+      }
+    },
+    "policy_ok_rate": 1.0,
+    "prompt_version": [
+      "diagnose_v1"
+    ],
+    "row_count": 144,
+    "row_total_usd": 0.01604502,
+    "run_total_usd": 0.01604502,
+    "split_counts": {
+      "dev": 144
+    },
+    "valid_first_try_rate": 1.0
+  }
+}

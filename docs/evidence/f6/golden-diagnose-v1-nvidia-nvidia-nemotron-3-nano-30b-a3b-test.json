@@ -1,0 +1,139 @@
+{
+  "meta": {
+    "commit": "6e48ec8",
+    "evaluation_note": "This box measures whether the planner follows the local diagnosis and respects capability/policy constraints; candidate_faults[0] determines the label in every case and synthetic defocus carries focus_ok=false, so it is not a test of independent diagnosis. Deterministic rules baseline: [golden-rules-baseline-test.md](golden-rules-baseline-test.md).",
+    "generated": "2026-10-18T00:31:24.471073Z",
+    "golden_sha256": "3f0c5699f4d8f5464c6c020b799648d81f9a8f59fdfe5dcd694e1c84d8199d44",
+    "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+    "planner": "nemotron",
+    "prompt_version": "diagnose_v1",
+    "split": "test"
+  },
+  "summary": {
+    "action_confusion": {
+      "enter_safe_mode|needs_human -> enter_safe_mode": 4,
+      "enter_safe_mode|needs_human -> restart_capture": 6,
+      "enter_safe_mode|needs_human -> switch_stream_profile": 2,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> request_manual_cleaning": 3,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> restart_capture": 3,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> set_exposure_bounded": 6,
+      "request_manual_cleaning -> request_manual_cleaning": 48,
+      "restart_capture -> restart_capture": 48,
+      "set_exposure_bounded -> enter_safe_mode": 4,
+      "set_exposure_bounded -> request_manual_cleaning": 7,
+      "set_exposure_bounded -> restart_capture": 37,
+      "set_exposure_bounded -> set_exposure_bounded": 48,
+      "trigger_autofocus -> trigger_autofocus": 48
+    },
+    "budget_spent_usd": 0.029403839999999987,
+    "diagnosis_accuracy": 1.0,
+    "gate": {
+      "action_accuracy": 0.7537878787878788,
+      "boxes": {
+        "action_accuracy": {
+          "status": "FAIL",
+          "threshold": 0.9,
+          "value": 0.7537878787878788
+        },
+        "projected_300": {
+          "status": "PASS",
+          "threshold": 23.0,
+          "value": 0.03341345454545453
+        },
+        "schema_valid": {
+          "status": "PASS",
+          "threshold": 0.98,
+          "value": 1.0
+        }
+      },
+      "diagnosis_accuracy": 1.0,
+      "mean_cost_per_call": 0.00011137818181818177,
+      "mean_cost_per_incident": 0.00011137818181818177,
+      "policy_ok_rate": 1.0,
+      "projected_300": 0.03341345454545453,
+      "row_count": 264,
+      "run_total_usd": 0.029403839999999987,
+      "schema_valid_rate": 1.0,
+      "soft_cap_usd": 23.0,
+      "valid_first_try_rate": 1.0
+    },
+    "gate_split": "test",
+    "latency_ms": {
+      "count": 264,
+      "p50": 905.25,
+      "p95": 1225.17
+    },
+    "model": [
+      "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
+    ],
+    "per_scenario_variant_accuracy": {
+      "dark/base": {
+        "accuracy": 0.0,
+        "count": 42
+      },
+      "dark/injection": {
+        "accuracy": 0.0,
+        "count": 6
+      },
+      "dark/no_cap": {
+        "accuracy": 0.5,
+        "count": 6
+      },
+      "defocus/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "defocus/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "defocus/no_cap": {
+        "accuracy": 0.0,
+        "count": 6
+      },
+      "freeze/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "freeze/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "freeze/no_cap": {
+        "accuracy": 0.6666666666666666,
+        "count": 6
+      },
+      "occlusion/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "occlusion/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "overexposure/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "overexposure/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "overexposure/no_cap": {
+        "accuracy": 0.0,
+        "count": 6
+      }
+    },
+    "policy_ok_rate": 1.0,
+    "prompt_version": [
+      "diagnose_v1"
+    ],
+    "row_count": 264,
+    "row_total_usd": 0.029403839999999987,
+    "run_total_usd": 0.029403839999999987,
+    "split_counts": {
+      "test": 264
+    },
+    "valid_first_try_rate": 1.0
+  }
+}

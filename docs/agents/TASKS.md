@@ -69,7 +69,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F5][architecture] Record in `DECISIONS.md` that a crash before the first 10-window checkpoint loses baseline samples (32 vs 38 updates) without changing state sequences
 - [ ] [F5][evaluation] Add a legitimate non-fault scenario that reaches SUSPECT and returns to HEALTHY; currently only short MVP fault transients exercise SUSPECT → HEALTHY
 - [x] [F6][nebius] Offline golden-set recipe, grader, and deterministic baseline report (136 cases; `benchmarks/golden/golden_v1.jsonl`, `docs/evidence/f6/golden-rules-baseline-test.md`)
-- [ ] [F6][nebius] Live golden-set run (test split, 3 repeats) → `docs/evidence/f6/`
+- [x] [F6][nebius] Owner-run diagnose_v1 fast live evaluation (test/dev reports) and dev-only v2 prompt iterations documented in `docs/evidence/f6/`
+- [ ] [F6][nebius] ADR-009: offer only fault-relevant actions (least privilege), then re-run diagnose_v2 on dev → test
 - [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
 - [ ] [F8][safety] Persist pending VERIFYING decisions across restarts

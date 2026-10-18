@@ -112,6 +112,7 @@ On ≥ 10 runs per fault:
 Gate review (independent, 2026-10-17, main d425c03): passed 6/6 in SIMULATION — https://app.devin.ai/sessions/c1aa643e3af84547a6933d377bba2fd0.
 
 ## F6 — Nemotron integration
+- Live run 2026-10-18 (diagnose_v1, fast): schema-valid 100 %, cost projected $0.033/300 incidents, action accuracy 75.4 % — not passed ([v1 test report](evidence/f6/golden-diagnose-v1-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)).
 - [ ] ≥ 98% schema-valid responses after ≤ 1 retry
 - [ ] ≥ 90% correct action choice on the golden set
 - [x] 100% invented actions / out-of-range args rejected by policy gate (adversarial tests)
