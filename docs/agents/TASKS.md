@@ -81,11 +81,19 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
 - [x] [F7][safety] Real subprocess crash recovery at snapshot, device-apply, and VERIFYING checkpoints (`tests/integration/test_crash_recovery.py`; atomic markers and checkout import path)
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
-- [ ] [F8][safety] Persist pending VERIFYING decisions across restarts
+- [x] [F8][safety] Persist pending VERIFYING decisions across restarts (`tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
+- [x] [F8][safety] Test full-loop commit and rollback for every MVP action (`tests/e2e/test_action_commit_rollback.py`, SIMULATION)
+- [x] [F8][evaluation] Run the pre-registered offline recovery and regression grids (`docs/evidence/f8/recovery-bench.md`; recovery 87/100, raw regression 45/50, 45/45 executed passed, 5/50 non-executed settings unchanged, and executed coverage in all four families)
+- [x] [F8][evaluation] Generate event-derived incident reports (`tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
+- [x] [F8][evaluation] Classify the five `dark:0.8` runs as non-executed missed injections with unchanged device settings; retain the pre-registered grid and thresholds (`docs/evidence/f8/recovery-bench.md`, `docs/agents/DECISIONS.md`)
+- [x] [F8][evaluation] Pin regression diagnostics and changed-settings coverage (`tests/unit/test_recovery_classifier.py::test_successful_execution_without_rollback_or_safe_mode_fails`, `::test_successful_execution_with_non_exact_rollback_fails`, and `::test_regression_gate_fails_non_executed_run_with_changed_settings`; M14/M6a/M7 mutation checks)
+- [ ] [F8][evaluation] Independent F8 gate review; executed-regression, unchanged-settings, and four-family coverage gates pass
 
 ## F9–F12
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
 - [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
 - [ ] [F9][product] Complete F9 product evidence
 - [ ] [F10][evaluation] Implement the 4-hour SIMULATION soak and ≤ 1 false alarm/h report; implementation in progress, no F10 gate boxes ticked
+- [ ] [F10][evaluation] Independently review the A1–A8 SIMULATION experiment report (`docs/evidence/f10/experiments.md`; 454 valid EventStores, A3 recovery 25/25, F8-comparable subset 20/20, A8 restarts include REJECTED and FAILED, A4 COMMITTED delta 0 vs 0)
+- [ ] [F10][evaluation] Complete robustness evidence with the four-hour SIMULATION soak and REAL HARDWARE validation; PR1 soak and F4 hardware evidence remain pending
 - [ ] [F12][product] Video + Devpost text
