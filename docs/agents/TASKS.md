@@ -96,4 +96,6 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F11][integrator] Document runtime and every optional dependency licence, including transitives (`scripts/license_report.py --check`, `docs/third-party-licenses.md`; 35 Linux/win32 distributions, `certifi` MPL-2.0 flagged, `colorama` 0.4.6 BSD override cited to PyPI JSON)
 - [x] [F11][integrator] Audit tracked files and media/dataset/credential history with justified allowlisting (`scripts/audit_repo.py`, `docs/evidence/f11/public-repo-audit.md`; 213 files, five synthetic JSONL paths justified in current content and history, zero unallowlisted findings)
 - [ ] [F11][independent reviewer] Install and run from README only
+- [ ] [F10][evaluation] Independently review the A1–A8 SIMULATION experiment report (`docs/evidence/f10/experiments.md`; 454 valid EventStores, A3 recovery 25/25, F8-comparable subset 20/20, A8 restarts include REJECTED and FAILED, A4 COMMITTED delta 0 vs 0)
+- [ ] [F10][evaluation] Complete robustness evidence with the four-hour SIMULATION soak and REAL HARDWARE validation; PR1 soak and F4 hardware evidence remain pending
 - [ ] [F12][product] Video + Devpost text
