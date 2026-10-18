@@ -120,7 +120,9 @@ def test_dashboard_api_and_legacy_routes_read_shared_store(monkeypatch):
 
 def test_dashboard_html_escapes_template_interpolations():
     """A deliberately simple regex checks template literals assigned to HTML sinks."""
-    page = (Path(__file__).resolve().parents[2] / "apps/dashboard/index.html").read_text()
+    page = (
+        Path(__file__).resolve().parents[2] / "apps/dashboard/index.html"
+    ).read_text(encoding="utf-8")
     assert "Fault cleared; primary metric already at baseline." in page
     kv = re.search(r"function kv\(el,rows\)\s*\{(.*?)\n\}", page, re.S).group(1)
     assert ".innerHTML" not in kv
