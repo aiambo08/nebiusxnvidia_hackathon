@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import reliability_agent.cli as cli  # noqa: E402
 import reliability_agent.demo as demo  # noqa: E402
+import reliability_agent.nemotron as nemotron  # noqa: E402
 from reliability_agent.demo import SCENARIOS, demo_config  # noqa: E402
 from reliability_agent.feed import LiveFeed  # noqa: E402
 from reliability_agent.nemotron import BudgetGuard, make_planner  # noqa: E402
@@ -194,6 +195,99 @@ def test_scenarios_run_confirm_to_verify_without_input(name, expected_path, monk
         assert external_calls == []
     finally:
         store.close()
+
+
+def test_dashboard_command_never_leaks_the_key(
+    monkeypatch, capsys, caplog, tmp_path
+):
+    import uvicorn
+
+    monkeypatch.setenv("NEBIUS_API_KEY", SENTINEL)
+    caplog.set_level(logging.DEBUG)
+    sdk = FakeSDK([NEEDS_HUMAN_REPLY] * len(SCENARIOS))
+    passed_keys = []
+    api_bodies = []
+    real_make_planner = nemotron.make_planner
+
+    def offline_make_planner(cfg, key, budget, gate=None, sdk_client=None):
+        passed_keys.append(key)
+        return real_make_planner(
+            cfg, key, budget, gate=gate, sdk_client=sdk
+        )
+
+    monkeypatch.setattr(nemotron, "make_planner", offline_make_planner)
+
+    def inspect_dashboard(app, *, host, port):
+        del host, port
+        agent_thread = next(
+            (thread for thread in threading.enumerate()
+             if thread.name == "ra-dashboard-agent"),
+            None,
+        )
+        assert agent_thread is not None, "dashboard agent thread was not started"
+        agent_thread.join(timeout=60)
+        assert not agent_thread.is_alive(), "dashboard agent thread did not finish"
+
+        with TestClient(app) as client:
+            incidents_response = client.get("/api/incidents")
+            assert incidents_response.status_code == 200
+            incidents = incidents_response.json()
+            assert incidents
+            incident_id = incidents[0]["incident_id"]
+
+            get_routes = [
+                route for route in app.routes
+                if "GET" in getattr(route, "methods", set())
+            ]
+            assert get_routes
+            for route in get_routes:
+                path = route.path.replace("{incident_id}", incident_id)
+                response = client.get(path)
+                assert response.status_code < 500, path
+                api_bodies.append(response.content)
+
+    monkeypatch.setattr(uvicorn, "run", inspect_dashboard)
+    db_path = tmp_path / "dashboard-command.sqlite"
+    argv = [
+        "dashboard",
+        "--planner", "nemotron",
+        "--db", str(db_path),
+        "--pace", "0",
+        "--gap", "0",
+    ]
+    for scenario in SCENARIOS:
+        argv.extend(["--scenario", scenario])
+
+    external_calls = _forbid_external_drivers(monkeypatch)
+    assert cli.main(argv) == 0
+    assert passed_keys and all(key == SENTINEL for key in passed_keys)
+    assert sdk.calls, "dashboard command did not reach the FakeSDK planner"
+    assert external_calls == []
+
+    with sqlite3.connect(db_path) as connection:
+        tables = [
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        ]
+        rows = {
+            table: connection.execute(f'SELECT * FROM "{table}"').fetchall()
+            for table in tables
+        }
+
+    captured = capsys.readouterr()
+    surfaces = [
+        *(body.decode("utf-8", errors="replace") for body in api_bodies),
+        captured.out,
+        captured.err,
+        caplog.text,
+        json.dumps(rows, default=str, sort_keys=True),
+        json.dumps(sdk.calls, default=str, sort_keys=True),
+    ]
+    assert SENTINEL not in "\n".join(surfaces), (
+        "secret sentinel leaked into the dashboard, logs, output, or SQLite store"
+    )
 
 
 def test_api_exposes_no_mutating_routes():

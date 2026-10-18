@@ -58,6 +58,8 @@ recovery result.
 
 The follow-up docs commit ticks three F9 boxes (≤ 90 s flow, no manual interaction, mode labels); the five-user, no-secrets-in-video and real-webcam boxes stay open.
 
+The secret check now runs through `ra-demo dashboard`'s real `_dashboard`/`_planner` path, offline with FakeSDK.
+
 ## Rendered labels
 
 Both screenshots come from headless Chrome against the servers above:
