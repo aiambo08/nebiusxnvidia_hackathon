@@ -175,6 +175,9 @@ during an action · process restart in every state · 4-hour soak.
 | Budget | cumulative dev spend ≤ 23 USD before demo |
 | Reproducibility | clean install + one-command demo |
 
+- Robustness evidence (SIMULATION): 4 h without crash or sustained leak ([soak report](evidence/f10/soak/soak.md)).
+- Normal operation evidence (SIMULATION): 0.25 false alarms/h ([soak report](evidence/f10/soak/soak.md)).
+
 Results must be generated from event files, never typed into the README by hand.
 
 ## F11 — Hardening & security

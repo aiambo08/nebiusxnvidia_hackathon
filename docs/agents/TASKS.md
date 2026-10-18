@@ -93,7 +93,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
 - [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
 - [ ] [F9][product] Complete F9 product evidence
-- [ ] [F10][evaluation] Implement the 4-hour SIMULATION soak and ≤ 1 false alarm/h report; implementation in progress, no F10 gate boxes ticked
+- [x] [F10][evaluation] Run the 4-hour SIMULATION soak and generate the EventStore report (`docs/evidence/f10/soak/soak.md` and `.json`; 658 events, valid chain, 0 errors, no sustained leak, 0.25 false alarms/h; F10 still pending REAL HARDWARE evidence)
 - [ ] [F10][evaluation] Independently review the A1–A8 SIMULATION experiment report (`docs/evidence/f10/experiments.md`; 454 valid EventStores, A3 recovery 25/25, F8-comparable subset 20/20, A8 restarts include REJECTED and FAILED, A4 COMMITTED delta 0 vs 0)
-- [ ] [F10][evaluation] Complete robustness evidence with the four-hour SIMULATION soak and REAL HARDWARE validation; PR1 soak and F4 hardware evidence remain pending
+- [ ] [F10][evaluation] Complete robustness evidence with four-hour SIMULATION soak and REAL HARDWARE validation; PR1 SIMULATION evidence is in `docs/evidence/f10/soak/soak.md`, REAL HARDWARE and F4 evidence remain pending
 - [ ] [F12][product] Video + Devpost text
