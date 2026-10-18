@@ -19,7 +19,7 @@ recalibrated with real camera data.
 | F3 | Visual monitors | 2 | Vision | in progress |
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | passed |
-| F6 | Nemotron integration | 3 | Nebius | scaffolded |
+| F6 | Nemotron integration | 3 | Nebius | passed |
 | F7 | Executor & safety | 3 | Safety | in progress |
 | F8 | Verification & rollback | 3 | Safety + Evaluation | passed |
 | F9 | Product & demo experience | 4 | Product | in progress |
@@ -123,7 +123,7 @@ Gate review (independent, 2026-10-17, main d425c03): passed 6/6 in SIMULATION â€
 - [x] Measured mean cost compatible with total budget ($0.0347/300 incidents, below the $23 gate; [v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md))
 - [x] Offline mode produces a safe, useful escalation (`RuleBasedPlanner` / `needs_human`)
 
-Independent F6 gate review pending; F6 is not yet passed.
+Gate review (independent, 2026-10-18, `bda836a`): first pass FAIL on `69b389e` (B1 wording), re-check PASS with no blockers â€” https://app.devin.ai/sessions/4ad9cabd2a5c4cb383b2e743273ef06e.
 
 **Block:** if validity or action selection misses the gate, Nemotron is limited to explanation and
 classification; automatic planning stays disabled (`configs/default.yaml: planner.auto_execute`).
