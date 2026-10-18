@@ -93,4 +93,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
 - [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
 - [ ] [F9][product] Complete F9 product evidence
+- [x] [F11][integrator] Document runtime and every optional dependency licence, including transitives (`scripts/license_report.py --check`, `docs/third-party-licenses.md`; 34 distributions)
+- [x] [F11][integrator] Audit tracked files and media/dataset addition history with justified allowlisting (`scripts/audit_repo.py`, `docs/evidence/f11/public-repo-audit.md`; 213 files, no findings)
+- [ ] [F11][independent reviewer] Install and run from README only
 - [ ] [F12][product] Video + Devpost text
