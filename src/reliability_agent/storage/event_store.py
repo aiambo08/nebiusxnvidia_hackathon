@@ -104,22 +104,24 @@ class EventStore:
         if conds:
             q += " WHERE " + " AND ".join(conds)
         q += " ORDER BY seq"
-        return [
-            {"seq": s, "ts": ts, "incident_id": i, "kind": k, "payload": json.loads(p)}
-            for s, ts, i, k, p in self._db.execute(q, args).fetchall()
-        ]
+        with self._lock:
+            return [
+                {"seq": s, "ts": ts, "incident_id": i, "kind": k, "payload": json.loads(p)}
+                for s, ts, i, k, p in self._db.execute(q, args).fetchall()
+            ]
 
     def verify_chain(self) -> bool:
-        prev = GENESIS
-        for ts, inc, kind, body, p, h in self._db.execute(
-            "SELECT ts, incident_id, kind, payload, prev_hash, hash FROM events ORDER BY seq"
-        ):
-            if p != prev:
-                return False
-            if hashlib.sha256(f"{prev}|{ts}|{inc}|{kind}|{body}".encode()).hexdigest() != h:
-                return False
-            prev = h
-        return True
+        with self._lock:
+            prev = GENESIS
+            for ts, inc, kind, body, p, h in self._db.execute(
+                "SELECT ts, incident_id, kind, payload, prev_hash, hash FROM events ORDER BY seq"
+            ):
+                if p != prev:
+                    return False
+                if hashlib.sha256(f"{prev}|{ts}|{inc}|{kind}|{body}".encode()).hexdigest() != h:
+                    return False
+                prev = h
+            return True
 
     # -- snapshots (written BEFORE an action changes the device)
     def save_snapshot(self, execution_id: str, incident_id: str, action: str,
@@ -139,9 +141,10 @@ class EventStore:
 
     def pending_snapshots(self) -> list[dict]:
         """Snapshots whose action outcome was never committed/restored (crash recovery)."""
-        rows = self._db.execute(
-            "SELECT execution_id, incident_id, action, payload FROM snapshots WHERE restored=0"
-        ).fetchall()
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT execution_id, incident_id, action, payload FROM snapshots WHERE restored=0"
+            ).fetchall()
         return [{"execution_id": e, "incident_id": i, "action": a, "snapshot": json.loads(p)}
                 for e, i, a, p in rows]
 
@@ -157,7 +160,8 @@ class EventStore:
             self._db.commit()
 
     def spent_usd(self) -> float:
-        row = self._db.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM usage").fetchone()
+        with self._lock:
+            row = self._db.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM usage").fetchone()
         return float(row[0])
 
     # -- small persistent state (baseline, FSM)
@@ -172,5 +176,6 @@ class EventStore:
             self._db.commit()
 
     def get_state(self, key: str, default: Any = None) -> Any:
-        row = self._db.execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
+        with self._lock:
+            row = self._db.execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
         return json.loads(row[0]) if row else default

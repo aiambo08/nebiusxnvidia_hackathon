@@ -1,8 +1,25 @@
-# Dashboard (Phase 9)
+# Dashboard (F9)
 
-Planned screens (report F9): live camera + task state, essential metrics, state timeline,
-Nemotron diagnosis + evidence, proposed action + policy decision, before/after comparison,
-commit/rollback status, tokens and cost. Must label SIMULATION vs REAL HARDWARE.
+Install the dashboard dependencies:
 
-Data source: the read-only API in `apps/api` (`/incidents`, `/incidents/{id}`, `/budget`).
-Stack decision pending (Streamlit for speed vs. small React app) — record it in an ADR.
+```sh
+pip install -e ".[dev,api]"
+```
+
+Run the simulation:
+
+```sh
+ra-demo dashboard
+```
+
+Run with a webcam:
+
+```sh
+ra-demo dashboard --live --uri 0
+```
+
+Open the dashboard:
+
+```sh
+open http://127.0.0.1:8000
+```

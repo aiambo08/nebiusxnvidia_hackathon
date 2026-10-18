@@ -7,7 +7,10 @@ runs as SIMULATION; the real-hardware demo uses the webcam path.
 from __future__ import annotations
 
 import copy
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from threading import Event
 from typing import Any
 
 from reliability_agent.capture.sources import SyntheticSource
@@ -76,7 +79,10 @@ def demo_config() -> dict[str, Any]:
 
 def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None = None,
                  store: EventStore | None = None, warmup: int = 15, fault_windows: int = 20,
-                 seed: int = 0, on_window=None) -> ScenarioResult:
+                 seed: int = 0, on_window=None, on_frame: Callable[[Any], None] | None = None,
+                 pace_s: float = 0.0, stop_event: Event | None = None) -> ScenarioResult:
+    if pace_s < 0:
+        raise ValueError("pace_s must be >= 0")
     cfg = cfg or demo_config()
     fault, strength, human_fix = SCENARIOS[name]
     t = [0.0]
@@ -88,13 +94,24 @@ def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None 
     src = SyntheticSource(width=320, height=240, seed=seed, clock=clock)
     src.open()
 
+    def read_frame():
+        frame = src.read()
+        if on_frame:
+            on_frame(frame.image)
+        if pace_s > 0:
+            time.sleep(pace_s / fps)
+        return frame
+
     def restart() -> None:  # simulated decoder reconnect clears a frozen pipeline
         if src.fault in ("freeze", "disconnect"):
             src.set_fault(None)
 
     if name == "bad_action":
         planner = WrongActionPlanner()
-    store = store or EventStore()
+    owns_store = store is None
+    store = store if store is not None else EventStore()
+    existing_events = store.events()
+    scenario_start_seq = existing_events[-1]["seq"] if existing_events else 0
     agent = ReliabilityAgent(cfg, src, planner or RuleBasedPlanner(), store,
                              restart_cb=restart, clock=clock)
     runner = ProbeRunner(cfg)
@@ -102,11 +119,13 @@ def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None 
     meter.connected = True
     res = ScenarioResult(name)
 
-    def one_window() -> None:
+    def one_window() -> bool:
         agg = WindowAggregator(cfg["camera"]["id"], cfg["window"]["seconds"])
         for _ in range(fps):
+            if stop_event and stop_event.is_set():
+                return False
             t[0] += 1.0 / fps
-            f = src.read()
+            f = read_frame()
             meter.on_frame(f, processed_at=t[0] + 0.02)
             agg.add(runner.analyse(f))
         tw = agg.emit(meter.snapshot(t=t[0] + 0.02), runner._geom_quality)
@@ -114,26 +133,42 @@ def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None 
         res.states.append(str(st))
         if on_window:
             on_window(tw, agent)
+        return True
 
-    runner.calibrate_reference(src.read())
-    for _ in range(warmup):
-        one_window()
-    if name == "frozen_black":  # render one black frame for the freeze to repeat
-        src.set_fault("dark", 0.99)
-        src.read()
-    src.set_fault(fault, strength)
-    in_human = 0
-    for _ in range(fault_windows):
-        one_window()
-        if agent.state is IncidentState.NEEDS_HUMAN:
-            in_human += 1
-            if human_fix is not None and in_human >= human_fix:
-                src.set_fault(None)  # the human cleaned the lens / fixed the lights
-                src.settings.update({"focus_ok": True})
-        if agent.state is IncidentState.HEALTHY and store.events(kind="closed"):
-            break
-    for _ in range(4):
-        one_window()
-    res.events = store.events()
-    res.final_state = str(agent.state)
-    return res
+    try:
+        runner.calibrate_reference(read_frame())
+        for _ in range(warmup):
+            if not one_window():
+                break
+        if not (stop_event and stop_event.is_set()):
+            if name == "frozen_black":  # render one black frame for the freeze to repeat
+                src.set_fault("dark", 0.99)
+                read_frame()
+            src.set_fault(fault, strength)
+            in_human = 0
+            for _ in range(fault_windows):
+                if not one_window():
+                    break
+                if agent.state is IncidentState.NEEDS_HUMAN:
+                    in_human += 1
+                    if human_fix is not None and in_human >= human_fix:
+                        src.set_fault(None)  # the human cleaned the lens / fixed the lights
+                        src.settings.update({"focus_ok": True})
+                closed_since_start = any(
+                    event["seq"] > scenario_start_seq
+                    for event in store.events(kind="closed")
+                )
+                if agent.state is IncidentState.HEALTHY and closed_since_start:
+                    break
+        for _ in range(4):
+            if not one_window():
+                break
+        res.events = store.events()
+        res.final_state = str(agent.state)
+        return res
+    finally:
+        agent.checkpoint()
+        agent.release_lease()
+        src.close()
+        if owns_store:
+            store.close()

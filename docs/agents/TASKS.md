@@ -78,5 +78,6 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F8][safety] Persist pending VERIFYING decisions across restarts
 
 ## F9–F12
-- [ ] [F9][product] Dashboard (live state, timeline, Nemotron panel, before/after, cost)
+- [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
+- [ ] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` and complete F9 product evidence
 - [ ] [F12][product] Video + Devpost text
