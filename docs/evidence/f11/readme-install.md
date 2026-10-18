@@ -22,4 +22,4 @@
 1. The README expected `854 passed`; the clone at `190ce74` gives `907 passed` because tests were added after the F12 transcript.
 2. The README did not state a Python version; you had to open `pyproject.toml` (`requires-python = ">=3.11"`) to find it.
 
-This record ticks one F11 box. An independent F11 gate review is still required before F11 can be marked passed.
+This record ticks one F11 box. The independent F11 gate review later passed on `d16436f` ([phases and gates](../../phases-and-gates.md)).

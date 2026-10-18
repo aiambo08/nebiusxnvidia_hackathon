@@ -27,8 +27,9 @@ de Python, la última línea de pytest y el estado final de Git. No compartas `.
 claves.
 
 Las casillas de inventario de licencias y auditoría del repositorio público de F11 están marcadas en
-`main` (`4b5b929`; 218 archivos rastreados, 35 distribuciones); la casilla de instalación
-independiente desde README sigue abierta, así que el gate F11 no está aprobado
+`main` (`4b5b929`; 218 archivos rastreados, 35 distribuciones). Un agente independiente instaló y
+ejecutó el proyecto solo con el README en `190ce74` ([registro](../evidence/f11/readme-install.md)),
+y la revisión independiente del gate F11 dio PASS en `d16436f`, con las 7 casillas verificadas
 ([auditoría](../evidence/f11/public-repo-audit.md); [licencias](../third-party-licenses.md)).
 
 ## 2. Prueba de archivo sintético y grabaciones F4 REAL HARDWARE
