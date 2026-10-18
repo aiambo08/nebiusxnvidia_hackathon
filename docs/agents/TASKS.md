@@ -74,8 +74,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F6][evaluation] Add `golden_v2.jsonl` with v1 labels/splits unchanged and regenerate the deterministic test baseline (`docs/evidence/f6/golden-rules-baseline-test.md`)
 - [x] [F6][nebius] Re-run diagnose_v2 on dev → test on `golden_v2` (141/144 dev; 261/264 test; reports in `docs/evidence/f6/`)
 - [x] [F6][nebius] Default the configured planner prompt to `diagnose_v2`, matching the live `golden_v2` run (`configs/default.yaml`)
-- [x] [F6][evaluation] Independent F6 gate review (PASS with no blockers; record merged on `main` at `7c4607c`; https://app.devin.ai/sessions/4ad9cabd2a5c4cb383b2e743273ef06e)
-- [ ] [F6][nebius] Update `build_golden.py` to write `golden_v2` (or accept `--out`) and make `spike_nemotron.py` use `offered_for` (reviewer non-blocking follow-up, PR #51)
+- [x] [F6][evaluation] Independent F6 gate review (PASS with no blockers; record merged on `main` at `ba3cfc0`; https://app.devin.ai/sessions/4ad9cabd2a5c4cb383b2e743273ef06e)
+- [x] [F6][nebius] Update `build_golden.py` to require `--out` and protect existing files unless `--force`; make `spike_nemotron.py` use `offered_for` (done)
 - [ ] [F6][nebius] Investigate whether unknown plan args should be stripped/rejected before the gate; invented `trigger_autofocus` args caused all three test misses (the gate rejected them)
 - [ ] [F6][evaluation] Resolve the missing `golden-rules-baseline-dev.md` target linked by the golden-v2 dev-2 eval report (target absent; leave frozen reports unchanged)
 - [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
