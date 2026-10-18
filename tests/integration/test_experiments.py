@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -21,7 +22,7 @@ from benchmarks.experiments import (
 )
 from benchmarks.recovery import REGRESSION_ACTIONS, ScriptedPlanner
 from reliability_agent.config import load_config
-from reliability_agent.contracts.models import Incident
+from reliability_agent.contracts.models import ActionName, Incident
 from reliability_agent.storage import EventStore
 
 
@@ -178,6 +179,28 @@ def test_recovery_summary_does_not_double_count_recovered_auto():
     }
 
 
+def test_recovery_summary_does_not_count_unrecoverable_auto_recovery():
+    counts = {
+        "runs": 0,
+        "recoverable": 0,
+        "recovered_auto": 0,
+        "needs_human": 0,
+        "timeout": 0,
+    }
+
+    _update_recovery_counts(
+        counts, {"recoverable": False, "outcome": "recovered_auto"}
+    )
+
+    assert counts == {
+        "runs": 1,
+        "recoverable": 0,
+        "recovered_auto": 0,
+        "needs_human": 0,
+        "timeout": 0,
+    }
+
+
 def test_regression_verification_decisions_are_counted_by_fault():
     runs = [
         {
@@ -206,9 +229,19 @@ def test_regression_verification_decisions_are_counted_by_fault():
 
 def test_a5_reuses_a_frozen_baseline_learned_on_another_scene(tmp_path):
     baseline = _run_training_baseline(tmp_path, "test-revision", 1000)
+    a5_versions = []
+
+    def capture_a5(_window, agent):
+        a5_versions.append(agent.tracker.baseline.version)
+
+    _run_standard(
+        tmp_path, "test-revision", "A3_full_loop", "dark", 0.99, 0,
+        warmup=3, fault_windows=12,
+    )
     _run_standard(
         tmp_path, "test-revision", "A5_single_baseline", "dark", 0.99, 0,
-        baseline_data=baseline, warmup=3, fault_windows=12,
+        baseline_data=baseline, on_window=capture_a5,
+        warmup=3, fault_windows=12,
     )
     events, chain_valid = _read_store(
         tmp_path / "db" / "A5_single_baseline" / "recovery"
@@ -224,6 +257,18 @@ def test_a5_reuses_a_frozen_baseline_learned_on_another_scene(tmp_path):
     metadata = next(event["payload"] for event in trained
                     if event["kind"] == "experiment_metadata")
     assert metadata["trained_baseline"]["updates"] > 0
+    assert a5_versions
+    assert len(set(a5_versions)) == 1
+    a3_incident_events, _ = _read_store(
+        tmp_path / "db" / "A3_full_loop" / "recovery"
+        / "dark-0.99-seed0.sqlite"
+    )
+    a3_baseline_version = next(
+        event["payload"]["baseline_ref"]
+        for event in a3_incident_events
+        if event["kind"] == "incident"
+    )
+    assert a5_versions[-1] != a3_baseline_version
 
 
 def test_a6_fake_outage_falls_back_and_opens_circuit_without_spend(tmp_path):
@@ -273,9 +318,16 @@ def test_one_seed_smoke_covers_every_arm(tmp_path, monkeypatch):
     assert all(row["valid_chains"] for row in arms.values())
     stores = list((tmp_path / "smoke" / "db").rglob("*.sqlite"))
     assert stores
+    a8_restart_stores = [
+        path for path in stores
+        if path.parent.parent.name == "A8_restart_in_every_state"
+    ]
+    assert a8_restart_stores
     for path in stores:
         events, _ = _read_store(path)
         assert sum(event["kind"] == "experiment_run" for event in events) == 1
+        if path.parent.parent.name == "A8_restart_in_every_state":
+            assert any(event["kind"] == "restore" for event in events)
     for arm in ("A3_full_loop", "A4_no_downstream_metric"):
         assert (
             tmp_path / "smoke" / "db" / arm / "recovery"
@@ -395,6 +447,11 @@ def test_a7_never_commits_verification_without_frames(tmp_path):
     assert meta["disconnect_triggered"]
     assert meta["final_state"] in ("HEALTHY", "NEEDS_HUMAN")
     assert meta["no_committed_verification_without_frames"]
+    assert any(
+        event["kind"] == "experiment_window"
+        and event["payload"]["frames_analyzed"] == 0
+        for event in events
+    )
     assert all(
         not (
             event["kind"] == "verification"
@@ -423,6 +480,80 @@ def test_a8_restart_preserves_invariants_in_acting_and_verifying(tmp_path, targe
     assert meta["execution_ids_unique"]
     assert meta["settings_match_snapshot_or_commit"]
     assert meta["verify_chain"]
+    events, _ = _read_store(
+        tmp_path / "db" / "A8_restart_in_every_state" / "recovery"
+        / f"dark-{target}-seed0.sqlite"
+    )
+    assert any(event["kind"] == "restore" for event in events)
+
+
+def test_a8_policy_rejection_restarts_through_the_real_policy_gate(tmp_path):
+    meta = _run_custom(
+        tmp_path, "test-revision", "A8_restart_in_every_state",
+        "policy_reject", "dark", 0.99, 0,
+        source_scenario="dark",
+        planner=ScriptedPlanner(
+            ActionName.SET_EXPOSURE_BOUNDED, {"delta_ev": 99.0}
+        ),
+        restart_target="REJECTED",
+        warmup=3, fault_windows=20,
+    )
+    events, chain_valid = _read_store(
+        tmp_path / "db" / "A8_restart_in_every_state" / "recovery"
+        / "policy_reject-REJECTED-seed0.sqlite"
+    )
+    policy = next(event["payload"] for event in events if event["kind"] == "policy")
+
+    assert chain_valid
+    assert policy["approved"] is False
+    assert any(
+        event["kind"] == "state" and event["payload"].get("to") == "REJECTED"
+        for event in events
+    )
+    assert not any(
+        event["kind"] == "execution"
+        and event["payload"].get("status") in ("success", "failed")
+        for event in events
+    )
+    assert any(event["kind"] == "restore" for event in events)
+    assert meta["same_incident_id"]
+
+
+def test_a8_failed_apply_restarts_in_failed_before_rollback(tmp_path):
+    meta = _run_custom(
+        tmp_path, "test-revision", "A8_restart_in_every_state",
+        "failed_apply", "dark", 0.99, 0,
+        source_scenario="dark", fail_apply_once=True,
+        restart_target="FAILED",
+        warmup=3, fault_windows=20,
+    )
+    events, chain_valid = _read_store(
+        tmp_path / "db" / "A8_restart_in_every_state" / "recovery"
+        / "failed_apply-FAILED-seed0.sqlite"
+    )
+    failed_execution = next(
+        event for event in events
+        if event["kind"] == "execution"
+        and event["payload"].get("status") == "failed"
+    )
+    failed_state = next(
+        event for event in events
+        if event["kind"] == "state" and event["payload"].get("to") == "FAILED"
+    )
+    restart_cut = next(
+        event for event in events
+        if event["kind"] == "experiment_restart_cut"
+        and event["payload"].get("state") == "FAILED"
+    )
+    rollback = next(event for event in events if event["kind"] == "rollback")
+    restore = next(event for event in events if event["kind"] == "restore")
+
+    assert chain_valid
+    assert meta["adapter_apply_failed"]
+    assert failed_state["seq"] < restart_cut["seq"] < rollback["seq"] < restore["seq"]
+    assert failed_execution["seq"] < failed_state["seq"]
+    assert rollback["payload"]["ok"] is True
+    assert meta["settings_match_snapshot_or_commit"]
 
 
 def test_report_regenerates_identically_from_saved_eventstores(tmp_path):
@@ -456,6 +587,8 @@ def test_report_regenerates_identically_from_saved_eventstores(tmp_path):
     assert "| F8-comparable subset |" in markdown_a
     assert "The F8 classifier returns `recoverable=False` for occlusion" in markdown_a
     assert "## Regression verification decisions by fault family" in markdown_a
+    assert Path(report_a["runs"][0]["database"]).is_absolute() is False
+    assert "/home/ubuntu/" not in markdown_a
 
 
 def test_live_mode_requires_explicit_yes(tmp_path):

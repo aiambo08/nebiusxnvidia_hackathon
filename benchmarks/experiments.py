@@ -23,6 +23,7 @@ from reliability_agent.capture.sources import SyntheticSource
 from reliability_agent.capture.worker import TransportMeter
 from reliability_agent.config import api_key
 from reliability_agent.contracts.models import (
+    ActionName,
     FaultType,
     IncidentState,
 )
@@ -76,6 +77,7 @@ CLASSIFIER_FAULT = {
 }
 MVP_FAULTS = ("dark", "defocus", "overexpose", "freeze", "occlusion")
 VERIFY_COMMITTED = "COMMITTED"
+RUNTIME_UNREACHABLE_STATES = frozenset({"CLOSED", "SAFE_MODE"})
 
 
 def _state_name(value: Any) -> str:
@@ -429,6 +431,9 @@ def _run_custom(
     strength: float | None,
     seed: int,
     *,
+    source_scenario: str | None = None,
+    planner=None,
+    fail_apply_once: bool = False,
     disconnect_after_execution: bool = False,
     restart_target: str | None = None,
     warmup: int = 15,
@@ -446,11 +451,28 @@ def _run_custom(
     source = SyntheticSource(width=320, height=240, seed=seed, clock=lambda: now[0])
     initial_settings = copy.deepcopy(source.get_settings())
     source.open()
+    apply_failure = {"triggered": False}
+    if fail_apply_once:
+        original_apply_settings = source.apply_settings
+
+        def apply_settings(settings: dict[str, Any]) -> None:
+            if not apply_failure["triggered"] and settings != initial_settings:
+                apply_failure["triggered"] = True
+                raise OSError("synthetic adapter apply failure")
+            original_apply_settings(settings)
+
+        source.apply_settings = apply_settings
     runner = ProbeRunner(cfg)
     meter = TransportMeter()
-    source_fault, default_strength, human_fix = DEMO_SCENARIOS[scenario]
+    source_scenario = source_scenario or scenario
+    source_fault, default_strength, human_fix = DEMO_SCENARIOS[source_scenario]
     strength = default_strength if strength is None else strength
-    planner = WrongActionPlanner() if scenario == "bad_action" else RuleBasedPlanner()
+    if planner is None:
+        planner = (
+            WrongActionPlanner()
+            if source_scenario == "bad_action"
+            else RuleBasedPlanner()
+        )
 
     def restart_source():
         if source.fault in ("freeze", "disconnect"):
@@ -710,8 +732,10 @@ def _run_custom(
             "strength": strength,
             "seed": seed,
             "scenario": scenario,
+            "source_scenario": source_scenario,
             "run_id": run_id,
             "code_revision": code_revision,
+            "adapter_apply_failed": apply_failure["triggered"],
             "final_state": restart_metrics["final_state"],
             **restart_metrics,
         }
@@ -1095,7 +1119,7 @@ def _summarize_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
                 for run in values for event in run["events"]
             )
         if arm == "A6_token_factory_outage":
-            row["circuit_open_runs"] = sum(
+            row["circuit_open_runs_cumulative"] = sum(
                 run["meta"].get("circuit_open", False) for run in values
             )
             row["max_circuit_failures"] = max(
@@ -1409,58 +1433,166 @@ def _a6_planner(cfg):
     )
 
 
+def _a8_trace_spec(
+    scenario: str,
+) -> tuple[str, str, float | None, Any | None, bool]:
+    if scenario == "policy_reject":
+        source_scenario = "dark"
+        return (
+            source_scenario,
+            "dark",
+            DEMO_SCENARIOS[source_scenario][1],
+            ScriptedPlanner(
+                ActionName.SET_EXPOSURE_BOUNDED, {"delta_ev": 99.0}
+            ),
+            False,
+        )
+    if scenario == "failed_apply":
+        source_scenario = "dark"
+        return (
+            source_scenario,
+            "dark",
+            DEMO_SCENARIOS[source_scenario][1],
+            RuleBasedPlanner(),
+            True,
+        )
+    source_scenario = scenario
+    return (
+        source_scenario,
+        scenario,
+        DEMO_SCENARIOS[source_scenario][1],
+        None,
+        False,
+    )
+
+
 def _run_a8(
-    out_dir: Path, code_revision: str, seeds: list[int]
+    out_dir: Path,
+    code_revision: str,
+    seeds: list[int],
+    *,
+    warmup: int = 15,
+    fault_windows: int = 56,
 ) -> None:
-    for scenario in ("dark", "bad_action"):
-        fault, strength, _ = DEMO_SCENARIOS[scenario]
+    scenarios = ("dark", "bad_action", "policy_reject", "failed_apply")
+    for scenario in scenarios:
+        source_scenario, fault, strength, planner, fail_apply_once = (
+            _a8_trace_spec(scenario)
+        )
         _run_custom(
-            out_dir, code_revision, "A8_trace", scenario, scenario,
-            strength, seeds[0], warmup=15, fault_windows=56,
+            out_dir,
+            code_revision,
+            "A8_trace",
+            scenario,
+            fault,
+            strength,
+            seeds[0],
+            source_scenario=source_scenario,
+            planner=planner,
+            fail_apply_once=fail_apply_once,
+            warmup=warmup,
+            fault_windows=fault_windows,
         )
     traces = _load_runs(out_dir)
-    reachable: dict[str, set[str]] = defaultdict(set)
+    reachable: dict[str, set[str]] = {scenario: set() for scenario in scenarios}
     for run in traces:
         if run["meta"]["arm"] != "A8_trace":
             continue
-        reachable[run["meta"]["scenario"]].add("HEALTHY")
+        scenario = run["meta"]["scenario"]
+        reachable[scenario].add("HEALTHY")
         for event in run["events"]:
             if event["kind"] == "state":
                 target = event["payload"].get("to")
                 if target:
-                    reachable[run["meta"]["scenario"]].add(
-                        _state_name(target)
-                    )
+                    reachable[scenario].add(_state_name(target))
     for seed in seeds:
-        for scenario in ("dark", "bad_action"):
-            fault, strength, _ = DEMO_SCENARIOS[scenario]
+        for scenario in scenarios:
+            source_scenario, fault, strength, planner, fail_apply_once = (
+                _a8_trace_spec(scenario)
+            )
             for target in sorted(reachable[scenario]):
                 _run_custom(
-                    out_dir, code_revision, "A8_restart_in_every_state",
-                    scenario, scenario, strength, seed,
-                    restart_target=target, warmup=15, fault_windows=56,
+                    out_dir,
+                    code_revision,
+                    "A8_restart_in_every_state",
+                    scenario,
+                    fault,
+                    strength,
+                    seed,
+                    source_scenario=source_scenario,
+                    planner=planner,
+                    fail_apply_once=fail_apply_once,
+                    restart_target=target,
+                    warmup=warmup,
+                    fault_windows=fault_windows,
                 )
     all_states = {_state_name(state) for state in IncidentState}
-    for scenario in ("dark", "bad_action"):
+    for scenario in scenarios:
         store = EventStore(_grid_db(
             out_dir, "A8_trace", f"{scenario}-full-seed{seeds[0]}"
         ))
         try:
             store.append("experiment_metadata", {
                 "reachable_states": sorted(reachable[scenario]),
-                "unreachable_states": sorted(all_states - reachable[scenario]),
+                "unreachable_states": sorted(RUNTIME_UNREACHABLE_STATES),
+                "not_reached_states": sorted(
+                    all_states - reachable[scenario] - RUNTIME_UNREACHABLE_STATES
+                ),
             })
         finally:
             store.close()
 
 
+def run_a8_only(
+    out_dir: str | Path, *, seeds=SEEDS
+) -> dict[str, Any]:
+    revision = _code_revision()
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    existing_a8_stores = [
+        path for path in out_dir.rglob("*.sqlite")
+        if path.parent.parent.name in ("A8_trace", "A8_restart_in_every_state")
+    ]
+    if existing_a8_stores:
+        raise ValueError("A8-only output directory already contains A8 stores")
+    _run_a8(out_dir, revision, list(seeds))
+    return {
+        "code_revision": revision,
+        "summary": _summarize_runs(_load_runs(out_dir)),
+    }
+
+
 def _report_data(out_dir: str | Path) -> dict[str, Any]:
     runs = _load_runs(out_dir)
     summary = _summarize_runs(runs)
-    meta = runs[0]["meta"] if runs else {}
+    repo_root = Path(__file__).resolve().parents[1]
+    revisions_by_arm: dict[str, set[str]] = defaultdict(set)
+    for run in runs:
+        revision = run["meta"].get("code_revision")
+        if revision:
+            revisions_by_arm[run["meta"]["arm"]].add(revision)
+    code_revisions_by_arm = {
+        arm: sorted(revisions)
+        for arm, revisions in sorted(revisions_by_arm.items())
+    }
+    code_revisions = sorted({
+        revision
+        for revisions in code_revisions_by_arm.values()
+        for revision in revisions
+    })
+
+    def store_path(path: str) -> str:
+        resolved = Path(path).resolve()
+        try:
+            return resolved.relative_to(repo_root).as_posix()
+        except ValueError:
+            return resolved.relative_to(Path(out_dir).resolve()).as_posix()
+
     return {
         "label": "SIMULATION",
-        "code_revision": meta.get("code_revision"),
+        "code_revision": code_revisions[0] if len(code_revisions) == 1 else None,
+        "code_revisions": code_revisions,
+        "code_revisions_by_arm": code_revisions_by_arm,
         "summary": summary,
         "runs": [
             {
@@ -1470,7 +1602,7 @@ def _report_data(out_dir: str | Path) -> dict[str, Any]:
                 "seed": run["meta"].get("seed"),
                 "scenario": run["meta"].get("scenario"),
                 "run_id": run["meta"].get("run_id"),
-                "database": run["db"],
+                "database": store_path(run["db"]),
                 "final_state": run["meta"].get("final_state"),
                 "chain_valid": run["chain_valid"],
                 "spend_usd": run["spend_usd"],
@@ -1497,8 +1629,8 @@ def _report_data(out_dir: str | Path) -> dict[str, Any]:
             },
             {
                 "category": "False alarms per hour by route",
-                "source": "/home/ubuntu/staging/f10-soak-20261018T122142Z/report.md",
-                "status": "pending PR1 soak report; not recalculated here",
+                "source": "F10 PR1, pending",
+                "status": "not recalculated here",
             },
             {
                 "category": "Diagnosis",
@@ -1533,8 +1665,8 @@ def _report_data(out_dir: str | Path) -> dict[str, Any]:
             },
             {
                 "category": "Soak robustness",
-                "source": "/home/ubuntu/staging/f10-soak-20261018T122142Z/report.md",
-                "status": "pending PR1 soak report; REAL HARDWARE pending F4",
+                "source": "F10 PR1, pending",
+                "status": "REAL HARDWARE pending F4",
             },
             {
                 "category": "Budget",
@@ -1552,11 +1684,21 @@ def _report_data(out_dir: str | Path) -> dict[str, Any]:
 
 def _markdown(report: dict[str, Any]) -> str:
     summary = report["summary"]
+    if report.get("code_revision"):
+        revision_lines = [f"Code revision: `{report['code_revision']}`"]
+    else:
+        revision_lines = [
+            "Code revisions by arm: "
+            + "; ".join(
+                f"`{arm}`: {', '.join(f'`{revision}`' for revision in revisions)}"
+                for arm, revisions in report["code_revisions_by_arm"].items()
+            )
+        ]
     lines = [
         "# F10 PR2 Experiments and Ablations",
         "",
         "**SIMULATION** — `SyntheticSource`; no live Nebius calls were made.",
-        f"Code revision: `{report.get('code_revision')}`",
+        *revision_lines,
         f"EventStore runs: {summary['run_count']}; all hash chains valid: "
         f"{summary['chain_valid']}.",
         "",
@@ -1608,6 +1750,8 @@ def _markdown(report: dict[str, Any]) -> str:
                 f"fallback={row.get('fallback_incidents', 0)}/"
                 f"{row.get('planner_incidents', 0)} planner incidents; "
                 f"unhandled={row.get('unhandled_exceptions', 0)}; "
+                f"circuit_open_runs_cumulative="
+                f"{row.get('circuit_open_runs_cumulative', 0)}/{row['runs']}; "
                 f"circuit opened after threshold="
                 f"{row.get('circuit_open_after_threshold', False)}; "
                 f"same recovery as A3={summary['a6_recovery_equals_a3']}; "
@@ -1644,6 +1788,16 @@ def _markdown(report: dict[str, Any]) -> str:
         f"({a6['fallback_ratio']:.3f}) |",
         f"| frozen_black | {a6['frozen_black_local_plans']} | "
         f"{a6['frozen_black_local_plan_label']} |",
+        "",
+        "A6 uses one circuit breaker shared across its 30 runs, so each per-run "
+        "`circuit_open` value is cumulative across the arm.",
+    ])
+    lines.extend([
+        "",
+        "## A7 failure timing",
+        "",
+        "A7's RTSP failure lands during the action's verification window; "
+        "simulated actions return instantly.",
     ])
     lines.extend(["", "## A3 recovery by fault", "",
                   "| Fault | Runs | Recoverable | Recovered auto | Needs human | Timeout |",
@@ -1721,12 +1875,16 @@ def _markdown(report: dict[str, Any]) -> str:
         "",
         "## A8 restart coverage",
         "",
+        "Only `SAFE_MODE` and `CLOSED` are marked unreachable: no runtime code outside "
+        "`state_machine.py` transitions into either state.",
     ])
     for trace in summary["a8_states"]["trace_runs"]:
         lines.append(
             f"- `{trace['scenario']}` reachable states: "
             f"{', '.join(trace.get('reachable_states', [])) or 'none'}; unreachable: "
-            f"{', '.join(trace.get('unreachable_states', [])) or 'none'}."
+            f"{', '.join(trace.get('unreachable_states', [])) or 'none'}; "
+            f"not reached in this scenario: "
+            f"{', '.join(trace.get('not_reached_states', [])) or 'none'}."
         )
     lines.extend([
         "",
@@ -1742,8 +1900,8 @@ def _markdown(report: dict[str, Any]) -> str:
     lines.extend([
         "",
         "All results in this report are SIMULATION. REAL HARDWARE rows remain pending F4; "
-        "F11 reproducibility remains pending. False alarms/hour are referenced from the "
-        "F10 PR1 soak report and are not recalculated by this report.",
+        "F11 reproducibility remains pending. False alarms/hour and soak robustness remain "
+        "`F10 PR1, pending` and are not recalculated here.",
         "",
     ])
     return "\n".join(lines)
