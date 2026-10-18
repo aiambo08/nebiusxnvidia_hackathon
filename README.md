@@ -15,7 +15,7 @@ recovers** — otherwise it rolls back and escalates to a human.
 > ([soak report](docs/evidence/f10/soak/soak.md)). F11 license-inventory and public-repo-audit boxes are ticked on `main`
 > (`4b5b929`; 218 tracked files, 35 distributions), and an independent agent installed and ran
 > it from the README alone ([transcript](docs/evidence/f11/readme-install.md)); the independent F11
-> gate review is pending, so F11 is not yet marked passed ([audit](docs/evidence/f11/public-repo-audit.md);
+> gate review passed on `d16436f` (all 7 boxes verified), so F11 is passed ([audit](docs/evidence/f11/public-repo-audit.md);
 > [licenses](docs/third-party-licenses.md)).
 > F12 is documentation preparation only; its gate is not
 > passed and owner/reviewer actions remain. Evidence is labelled SIMULATION or REAL HARDWARE.

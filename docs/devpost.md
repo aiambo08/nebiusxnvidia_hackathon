@@ -79,8 +79,7 @@ restart, safe mode, cleaning/human tickets. Bounded exposure/focus commit/rollba
 in SIMULATION only ([source](../src/reliability_agent/capture/sources.py)). F11 license-inventory
 and public-repo-audit boxes are ticked on `main` (`4b5b929`; 218 tracked files, 35 distributions);
 an independent agent installed and ran it from the README alone
-([transcript](evidence/f11/readme-install.md)); the independent F11 gate review is pending, so F11
-is not yet marked passed ([audit](evidence/f11/public-repo-audit.md); [licenses](third-party-licenses.md)).
+([transcript](evidence/f11/readme-install.md)); the independent F11 gate review passed on `d16436f` (all 7 boxes verified), so F11 is passed ([audit](evidence/f11/public-repo-audit.md); [licenses](third-party-licenses.md)).
 
 ## Built with
 

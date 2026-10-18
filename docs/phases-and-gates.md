@@ -24,7 +24,7 @@ recalibrated with real camera data.
 | F8 | Verification & rollback | 3 | Safety + Evaluation | passed |
 | F9 | Product & demo experience | 4 | Product | in progress |
 | F10 | End-to-end validation | 4 | Evaluation | in progress |
-| F11 | Hardening & security | 4 | Integrator | partially scaffolded |
+| F11 | Hardening & security | 4 | Integrator | passed |
 | F12 | Submission | 4 | Product + human | not started |
 
 "scaffolded" = interfaces, first implementation and unit tests exist; the gate is **not** passed.
@@ -188,6 +188,8 @@ Results must be generated from event files, never typed into the README by hand.
 - [x] All used dependencies have documented licenses (`docs/third-party-licenses.md`; `scripts/license_report.py --check`, 35 Linux/win32 distributions, `certifi` MPL-2.0 flagged, `colorama` 0.4.6 BSD override cited)
 - [x] A different agent installs and runs from README only (`docs/evidence/f11/readme-install.md`; independent session at `190ce74`, Python 3.11.13: `pip install -e ".[dev,api]"`, `pytest -q` 907 passed, `ra-demo all` 7/7, SIMULATION dashboard HTTP 200)
 - [x] Public repo contains no private videos, credentials or illegally redistributed datasets (`docs/evidence/f11/public-repo-audit.md`; 218 tracked files, five justified synthetic JSONL paths, zero unallowlisted findings; history names and blob content checked)
+
+Independent F11 gate review: PASS on `d16436f`, all 7 boxes verified against CI, unit tests, `license_report.py --check`, a full-history `audit_repo.py` re-run and its own README-only reproduction (https://app.devin.ai/sessions/171485f5368345f89997f9ab93ae8ee7).
 
 ## F12 — Submission
 - [ ] A fresh reviewer reproduces the happy path
