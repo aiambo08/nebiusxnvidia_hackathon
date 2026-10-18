@@ -95,7 +95,9 @@ def test_dashboard_api_and_legacy_routes_read_shared_store(monkeypatch):
         }
 
         assert client.get("/").status_code == 200
-        assert "Dashboard page placeholder" in client.get("/").text
+        page = client.get("/").text
+        assert "Physical AI Reliability Agent" in page
+        assert "https://" not in page  # offline: no CDN or external assets
         assert client.get("/health").json() == {"status": "ok", "chain_valid": True}
         legacy_incidents = client.get("/incidents").json()
         assert len(legacy_incidents) == 1 and legacy_incidents[0]["state"] == "HEALTHY"
