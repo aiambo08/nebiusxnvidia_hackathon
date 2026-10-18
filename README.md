@@ -7,8 +7,8 @@ deterministic policy gate, and **keeps the change only if the downstream task me
 recovers** — otherwise it rolls back and escalates to a human.
 
 > Working name · Nebius x NVIDIA Global AI Hackathon 2026 · **Physical AI track** ·
-> License: [Apache-2.0](LICENSE) · F5, F6 and F8 are the gates currently marked passed in
-> [`docs/phases-and-gates.md`](docs/phases-and-gates.md). F3, F4, F7 and F9 remain open.
+> License: [Apache-2.0](LICENSE) · F5, F6, F7 and F8 are the gates currently marked passed in
+> [`docs/phases-and-gates.md`](docs/phases-and-gates.md). F3, F4 and F9 remain open.
 > F10 A1–A8 and 4 h SIMULATION soak evidence are merged on `main`. The soak report records
 > 4.0 h, 23/24 faults detected, 0.25 false alarms/h, +7.2 MB RSS and $0; REAL HARDWARE
 > validation remains pending, so F10 is in progress and the gate is not passed
@@ -94,7 +94,7 @@ client-side budget caps · a Token Factory outage degrades to local rules + huma
 | F3 · REAL HARDWARE camera inputs | Static-scene checks passed on the webcam at rest and two phone RTSP scenes. The walk-by test observed 22/22 trials with no `fov_shift` windows and detected its bump control; MJPEG was inconclusive. | [`static-scene-hardware.md`](docs/evidence/f3/static-scene-hardware.md), [`walkby-hardware.md`](docs/evidence/f3/walkby-hardware.md) |
 | F5 · SIMULATION | Independent gate review passed 6/6 conditions; the associated hysteresis benchmark is SIMULATION evidence. | [`PROJECT_STATE.md`](docs/agents/PROJECT_STATE.md), [`hysteresis.md`](docs/evidence/f5/hysteresis.md) |
 | F6 · REAL TOKEN FACTORY | Golden-v2 test: 264 calls, 100% schema validity, 98.864% action accuracy, and $0.03057240 run cost (about $0.031). The local selector also scored 100% by action name, so this is not evidence of independent diagnosis. | [test report](docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md), [rules baseline](docs/evidence/f6/golden-rules-baseline-test.md) |
-| F7 · SIMULATION | A subprocess crash-recovery test verifies snapshot restoration and conservative rollback/escalation after restart; the real webcam adapter remains open. | [`test_crash_recovery.py`](tests/integration/test_crash_recovery.py), [`PROJECT_STATE.md`](docs/agents/PROJECT_STATE.md) |
+| F7 · SIMULATION | Independent F7 gate review passed on `76797de`; real-webcam exposure/autofocus capability discovery is a separate TASKS follow-up outside the eight gate boxes, and the real `OpenCVSource` exposes `restart` only. | [`test_crash_recovery.py`](tests/integration/test_crash_recovery.py), [`PROJECT_STATE.md`](docs/agents/PROJECT_STATE.md) |
 | F8 · SIMULATION | Recovered 87/100 recoverable cases. Regression results were 45/50 raw; all 45/45 executed cases were contained. Five `dark:0.8` cases did not execute because no incident was confirmed. | [`recovery-bench.md`](docs/evidence/f8/recovery-bench.md) |
 | F10 · SIMULATION | The merged A1–A8 report has 454 valid EventStores; A3 recovery was 25/25 (20/20 on the F8-comparable subset); A4 COMMITTED was 0/20 versus 0/20 in A3, so no difference was demonstrated. The 4 h SIMULATION soak is also merged; REAL HARDWARE validation remains pending, so F10 is in progress and not passed. | [`experiments.md`](docs/evidence/f10/experiments.md); [`soak.md`](docs/evidence/f10/soak/soak.md) |
 | F10 soak | 4.0 h, 23/24 faults detected, 0.25 false alarms/h, +7.2 MB RSS, $0. SIMULATION evidence is merged; REAL HARDWARE validation remains pending, so the F10 gate is not passed. | [`soak.md`](docs/evidence/f10/soak/soak.md) |
