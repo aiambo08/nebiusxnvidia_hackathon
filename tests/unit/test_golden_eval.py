@@ -120,7 +120,7 @@ def _simple_case(*, split="test", no_cap=False):
         candidate_faults=[FaultType.BLACKOUT],
         evidence=[Evidence(metric="visual.black_pixel_ratio", value=0.9)],
         capabilities=capabilities,
-        allowed_actions=PolicyGate().allowed_for(capabilities),
+        allowed_actions=PolicyGate().offered_for(capabilities, [FaultType.BLACKOUT]),
         telemetry=make_window(),
     )
     expected_actions = (
@@ -176,7 +176,10 @@ def test_builder_recipe_counts_splits_labels_and_variants(golden_cases):
             cap, variant_actions = NO_CAP_VARIANTS[case["scenario"]]
             assert cap not in incident["capabilities"]
             assert incident["allowed_actions"] == [
-                action.value for action in PolicyGate().allowed_for(incident["capabilities"])
+                action.value for action in PolicyGate().offered_for(
+                    incident["capabilities"],
+                    [FaultType(fault) for fault in incident["candidate_faults"]],
+                )
             ]
             assert case["expected_actions"] == sorted(variant_actions)
             assert case["seed"] in VARIANT_SEEDS
@@ -185,7 +188,7 @@ def test_builder_recipe_counts_splits_labels_and_variants(golden_cases):
 
 
 def test_committed_golden_matches_fresh_build_on_recipe_fields(golden_cases):
-    path = eval_nemotron.REPO_ROOT / "benchmarks" / "golden" / "golden_v1.jsonl"
+    path = eval_nemotron.REPO_ROOT / "benchmarks" / "golden" / "golden_v2.jsonl"
     committed = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     fields = ("case_id", "split", "scenario", "variant", "seed", "expected_fault",
               "expected_actions", "delta_ev_sign")
@@ -196,6 +199,32 @@ def test_committed_golden_matches_fresh_build_on_recipe_fields(golden_cases):
         }
         for field in ("candidate_faults", "capabilities", "allowed_actions"):
             assert built["incident"][field] == saved["incident"][field]
+
+
+def test_golden_v2_only_narrows_offered_actions_from_v1():
+    golden_dir = eval_nemotron.REPO_ROOT / "benchmarks" / "golden"
+    v1 = [json.loads(line) for line in
+          (golden_dir / "golden_v1.jsonl").read_text(encoding="utf-8").splitlines()]
+    v2 = [json.loads(line) for line in
+          (golden_dir / "golden_v2.jsonl").read_text(encoding="utf-8").splitlines()]
+    fields = ("case_id", "split", "scenario", "variant", "seed", "expected_fault",
+              "expected_actions", "delta_ev_sign")
+    assert len(v1) == len(v2)
+    for original, offered in zip(v1, v2, strict=True):
+        assert {field: original[field] for field in fields} == {
+            field: offered[field] for field in fields
+        }
+        original_incident = dict(original["incident"])
+        offered_incident = dict(offered["incident"])
+        original_actions = set(original_incident.pop("allowed_actions"))
+        offered_actions = set(offered_incident.pop("allowed_actions"))
+        assert offered_actions <= original_actions
+        assert original_incident == offered_incident
+        assert {
+            key: value for key, value in original.items() if key != "incident"
+        } == {
+            key: value for key, value in offered.items() if key != "incident"
+        }
 
 
 def test_grader_accepts_correct_exposure_action_and_sign():

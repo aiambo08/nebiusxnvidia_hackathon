@@ -100,7 +100,8 @@ def build_golden() -> list[dict[str, Any]]:
                 raise RuntimeError(
                     f"golden recipe expected capability {capability!r} for {case_id}")
             incident.capabilities = [c for c in incident.capabilities if c != capability]
-            incident.allowed_actions = gate.allowed_for(incident.capabilities)
+            incident.allowed_actions = gate.offered_for(
+                incident.capabilities, incident.candidate_faults)
             cases.append(_case(scenario, "no_cap", seed, incident, expected_actions))
 
     for scenario in SCENARIOS:

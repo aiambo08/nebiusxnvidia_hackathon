@@ -379,8 +379,9 @@ class ReliabilityAgent:
         caps = self.device.capabilities().as_list() if hasattr(self.device, "capabilities") \
             else []
         incident.capabilities = caps
-        incident.allowed_actions = self.gate.allowed_for(caps)
         frozen = self._frozen(incident)
+        faults = list(incident.candidate_faults) + ([FaultType.FREEZE] if frozen else [])
+        incident.allowed_actions = self.gate.offered_for(caps, faults)
         if frozen:
             incident.allowed_actions = [a for a in incident.allowed_actions
                                         if a not in FROZEN_UNVERIFIABLE]

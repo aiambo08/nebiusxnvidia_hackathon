@@ -13,9 +13,30 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from reliability_agent.contracts.models import ActionName, Incident, PlanAction
+from reliability_agent.contracts.models import ActionName, FaultType, Incident, PlanAction
 
 A = ActionName
+
+FAULT_ACTIONS: dict[FaultType, tuple[ActionName, ...]] = {
+    FaultType.STREAM_DOWN: (ActionName.RESTART_CAPTURE,),
+    FaultType.FREEZE: (ActionName.RESTART_CAPTURE,),
+    FaultType.BLACKOUT: (
+        ActionName.SET_EXPOSURE_BOUNDED,
+        ActionName.REQUEST_MANUAL_CLEANING,
+    ),
+    FaultType.OVEREXPOSURE: (ActionName.SET_EXPOSURE_BOUNDED,),
+    FaultType.FOCUS_DRIFT: (
+        ActionName.TRIGGER_AUTOFOCUS,
+        ActionName.REQUEST_MANUAL_CLEANING,
+    ),
+    FaultType.LOW_FPS: (ActionName.SWITCH_STREAM_PROFILE,),
+    FaultType.PIPELINE_SATURATION: (ActionName.SWITCH_STREAM_PROFILE,),
+    FaultType.LENS_OCCLUSION: (ActionName.REQUEST_MANUAL_CLEANING,),
+    FaultType.FOV_SHIFT: (ActionName.REQUEST_RECALIBRATION,),
+    FaultType.MOTION_BLUR: (),
+    FaultType.UNKNOWN: (),
+}
+ALWAYS_OFFERED = (ActionName.ENTER_SAFE_MODE, ActionName.NEEDS_HUMAN)
 
 
 @dataclass(frozen=True)
@@ -107,6 +128,15 @@ class PolicyGate:
     def allowed_for(self, capabilities: list[str]) -> list[ActionName]:
         caps = set(capabilities)
         return [n for n, s in self.registry.items() if set(s.requires) <= caps]
+
+    def offered_for(
+        self, capabilities: list[str], faults: list[FaultType]
+    ) -> list[ActionName]:
+        return [
+            name for name in self.allowed_for(capabilities)
+            if name in ALWAYS_OFFERED
+            or any(name in FAULT_ACTIONS.get(fault, ()) for fault in faults)
+        ]
 
     def describe(self, names: list[ActionName]) -> list[dict[str, Any]]:
         return [self.registry[n].to_json() for n in names if n in self.registry]
