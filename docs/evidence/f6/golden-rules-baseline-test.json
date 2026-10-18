@@ -1,7 +1,7 @@
 {
   "meta": {
-    "commit": "1d6d4b2+dirty",
-    "generated": "2026-10-17T23:22:30.757668Z",
+    "commit": "a7cd262",
+    "generated": "2026-10-18T00:07:14.451198Z",
     "golden_sha256": "3f0c5699f4d8f5464c6c020b799648d81f9a8f59fdfe5dcd694e1c84d8199d44",
     "model": "local-rules",
     "planner": "rules",

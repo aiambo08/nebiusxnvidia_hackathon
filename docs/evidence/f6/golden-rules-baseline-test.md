@@ -1,8 +1,8 @@
 # F6 deterministic rules baseline — test
 
-- Commit: `1d6d4b2+dirty`
+- Commit: `a7cd262`
 - Golden file SHA256: `3f0c5699f4d8f5464c6c020b799648d81f9a8f59fdfe5dcd694e1c84d8199d44`
-- Generated: 2026-10-17T23:22:30.757668Z
+- Generated: 2026-10-18T00:07:14.451198Z
 - Model: `local-rules`
 - Prompt version: `rules`
 - Evaluated rows: 264
