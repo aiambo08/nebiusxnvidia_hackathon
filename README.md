@@ -13,8 +13,9 @@ recovers** — otherwise it rolls back and escalates to a human.
 > 4.0 h, 23/24 faults detected, 0.25 false alarms/h, +7.2 MB RSS and $0; REAL HARDWARE
 > validation remains pending, so F10 is in progress and the gate is not passed
 > ([soak report](docs/evidence/f10/soak/soak.md)). F11 license-inventory and public-repo-audit boxes are ticked on `main`
-> (`4b5b929`; 218 tracked files, 35 distributions); the independent README-install box is open,
-> so the F11 gate is not passed ([audit](docs/evidence/f11/public-repo-audit.md);
+> (`4b5b929`; 218 tracked files, 35 distributions), and an independent agent installed and ran
+> it from the README alone ([transcript](docs/evidence/f11/readme-install.md)); the independent F11
+> gate review is pending, so F11 is not yet marked passed ([audit](docs/evidence/f11/public-repo-audit.md);
 > [licenses](docs/third-party-licenses.md)).
 > F12 is documentation preparation only; its gate is not
 > passed and owner/reviewer actions remain. Evidence is labelled SIMULATION or REAL HARDWARE.
@@ -104,7 +105,7 @@ Token Factory evaluation; none should be read as evidence of a different mode.
 
 ## Quickstart
 
-Use a Python version supported by [`pyproject.toml`](pyproject.toml). Works on Windows and Linux;
+Use Python 3.11 or newer (`requires-python = ">=3.11"` in [`pyproject.toml`](pyproject.toml); CI runs 3.11 and 3.12). Works on Windows and Linux;
 no GPU is needed for the MVP.
 
 ```bash
@@ -114,7 +115,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate    Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev,api]"
 
-pytest -q                              # 854 passed, 1 deselected, 2 xfailed; transcript: docs/evidence/f12/quickstart.md
+pytest -q                              # 907 passed, 1 deselected, 2 xfailed at 190ce74 (count grows as tests are added); transcripts: docs/evidence/f11/readme-install.md, docs/evidence/f12/quickstart.md
 ra-demo all                            # deterministic SIMULATION of every scenario
 ```
 

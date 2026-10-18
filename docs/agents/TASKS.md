@@ -104,7 +104,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F10][evaluation] Run the 4-hour SIMULATION soak and generate the EventStore report (`docs/evidence/f10/soak/soak.md`; 4.0 h, 23/24 faults detected, 0.25 false alarms/h, +7.2 MB RSS, $0; evidence merged on `main`, F10 remains in progress pending REAL HARDWARE validation, so the gate is not passed)
 - [x] [F11][integrator] Document runtime and every optional dependency licence, including transitives (`scripts/license_report.py --check`, `docs/third-party-licenses.md`; F11 license-inventory and public-repo-audit boxes are ticked on `main` at `4b5b929`, 218 tracked files, 35 Linux/win32 distributions, `certifi` MPL-2.0 flagged, `colorama` 0.4.6 BSD override cited to PyPI JSON)
 - [x] [F11][integrator] Audit 218 tracked files and media/dataset/credential history with path-and-finding-type allowlisting (`scripts/audit_repo.py`, `docs/evidence/f11/public-repo-audit.md`; five synthetic JSONL dataset paths justified in current content and history, credentials never waived, zero unallowlisted findings)
-- [ ] [F11][independent reviewer] Install and run from README only
+- [x] [F11][independent reviewer] Install and run from README only (`docs/evidence/f11/readme-install.md`, PASS at `190ce74`)
+- [ ] [F11][evaluation] Independent F11 gate review (all boxes ticked)
 - [ ] [F10][evaluation] Independently review the A1–A8 SIMULATION experiment report (`docs/evidence/f10/experiments.md`; 454 valid EventStores, A3 recovery 25/25, F8-comparable subset 20/20, A8 restarts include REJECTED and FAILED, A4 COMMITTED delta 0 vs 0)
 - [ ] [F10][evaluation] Complete REAL HARDWARE validation and F4 evidence; SIMULATION soak is merged on `main`, but F10 remains in progress and is not passed until REAL HARDWARE validation is complete
 - [ ] [F12][product] Video + Devpost text
