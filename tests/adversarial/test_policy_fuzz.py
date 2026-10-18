@@ -11,6 +11,7 @@ from reliability_agent.policy import PolicyGate
 from reliability_agent.policy.gate import ALWAYS_OFFERED, FAULT_ACTIONS
 
 CAPS = ["exposure", "autofocus", "profiles", "restart"]
+HUGE_INTS = (10**400, -(10**400))
 
 
 def _incident(allowed=None):
@@ -27,9 +28,10 @@ def adversarial_cases():
     for n in bad_names:
         yield {"name": n, "arguments": {}}, "unknown"
     bad_values = [3.0, -3.0, 2.0001, 1e9, -1e9, float("nan"), float("inf"), -float("inf"),
-                  "1.0", None, True, False, [1.0], {"v": 1}, "0; DROP TABLE"]
+                  *HUGE_INTS, "1.0", None, True, False, [1.0], {"v": 1}, "0; DROP TABLE"]
     for v in bad_values:
-        yield {"name": "set_exposure_bounded", "arguments": {"delta_ev": v}}, "range"
+        kind = "finite" if v in HUGE_INTS else "range"
+        yield {"name": "set_exposure_bounded", "arguments": {"delta_ev": v}}, kind
     for p in ["MAIN", "hd", "../../etc", "sub ", "x" * 100, 1, None, True]:
         yield {"name": "switch_stream_profile", "arguments": {"profile": p}}, "choice"
     for extra in ["shell", "cmd", "callback", "__class__", "url", "exposure_raw"]:
@@ -129,12 +131,16 @@ def test_every_planner_rule_action_is_offered_for_its_fault():
 
 
 def test_at_least_100_cases():
-    assert len(CASES) >= 100
+    assert len(CASES) >= 106
 
 
 @pytest.mark.parametrize("plan,kind", CASES, ids=[f"{i}-{k}" for i, (_, k) in enumerate(CASES)])
 def test_adversarial_plan(plan, kind):
     d = PolicyGate().evaluate(plan, _incident())
+    if kind == "finite":
+        assert not d.approved
+        assert "delta_ev must be finite" in d.reasons
+        return
     if kind != "random":
         assert not d.approved, (plan, d)
         return
@@ -151,6 +157,26 @@ def test_not_offered_action_rejected_even_if_valid():
     inc = _incident(allowed=[ActionName.NEEDS_HUMAN])
     for name in ("restart_capture", "trigger_autofocus", "enter_safe_mode"):
         assert not PolicyGate().evaluate({"name": name, "arguments": {}}, inc).approved
+
+
+@pytest.mark.parametrize("value", HUGE_INTS, ids=["positive-overflow", "negative-overflow"])
+def test_huge_integer_numeric_parameters_are_rejected_as_nonfinite(value):
+    gate = PolicyGate()
+    numeric_params = [
+        (spec.name, key)
+        for spec in gate.registry.values()
+        for key, param in spec.params.items()
+        if param.type in ("float", "int")
+    ]
+
+    assert numeric_params
+    for action, key in numeric_params:
+        decision = gate.evaluate(
+            {"name": action.value, "arguments": {key: value}},
+            _incident(),
+        )
+        assert not decision.approved, (action, key, decision)
+        assert f"{key} must be finite" in decision.reasons, (action, key, decision)
 
 
 def test_rate_limit_cannot_be_bypassed():
