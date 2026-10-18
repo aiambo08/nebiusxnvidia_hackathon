@@ -56,7 +56,7 @@ The API status response also reported `mode=REPLAY`. The process was stopped aft
 confirmed; this demonstrates the REPLAY label and dashboard startup, not an end-to-end fault
 recovery result.
 
-No F9 phase or evidence checkbox was changed.
+The follow-up docs commit ticks three F9 boxes (≤ 90 s flow, no manual interaction, mode labels); the five-user, no-secrets-in-video and real-webcam boxes stay open.
 
 ## Rendered labels
 
