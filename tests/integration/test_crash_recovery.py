@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import time
@@ -51,6 +52,16 @@ def _kill_child_at_marker(command: list[str], marker: Path) -> None:
         stderr=subprocess.STDOUT,
         text=True,
         encoding="utf-8",
+        env={
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join(
+                [
+                    str(ROOT / "src"),
+                    str(ROOT),
+                    os.environ.get("PYTHONPATH", ""),
+                ]
+            ),
+        },
     )
     try:
         deadline = time.monotonic() + 30.0

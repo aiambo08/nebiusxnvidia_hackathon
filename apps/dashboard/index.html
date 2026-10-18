@@ -133,10 +133,13 @@ function kv(el,rows){
     el.append(key,value);
   }
 }
-function plannerLabel(p,source){
-  if(p?.kind==="rules")return "rules (local planner, no LLM call)";
+function plannerLabel(p,source,short=false){
+  if(source==="rules"||(!source&&p?.kind==="rules"))
+    return short?"rules (no LLM)":"rules (local planner, no LLM call)";
+  if(source==="scripted")return "scripted (demo planner, no LLM call)";
+  if(source&&source!=="nemotron")return source;
   if(p?.kind==="nemotron"&&(source===undefined?p.api_key_present===false:source!=="nemotron"))return "local fallback (no LLM call)";
-  return p?.kind||source||"–";
+  return source||p?.kind||"–";
 }
 async function getJSON(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw new Error(u+" "+r.status);return r.json()}
 
@@ -151,7 +154,7 @@ async function status(){
     $("mode").className="badge "+cls;$("mode").textContent=m;$("ovmode").className="badge "+cls;$("ovmode").textContent=m;
     $("src").textContent=s.source_label||"event store";$("scn").textContent=s.scenario||"–";
     const st=s.state||"–";$("state").textContent=st;$("state").className="state s-"+st;
-    const p=s.planner||{};plannerStatus=p;$("plnr").textContent=plannerLabel(p);
+    const p=s.planner||{};plannerStatus=p;$("plnr").textContent=plannerLabel(p,undefined,true);
     $("model").textContent=p.model||"–";$("prompt").textContent=p.prompt_version||"–";
     const b=s.budget||{};$("spend").textContent=b.spent_usd_estimate!=null?`$${(+b.spent_usd_estimate).toFixed(4)} / $${b.hard_cap_usd} cap`:"–";
     $("chain").innerHTML=s.chain_valid?'<span class="ok">verified</span>':'<span class="bad">BROKEN</span>';
@@ -262,7 +265,7 @@ function renderDetail(inc){
   const P=s.plan&&s.plan.payload;
   if(P){const u=P.usage||{},pl=P.plan;
     renderDiagnosisHeading(P.source);
-    $("plnr").textContent=plannerLabel(plannerStatus,P.source);
+    $("plnr").textContent=plannerLabel(plannerStatus,P.source,true);
     kv($("diag"),[["source",P.source==="nemotron"?[{text:P.source},{text:" ● live runtime call",cls:"nv"}]:plannerLabel(plannerStatus,P.source)],["model",{text:u.model||"–",cls:"nv"}],["prompt",u.prompt_version||"–"],
       ["tokens",`${num(u.input_tokens,0)} in / ${num(u.output_tokens,0)} out${u.cached?" (cache)":""}`],["cost",usd(u.estimated_cost_usd)],["latency",u.latency_ms!=null?num(u.latency_ms,0)+" ms":"–"],
       ["attempts",P.attempts],["diagnosis",`${pl.diagnosis} (${num(pl.confidence)})`],["proposes",`${pl.action.name} ${JSON.stringify(pl.action.arguments)}`],["message",pl.human_message||"–"]]);

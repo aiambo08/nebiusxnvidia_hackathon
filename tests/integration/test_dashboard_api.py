@@ -124,6 +124,8 @@ def test_dashboard_html_escapes_template_interpolations():
         Path(__file__).resolve().parents[2] / "apps/dashboard/index.html"
     ).read_text(encoding="utf-8")
     assert "Fault cleared; primary metric already at baseline." in page
+    assert 'if(source==="scripted")return "scripted (demo planner, no LLM call)"' in page
+    assert '"rules (no LLM)"' in page
     kv = re.search(r"function kv\(el,rows\)\s*\{(.*?)\n\}", page, re.S).group(1)
     assert ".innerHTML" not in kv
     assignments = re.findall(
