@@ -23,7 +23,7 @@ recalibrated with real camera data.
 | F7 | Executor & safety | 3 | Safety | in progress |
 | F8 | Verification & rollback | 3 | Safety + Evaluation | passed |
 | F9 | Product & demo experience | 4 | Product | in progress |
-| F10 | End-to-end validation | 4 | Evaluation | not started |
+| F10 | End-to-end validation | 4 | Evaluation | in progress |
 | F11 | Hardening & security | 4 | Integrator | partially scaffolded |
 | F12 | Submission | 4 | Product + human | not started |
 
@@ -174,6 +174,9 @@ during an action · process restart in every state · 4-hour soak.
 | LLM structure | ≥ 98% valid responses |
 | Budget | cumulative dev spend ≤ 23 USD before demo |
 | Reproducibility | clean install + one-command demo |
+
+- Robustness evidence (SIMULATION): 4 h without crash or sustained leak ([soak report](evidence/f10/soak/soak.md)).
+- Normal operation evidence (SIMULATION): 0.25 false alarms/h ([soak report](evidence/f10/soak/soak.md)).
 
 Results must be generated from event files, never typed into the README by hand.
 

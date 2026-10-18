@@ -9,6 +9,8 @@ import pytest
 from reliability_agent import runtime
 from reliability_agent.capture.sources import SyntheticSource
 from reliability_agent.config import load_config
+from reliability_agent.nemotron.planner import RuleBasedPlanner
+from reliability_agent.storage.event_store import EventStore
 
 
 class SlowSource(SyntheticSource):
@@ -52,6 +54,21 @@ def test_run_live_analyses_each_frame_once_on_a_slow_source(live_cfg, monkeypatc
     assert windows and analysed > 0
     assert analysed <= delivered, (analysed, delivered)  # 10 polls/s on a 2 fps source
     assert all((tw.visual.exact_repeat_ratio or 0.0) == 0.0 for tw in windows)
+
+
+def test_run_live_uses_injected_synthetic_source(live_cfg, monkeypatch):
+    source = SyntheticSource(width=160, height=120)
+    store = EventStore(":memory:")
+    monkeypatch.setattr(runtime, "OpenCVSource",
+                        lambda uri: pytest.fail("injected source should replace OpenCVSource"))
+    monkeypatch.setattr(runtime, "api_key",
+                        lambda: pytest.fail("injected planner should bypass key lookup"))
+    try:
+        runtime.run_live(live_cfg, duration_s=0.01, source=source,
+                         planner=RuleBasedPlanner(), store=store)
+    finally:
+        store.close()
+    assert source._seq > 0
 
 
 def test_run_live_stops_with_an_error_once_another_agent_takes_the_camera(live_cfg, monkeypatch):
