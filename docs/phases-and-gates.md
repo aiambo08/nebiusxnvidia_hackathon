@@ -186,7 +186,7 @@ Results must be generated from event files, never typed into the README by hand.
 - [x] Above soft cap, non-essential calls are disabled (unit test)
 - [x] Above hard cap, no call leaves the client (unit test)
 - [x] All used dependencies have documented licenses (`docs/third-party-licenses.md`; `scripts/license_report.py --check`, 35 Linux/win32 distributions, `certifi` MPL-2.0 flagged, `colorama` 0.4.6 BSD override cited)
-- [ ] A different agent installs and runs from README only
+- [x] A different agent installs and runs from README only (`docs/evidence/f11/readme-install.md`; independent session at `190ce74`, Python 3.11.13: `pip install -e ".[dev,api]"`, `pytest -q` 907 passed, `ra-demo all` 7/7, SIMULATION dashboard HTTP 200)
 - [x] Public repo contains no private videos, credentials or illegally redistributed datasets (`docs/evidence/f11/public-repo-audit.md`; 218 tracked files, five justified synthetic JSONL paths, zero unallowlisted findings; history names and blob content checked)
 
 ## F12 — Submission
