@@ -1146,11 +1146,12 @@ def run_experiments(
         seeds = seeds[:1]
 
     a6_planner = _a6_planner(cfg)
+    fault_grid = FAULT_GRID[:1] if smoke else FAULT_GRID
     for seed in seeds:
         baseline_for_seed = _run_training_baseline(
             out_dir, revision, 1000 + seed, smoke=smoke
         )
-        for fault, strength in FAULT_GRID:
+        for fault, strength in fault_grid:
             planner = _NoCallPlanner()
             _run_standard(
                 out_dir, revision, "A1_local_detector_only", fault, strength, seed,
@@ -1213,7 +1214,7 @@ def run_experiments(
                     **kwargs,
                 )
 
-        for fault, strength in FAULT_GRID:
+        for fault, strength in fault_grid:
             _run_standard(
                 out_dir, revision, "A4_no_downstream_metric", fault, strength, seed,
                 planner=RuleBasedPlanner(), downstream_ablation=True,
@@ -1221,7 +1222,8 @@ def run_experiments(
                 fault_windows=12 if smoke else 56,
             )
 
-        for fault in REGRESSION_ACTIONS:
+        regression_faults = ("dark",) if smoke else tuple(REGRESSION_ACTIONS)
+        for fault in regression_faults:
             strength = dict(FAULT_GRID).get(fault)
             action, arguments = REGRESSION_ACTIONS[fault]
             for arm, ablated in (
@@ -1238,7 +1240,10 @@ def run_experiments(
                     extra_metadata={"phase": "regression"},
                 )
 
-        for fault, strength in (("dark", 0.99), ("defocus", 1.0)):
+        a7_faults = (("dark", 0.99),) if smoke else (
+            ("dark", 0.99), ("defocus", 1.0)
+        )
+        for fault, strength in a7_faults:
             _run_custom(
                 out_dir, revision, "A7_rtsp_failure_during_action",
                 _scenario_for(fault), fault, strength, seed,
