@@ -25,21 +25,42 @@ hash-chained event store records plans, model/token/cost details, gate decisions
 Image-quality metrics are not reliable proxies for task success: ArUco detection can behave
 non-monotonically as blur changes. We therefore verify on downstream task metrics and retain
 guardrails. The F6 action score also has an important caveat: the local selector reaches the same
-score by action name, so the result is not independent-diagnosis evidence.
+score by action name, so the result is not independent-diagnosis evidence. Freeze is checked on
+the confirming window; if onset does not land in that window, a dark frame can hide it. Frozen
+overexposure/focus-drift cases may receive one bounded exposure/autofocus action before
+snapshot-backed verification and rollback/escalation. Recent-window checking remains open work
+([ADR-003](adr/ADR-003-freeze-needs-a-measurable-scene.md)).
 
 ## Accomplishments
 
 - REAL HARDWARE CPU measurement with synthetic frames: the owner's 720p paced probe p95 was
-  23.2 / 32.6 / 34.5 ms in Best performance runs
+  23.2 / 32.6 / 34.5 ms in three Windows Best performance runs. These are CPU timings on synthetic
+  frames, not live-camera latency
   ([source](evidence/f3/latency-hardware.md)).
-- REAL TOKEN FACTORY golden-set test: 100% schema validity, 98.864% action accuracy and
-  $0.03057240 run cost; the rules baseline caveat is documented
+- REAL HARDWARE static-scene and walk-by checks: the webcam-at-rest and two phone RTSP static
+  scenes passed; the walk-by observed 22/22 trials, 0 `fov_shift` windows and the bump positive
+  control. MJPEG was inconclusive
+  ([static-scene](evidence/f3/static-scene-hardware.md),
+  [walk-by](evidence/f3/walkby-hardware.md)).
+- SIMULATION independent F5 gate review passed 6/6 conditions
+  ([project state](agents/PROJECT_STATE.md), [hysteresis report](evidence/f5/hysteresis.md)).
+- REAL TOKEN FACTORY golden-v2 test: 264 calls, 100% schema validity, 98.864% action accuracy and
+  $0.03057240 run cost (about $0.031); the rules baseline also scored 100% by action name, so this
+  is not independent-diagnosis evidence
   ([test](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md),
   [baseline](evidence/f6/golden-rules-baseline-test.md)).
-- SIMULATION recovery benchmark: 87/100 recoverable cases; 45/45 executed regression cases were
-  contained. These are benchmark results, not physical-hardware results
+- SIMULATION crash recovery restores the persisted snapshot and escalates without replanning after
+  restart; the real webcam adapter remains open work
+  ([test](../tests/integration/test_crash_recovery.py),
+  [project state](agents/PROJECT_STATE.md)).
+- SIMULATION recovery benchmark: 87/100 recoverable cases. Regression raw result was 45/50; all
+  45/45 executed cases were contained, while five `dark:0.8` cases were not executed because no
+  incident was confirmed. These are benchmark results, not physical-hardware results
   ([source](evidence/f8/recovery-bench.md)).
-- The F10 A1–A8 report, video, five-user test, final tag and Devpost submission remain pending.
+- Merged F10 A1–A8 SIMULATION report: 454 valid EventStores; A3 recovery 25/25 (20/20 on the
+  F8-comparable subset); A4 COMMITTED 0/20 versus 0/20 in A3, so the ablation did not demonstrate
+  a difference. The soak and REAL HARDWARE evidence remain pending
+  ([source](evidence/f10/experiments.md)).
 
 ## What we learned
 
@@ -49,8 +70,10 @@ rollback evidence must distinguish executed actions from cases where no incident
 
 ## What's next
 
-Complete the independent product review, run the real-hardware F4 benchmark, record the demo,
-conduct the user test, verify public links and submit the final commit through the owner's account.
+Complete the independent product review, run the F4 REAL HARDWARE benchmark, verify the webcam's
+real UVC exposure/focus set-and-read-back, complete the F10 soak and hardware work, record the
+public demo, conduct the five-user test, verify links and submit the final commit through the
+owner's account. F11 license/audit evidence is pending review in [PR #59](https://github.com/aiambo08/nebiusxnvidia_hackathon/pull/59).
 
 ## Built with
 
@@ -62,11 +85,13 @@ Physical AI
 
 ## Feedback
 
-Token Factory's OpenAI-compatible API and structured output supported the live evaluation. The
-default reasoning mode consumed the output budget until thinking was disabled. The local
-least-privilege action selector scored as well by action name on the golden test, so we treat the
+Token Factory's OpenAI-compatible API and structured output supported the live evaluation; the
+default reasoning mode could consume the output budget until thinking was disabled. The F6
+golden-v2 run made 264 calls, with 100% schema validity, 98.864% action accuracy and $0.03057240
+run cost. The local least-privilege selector also scored 100% by action name, so we treat the
 Nemotron score as constrained action selection rather than independent diagnosis. Nebius AI Cloud
-was not used. Sources: `docs/feedback.md`, the F6 test report and rules baseline.
+was not used. Sources: [feedback log](feedback.md), [F6 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)
+and [rules baseline](evidence/f6/golden-rules-baseline-test.md).
 
 ## Links
 
@@ -75,8 +100,14 @@ was not used. Sources: `docs/feedback.md`, the F6 test report and rules baseline
 
 ## Sources
 
-- `docs/evidence/f3/latency-hardware.md`
-- `docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md`
-- `docs/evidence/f6/golden-rules-baseline-test.md`
-- `docs/evidence/f8/recovery-bench.md`
-- `docs/feedback.md`
+- [F3 latency (REAL HARDWARE CPU, synthetic frames)](evidence/f3/latency-hardware.md)
+- [F3 static-scene checks (REAL HARDWARE)](evidence/f3/static-scene-hardware.md)
+- [F3 walk-by (REAL HARDWARE)](evidence/f3/walkby-hardware.md)
+- [F5 hysteresis review (SIMULATION)](evidence/f5/hysteresis.md)
+- [F6 golden-v2 live test](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)
+- [F6 local rules baseline](evidence/f6/golden-rules-baseline-test.md)
+- [F7 crash recovery test (SIMULATION)](../tests/integration/test_crash_recovery.py)
+- [F8 recovery benchmark (SIMULATION)](evidence/f8/recovery-bench.md)
+- [Merged F10 experiments (SIMULATION)](evidence/f10/experiments.md)
+- [Freeze-window limitation, ADR-003](adr/ADR-003-freeze-needs-a-measurable-scene.md)
+- [Feedback log](feedback.md)

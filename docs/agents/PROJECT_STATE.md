@@ -130,7 +130,7 @@ Last update: 2026-10-18 · Current phase: **F8** (F8 simulation evidence complet
 ## F10–F12 submission status
 - F10 A1–A8 SIMULATION evidence is merged on `main` at `34390e7`; cite `docs/evidence/f10/experiments.md`. The soak and REAL HARDWARE evidence remain pending; no F10 gate is marked passed.
 - F11 evidence is in PR #59 and remains **pending review**; do not cite its evidence files unless it is merged before the F12 push.
-- F12 submission materials are being prepared. No F12 gate is claimed complete: independent reproduction, physical demo video, user test, final tag, incognito link check and Devpost submission remain owner/reviewer work.
+- F12 submission docs are prepared in `README.md`, `docs/compliance-matrix.md`, `docs/demo-script.md`, `docs/devpost.md`, `docs/feedback.md` and `docs/es/pasos-del-propietario.md`. The author-run fresh-clone transcript is `docs/evidence/f12/quickstart.md`: Python 3.11.13, 854 passed / 1 deselected / 2 xfailed, `ra-demo all` passed, and the SIMULATION dashboard returned HTTP 200. Its one-frame generated-file smoke test is CLI-only, not F4 or REAL HARDWARE evidence. No F12 gate is claimed complete; independent reproduction, F4 webcam benchmark, physical demo video, five-user test, final tag, incognito link check and Devpost submission remain owner/reviewer work.
 ## Blockers
 - Token Factory console balance to be confirmed by Aibo.
 

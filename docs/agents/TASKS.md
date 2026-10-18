@@ -93,6 +93,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
 - [x] [F9][product] Build the finished dashboard page in `apps/dashboard/index.html` (planner labels per plan source: rules, scripted, fallback, cache; header and panel share the plan source)
 - [ ] [F9][product] Complete F9 product evidence
+- F12 documentation drafts and the author-run fresh-clone quickstart transcript are prepared in `docs/evidence/f12/quickstart.md`; all submission and independent-review boxes below remain unchecked.
 - [ ] [F12][product] Independent fresh reviewer reproduces the README happy path
 - [ ] [F12][product] Run F4 REAL HARDWARE recordings and benchmark with the owner
 - [ ] [F12][product] Five-user product test with completed observation forms

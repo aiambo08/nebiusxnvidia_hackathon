@@ -7,9 +7,11 @@ deterministic policy gate, and **keeps the change only if the downstream task me
 recovers** — otherwise it rolls back and escalates to a human.
 
 > Working name · Nebius x NVIDIA Global AI Hackathon 2026 · **Physical AI track** ·
-> License: [Apache-2.0](LICENSE) · Evidence exists for F3, F5, F6, F7, and F8; F4
-> real-hardware benchmarking and F9 product review remain open. F10 is pending PR #58 integration;
-> F11 is pending review. Evidence is labelled SIMULATION or REAL HARDWARE.
+> License: [Apache-2.0](LICENSE) · F5 and F8 are the gates currently marked passed in
+> [`docs/phases-and-gates.md`](docs/phases-and-gates.md). F3, F4, F6, F7 and F9 remain open.
+> F10 A1–A8 SIMULATION evidence is merged on `main`, but its soak and REAL HARDWARE evidence
+> remain pending. F11 is pending review. F12 is documentation preparation only; its gate is not
+> passed and owner/reviewer actions remain. Evidence is labelled SIMULATION or REAL HARDWARE.
 > See [`docs/phases-and-gates.md`](docs/phases-and-gates.md).
 
 ## Why
@@ -61,10 +63,10 @@ client-side budget caps · a Token Factory outage degrades to local rules + huma
   (`https://api.tokenfactory.nebius.com/v1/`) for causal diagnosis, action selection among the
   incident's allowed actions, verification design and a human-readable explanation.
 - The deterministic policy gate offers only fault-relevant, device-supported actions plus safe
-  escalation (ADR-009); Nemotron proposes but never executes. A circuit breaker and local-rule
-  fallback keep monitoring available during provider outages.
+  escalation (ADR-009); Nemotron proposes but never executes. A circuit breaker opens on provider
+  failures and falls back to local rules, keeping monitoring available during outages.
 - Each call logs model, prompt version, input/output tokens, latency and estimated cost. The live
-  F6 golden-set evaluation used 264 rows and cost $0.03057240
+  F6 golden-set evaluation made 264 calls and cost about $0.031 ($0.03057240 in the report)
   ([report](docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)).
   A local selector also scored 100% by action name on that test, so this is constrained action
   selection—not independent diagnosis ([baseline](docs/evidence/f6/golden-rules-baseline-test.md)).
@@ -81,18 +83,18 @@ client-side budget caps · a Token Factory outage degrades to local rules + huma
 
 | Phase | Result | Evidence |
 |---|---|---|
-| F3 · REAL HARDWARE CPU, synthetic frames | 720p paced probe p95 was 23.2 / 32.6 / 34.5 ms on the owner's laptop under Best performance; this is CPU timing, not a live-camera latency result. | [`latency-hardware.md`](docs/evidence/f3/latency-hardware.md) |
-| F3 · REAL HARDWARE camera inputs | Static-scene checks passed on the webcam and two phone RTSP scenes; the walk-by run observed 22/22 trials with no `fov_shift` window and detected its bump control. MJPEG was inconclusive. | [`static-scene-hardware.md`](docs/evidence/f3/static-scene-hardware.md), [`walkby-hardware.md`](docs/evidence/f3/walkby-hardware.md) |
-| F5 · SIMULATION | Independent gate review passed 6/6 conditions; hysteresis evidence is synthetic. | [`phases-and-gates.md`](docs/phases-and-gates.md), [`hysteresis.md`](docs/evidence/f5/hysteresis.md) |
-| F6 · REAL TOKEN FACTORY | Golden-v2 test: 100% schema-valid, 98.864% action accuracy, $0.03057240 run cost. The local selector also scores 100% by action name, so the score is not evidence of independent diagnosis. | [test report](docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md), [rules baseline](docs/evidence/f6/golden-rules-baseline-test.md) |
-| F7 · SIMULATION | A subprocess crash-recovery test exercises restart recovery after persisted action state and verifies conservative rollback/escalation. | [`test_crash_recovery.py`](tests/integration/test_crash_recovery.py) |
-| F8 · SIMULATION | Recovered 87/100 recoverable incidents. Regression results were 45/50 raw, with all 45/45 executed cases contained; five dark:0.8 cases did not execute because no incident was confirmed. | [`recovery-bench.md`](docs/evidence/f8/recovery-bench.md) |
-| F10 | **Pending** PR #58 integration; the A1–A8 report is not on `main` yet. | PR #58 |
-| F10 soak | **Pending**; no soak report is present on `main`. | — |
+| F3 · REAL HARDWARE CPU, synthetic frames | Three 720p paced probe p95 runs on the owner's laptop were 23.2 / 32.6 / 34.5 ms under Windows Best performance. This is a CPU measurement using synthetic frames, not a live-camera latency result. | [`latency-hardware.md`](docs/evidence/f3/latency-hardware.md) |
+| F3 · REAL HARDWARE camera inputs | Static-scene checks passed on the webcam at rest and two phone RTSP scenes. The walk-by test observed 22/22 trials with no `fov_shift` windows and detected its bump control; MJPEG was inconclusive. | [`static-scene-hardware.md`](docs/evidence/f3/static-scene-hardware.md), [`walkby-hardware.md`](docs/evidence/f3/walkby-hardware.md) |
+| F5 · SIMULATION | Independent gate review passed 6/6 conditions; the associated hysteresis benchmark is SIMULATION evidence. | [`PROJECT_STATE.md`](docs/agents/PROJECT_STATE.md), [`hysteresis.md`](docs/evidence/f5/hysteresis.md) |
+| F6 · REAL TOKEN FACTORY | Golden-v2 test: 264 calls, 100% schema validity, 98.864% action accuracy, and $0.03057240 run cost (about $0.031). The local selector also scored 100% by action name, so this is not evidence of independent diagnosis. | [test report](docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md), [rules baseline](docs/evidence/f6/golden-rules-baseline-test.md) |
+| F7 · SIMULATION | A subprocess crash-recovery test verifies snapshot restoration and conservative rollback/escalation after restart; the real webcam adapter remains open. | [`test_crash_recovery.py`](tests/integration/test_crash_recovery.py), [`PROJECT_STATE.md`](docs/agents/PROJECT_STATE.md) |
+| F8 · SIMULATION | Recovered 87/100 recoverable cases. Regression results were 45/50 raw; all 45/45 executed cases were contained. Five `dark:0.8` cases did not execute because no incident was confirmed. | [`recovery-bench.md`](docs/evidence/f8/recovery-bench.md) |
+| F10 · SIMULATION | The merged A1–A8 report has 454 valid EventStores; A3 recovery was 25/25 (20/20 on the F8-comparable subset); A4 COMMITTED was 0/20 versus 0/20 in A3, so no difference was demonstrated. The soak and REAL HARDWARE evidence remain pending. | [`experiments.md`](docs/evidence/f10/experiments.md) |
+| F10 soak | **Pending**; the four-hour soak has not completed, and no soak result is claimed. | — |
 
 These results do not claim that the submission video, five-user test, final tag or Devpost
-submission exist. F3, F5, F7 and F8 rows above are simulation or hardware measurements only as
-labelled; the F6 row is a live Token Factory evaluation, not a physical-hardware run.
+submission exist. Each row identifies whether its evidence is SIMULATION, REAL HARDWARE, or a live
+Token Factory evaluation; none should be read as evidence of a different mode.
 
 ## Quickstart
 
@@ -106,15 +108,26 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate    Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev,api]"
 
-pytest -q                              # exact count: docs/evidence/f12/quickstart.md
+pytest -q                              # 854 passed; transcript: docs/evidence/f12/quickstart.md
 ra-demo all                            # deterministic SIMULATION of every scenario
 ```
 
-Start the read-only simulation dashboard with `ra-demo dashboard` and open
-`http://127.0.0.1:8000/`; stop it with Ctrl+C. For a webcam, use
-`ra-demo dashboard --live --uri 0`. See `ra-demo dashboard --help` for available options.
-The static page is [`apps/dashboard/index.html`](apps/dashboard/index.html). No screenshot is
-currently committed, so none is shown here.
+Start the read-only SIMULATION dashboard:
+
+```bash
+ra-demo dashboard
+```
+
+In another terminal, check that the page responds successfully, then stop the server with Ctrl+C:
+
+```bash
+curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8000/
+```
+
+Expected: `HTTP 200`. For a REAL HARDWARE webcam dashboard, use
+`ra-demo dashboard --live --uri 0`. The static page is
+[`apps/dashboard/index.html`](apps/dashboard/index.html). No dashboard screenshots are committed,
+so none is shown here.
 
 Use Nemotron (spends a few cents of Token Factory credits):
 
@@ -180,18 +193,22 @@ foundation model · managing thousands of cameras · replacing an NVR (Frigate, 
 ## Known limitations (honest status)
 
 - F4 REAL HARDWARE recall/precision and varied-session benchmarking remain pending
-  ([evaluation protocol](docs/evaluation.md)).
-- The integrated webcam's UVC exposure/autofocus set-and-read-back has not been verified; the
-  owner must run that check ([open task](docs/agents/TASKS.md)).
+  ([evaluation protocol](docs/evaluation.md)); the F3 camera checks do not close the F4 benchmark.
+- The integrated webcam's UVC exposure/autofocus control and set-and-read-back have not been
+  verified; the owner must run that check ([open task](docs/agents/TASKS.md)).
 - The F6 action score is not an independent-diagnosis measure: the local selector also scores
   100% by action name ([F6 report](docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md),
   [baseline](docs/evidence/f6/golden-rules-baseline-test.md)).
-- The pending F10 report records a 0-vs-0 COMMITTED result for the full-loop and no-downstream-metric
-  arms; it does not demonstrate a difference. It is in PR #58 at
-  `docs/evidence/f10/experiments.md`, pending integration.
-- Freeze is checked only on the confirming window; onset can be missed due to timing. Frozen
-  overexposure/focus-drift cases remain outside the blackout-only shortcut
-  ([project state](docs/agents/PROJECT_STATE.md)).
+- The merged F10 report records a 0-vs-0 COMMITTED result for the full-loop and no-downstream-metric
+  arms; it does not demonstrate a difference. The report is SIMULATION evidence only
+  ([experiments](docs/evidence/f10/experiments.md)); the soak and REAL HARDWARE evidence remain
+  pending.
+- The frozen check examines only the confirming window, so window alignment can miss freeze onset
+  around a dark frame. Frozen overexposure/focus-drift may be classified as those faults instead of
+  blackout and can receive one exposure/autofocus action before snapshot-backed rollback and human
+  escalation; checking recent windows remains open work
+  ([ADR-003](docs/adr/ADR-003-freeze-needs-a-measurable-scene.md),
+  [project state](docs/agents/PROJECT_STATE.md)).
 - F10 soak and hardware evidence remain pending. Do not interpret simulation evidence as REAL
   HARDWARE.
 

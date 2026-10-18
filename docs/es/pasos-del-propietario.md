@@ -9,40 +9,85 @@ reales; nunca pegues una clave.
 **Human-only.** Desde la carpeta del repositorio, en PowerShell:
 
 ```powershell
-git pull
-if (-not (Test-Path .venv)) { py -m venv .venv }
+git status --short
+git pull --ff-only
+if (-not (Test-Path .venv)) { py -3.11 -m venv .venv }
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -e ".[dev,api]"
+python --version
+python -m pip install -e ".[dev,api]"
 pytest -q
+git rev-parse --short HEAD
+git status --short
 ```
 
-Esperado: instalación editable sin errores y un resumen de pytest. Pega de vuelta el SHA de
-`git rev-parse --short HEAD`, la versión de `python --version` y la última línea de pytest.
-No compartas `.env`.
+Esperado: `git pull --ff-only` actualiza sin conflicto, la instalación editable termina sin error,
+y pytest muestra su resumen real (`N passed`, más cualquier skip/xfail del commit). Si `git status`
+muestra cambios antes del pull, para y pregunta; no los descartes. Pega de vuelta el SHA, la versión
+de Python, la última línea de pytest y el estado final de Git. No compartas `.env`, su contenido ni
+claves.
 
-## 2. Grabaciones F4 REAL HARDWARE y benchmark
+## 2. Prueba de archivo sintético y grabaciones F4 REAL HARDWARE
 
-**Human-only:** conecta la webcam, elige escenas variadas y no incluyas personas salvo cuando
-pruebes una oclusión planificada. Revisa `docs/evaluation.md` y el `--help` antes de grabar.
-Usa un ID nuevo que no aparezca en `benchmarks/manifests/sessions.yaml`; no sobrescribas clips.
+La primera parte es solo una prueba local del flujo de archivo; **no es evidencia F4 ni REAL
+HARDWARE**. Genera un video artificial breve en la carpeta temporal y llama a `record_clip` sin
+`--split`, así que no entra al índice F4:
 
 ```powershell
-$Session = "sNNN" # reemplaza por un ID único
-python scripts/record_clip.py --uri 0 --seconds 330 --session $Session --split test --conditions "scene and lighting conditions"
+$env:F12_SYNTHETIC = Join-Path $env:TEMP "f12-synthetic-dry-run.avi"
+@'
+import os
+import cv2
+import numpy as np
+
+path = os.environ["F12_SYNTHETIC"]
+writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"MJPG"), 30.0, (160, 120))
+if not writer.isOpened():
+    raise SystemExit("MJPG writer unavailable")
+for index in range(1200):
+    frame = np.full((120, 160, 3), 48, dtype=np.uint8)
+    x = index % 150
+    cv2.rectangle(frame, (x, 30), (x + 10, 90), (200, 180, 40), -1)
+    writer.write(frame)
+writer.release()
+print(path)
+'@ | python -
+python scripts/record_clip.py --uri $env:F12_SYNTHETIC --seconds 0.000001 --warmup 0.01 --session f12-synthetic-smoke
+```
+
+Esperado: JSON con `"uri_kind": "file"`, un valor `frames` mayor que cero y un archivo bajo
+`benchmarks/data/`; no debe aparecer un mensaje `added ... to ...sessions.yaml`. No uses este clip
+para degradaciones, métricas, formularios o claims de hardware. La comprobación realizada en Linux
+terminó con código 0 y registró 1 frame sintético; no midió rendimiento F4.
+
+**Human-only:** conecta la webcam, elige escenas variadas y no incluyas personas salvo cuando
+pruebes una oclusión planificada. Revisa `docs/evaluation.md` y confirma los flags con
+`python scripts/record_clip.py --help` y `python scripts/run_benchmark.py --help`. El protocolo
+requiere un ID `dev` nuevo y al menos seis IDs `test` únicos, cada uno con 330 s. No uses IDs ya
+presentes en `benchmarks/manifests/sessions.yaml`; no sobrescribas clips.
+
+```powershell
+$Conditions = "textured desk, daylight, nobody in frame"
+$DevSession = "sNNN" # reemplaza por un ID dev nuevo
+python scripts/record_clip.py --uri 0 --seconds 330 --session $DevSession --split dev --conditions $Conditions
+$TestSession = "sMMM" # reemplaza por un ID test nuevo; repite con seis IDs únicos
+python scripts/record_clip.py --uri 0 --seconds 330 --session $TestSession --split test --conditions $Conditions
 python -m benchmarks.build_manifests
 python -m benchmarks.make_degraded --all
 python scripts/run_benchmark.py
 ```
 
-Esperado: `record_clip` guarda un clip ignorado por Git y añade hash, frames, FPS, duración y
-condiciones al índice; `build_manifests` escribe manifiestos F4; `make_degraded --all` regenera
-degradaciones sintéticas verificando hashes; `run_benchmark` crea el informe Markdown/JSON y sale
-con código cero solo si los gates que juzga pasan. Pega el ID de sesión, hashes de clips, ubicación
-de informes y resumen del benchmark; no subas vídeos privados.
+Esperado: cada grabación real devuelve JSON con el ID, hash SHA-256, frames, FPS, resolución,
+duración y `uri_kind: webcam`; con `--split` añade la sesión al índice. `build_manifests` escribe
+los manifiestos F4; `make_degraded --all` regenera degradaciones sintéticas verificando hashes;
+`run_benchmark` crea el informe Markdown/JSON y sale con código cero solo si los gates que juzga
+pasan. Pega los IDs y hashes, las rutas de informes y el resumen del benchmark; no subas vídeos
+privados.
 
-La ruta de prueba con archivo sintético y las opciones se validaron en este entorno antes de
-publicar esta guía; úsala solo para comprobar la CLI, no como evidencia REAL HARDWARE.
+La CLI acepta un archivo sintético para probar `record_clip` **sin** `--split`; el modo F4
+`--split test` exige una cámara o un stream y rechaza archivos por diseño. No añadas un archivo
+sintético al índice F4 ni lo presentes como evidencia REAL HARDWARE. Las opciones y el dry run
+anterior se verificaron localmente; solo comprueban el flujo de archivo, no los gates F4 ni el
+hardware.
 
 ## 3. Prueba de webcam en el dashboard
 
