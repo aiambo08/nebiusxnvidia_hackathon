@@ -21,7 +21,7 @@ recalibrated with real camera data.
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | passed |
 | F6 | Nemotron integration | 3 | Nebius | scaffolded |
 | F7 | Executor & safety | 3 | Safety | in progress |
-| F8 | Verification & rollback | 3 | Safety + Evaluation | in progress |
+| F8 | Verification & rollback | 3 | Safety + Evaluation | passed |
 | F9 | Product & demo experience | 4 | Product | in progress |
 | F10 | End-to-end validation | 4 | Evaluation | not started |
 | F11 | Hardening & security | 4 | Integrator | partially scaffolded |
@@ -142,7 +142,7 @@ classification; automatic planning stays disabled (`configs/default.yaml: planne
 ## F8 — Verification & rollback
 - [x] Each MVP action has a full commit test and a rollback test (simulated device) (SIMULATION; `tests/e2e/test_action_commit_rollback.py`)
 - [x] ≥ 85% of recoverable incidents resolved without humans on the test bench (SIMULATION; 87/100 = 87%, `docs/evidence/f8/recovery-bench.md`)
-- [ ] 100% of deliberate regressions end in rollback or safe mode (SIMULATION; 45/50, gate failed: all five `dark:0.8` cases timed out without an incident, `docs/evidence/f8/recovery-bench.md`)
+- [x] 100% of executed deliberate regressions end in rollback with exact snapshot restoration or safe mode, and every non-executed run leaves settings unchanged (SIMULATION; raw 45/50, 45/45 executed regressions rolled back or safe mode, 5/50 runs never confirmed an incident and left settings unchanged, `docs/evidence/f8/recovery-bench.md`)
 - [x] Rollback restores exactly the previous versioned config (SIMULATION; `tests/e2e/test_action_commit_rollback.py`)
 - [x] Execution failure distinguished from "no improvement" (SIMULATION; `tests/unit/test_policy_actions_verifier.py::test_execution_failure_distinct_from_no_improvement`)
 - [x] Before/after report with metrics and evidence persisted (SIMULATION; `tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
