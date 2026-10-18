@@ -113,14 +113,17 @@ Gate review (independent, 2026-10-17, main d425c03): passed 6/6 in SIMULATION �
 
 ## F6 — Nemotron integration
 - Live run 2026-10-18 (diagnose_v1, fast): schema-valid 100 %, cost projected $0.033/300 incidents, action accuracy 75.4 % — not passed ([v1 test report](evidence/f6/golden-diagnose-v1-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)).
-- [ ] ≥ 98% schema-valid responses after ≤ 1 retry
-- [ ] ≥ 90% correct action choice on the golden set
+- Live re-run 2026-10-18 after ADR-009 (diagnose_v2, fast, golden_v2): schema-valid 100 %, action accuracy 98.9 %, projected $0.035/300 incidents — passed ([v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)). `configs/default.yaml` now defaults to `diagnose_v2`.
+- [x] ≥ 98% schema-valid responses after ≤ 1 retry (100 % schema-valid and 100 % valid first try; [v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md))
+- [x] ≥ 90% correct action choice on the golden set (98.864 %; follows local diagnosis and respects capability/policy limits. Not discriminative after ADR-009: on test, 52/88 cases offer exactly one non-escalation action, 32/88 two and 4/88 none, and a trivial "first offered non-escalation action, else `enter_safe_mode`" selector scores 88/88 = 100 % by action name (72/88 = 81.8 % with generic exposure arguments), the same as the rules baseline. The box shows Nemotron does not degrade the local diagnosis, not that it diagnoses independently; misses listed in [test-misses.json](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test-misses.json); [v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md))
 - [x] 100% invented actions / out-of-range args rejected by policy gate (adversarial tests)
 - [x] 0 direct executions from free text (planner only emits validated `NemotronPlan`)
 - [x] Cloud timeout does not block capture/monitoring (circuit breaker + local fallback)
 - [x] Prompt version + model recorded on every decision
-- [ ] Measured mean cost compatible with total budget
+- [x] Measured mean cost compatible with total budget ($0.0347/300 incidents, below the $23 gate; [v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md))
 - [x] Offline mode produces a safe, useful escalation (`RuleBasedPlanner` / `needs_human`)
+
+Independent F6 gate review pending; F6 is not yet passed.
 
 **Block:** if validity or action selection misses the gate, Nemotron is limited to explanation and
 classification; automatic planning stays disabled (`configs/default.yaml: planner.auto_execute`).
