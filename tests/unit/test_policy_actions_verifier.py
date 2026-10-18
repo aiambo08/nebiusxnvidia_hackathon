@@ -64,6 +64,29 @@ def test_action_not_offered_rejected():
     assert not d.approved and "not offered" in d.reasons[0]
 
 
+def test_action_requiring_missing_capability_rejected_even_if_offered():
+    inc = incident(actions=[A.SET_EXPOSURE_BOUNDED], caps=["restart"])
+    action = PlanAction(name=A.SET_EXPOSURE_BOUNDED, arguments={"delta_ev": 1.0})
+
+    decision = PolicyGate().evaluate(action, inc)
+
+    assert not decision.approved
+    assert decision.reasons == ["device lacks capabilities ['exposure']"]
+
+
+def test_cooldown_exact_boundary_is_exclusive_before_and_inclusive_at_deadline():
+    gate = PolicyGate()
+    inc = incident()
+    action = PlanAction(name=A.SET_EXPOSURE_BOUNDED, arguments={"delta_ev": 1.0})
+    cooldown_s = gate.registry[A.SET_EXPOSURE_BOUNDED].cooldown_s
+
+    assert gate.evaluate(action, inc, now=0.0).approved
+    gate.record_execution(A.SET_EXPOSURE_BOUNDED, now=0.0)
+
+    assert not gate.evaluate(action, inc, now=cooldown_s - 0.001).approved
+    assert gate.evaluate(action, inc, now=cooldown_s).approved
+
+
 # ------------------------------------------------------------------ executor
 
 

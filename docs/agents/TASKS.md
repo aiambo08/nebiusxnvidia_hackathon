@@ -80,6 +80,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F6][evaluation] Resolve the missing `golden-rules-baseline-dev.md` target linked by the golden-v2 dev-2 eval report (target absent; leave frozen reports unchanged)
 - [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
 - [x] [F7][safety] Real subprocess crash recovery at snapshot, device-apply, and VERIFYING checkpoints (`tests/integration/test_crash_recovery.py`; atomic markers and checkout import path)
+- [x] [F7][safety] Reject oversized numeric plan arguments at the policy gate without escaping `on_window` (`tests/adversarial/test_policy_fuzz.py`, `tests/integration/test_policy_gate_overflow.py`)
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
 - [x] [F8][safety] Persist pending VERIFYING decisions across restarts (`tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
 - [x] [F8][safety] Test full-loop commit and rollback for every MVP action (`tests/e2e/test_action_commit_rollback.py`, SIMULATION)
