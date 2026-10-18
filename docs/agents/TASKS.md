@@ -83,10 +83,10 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
 - [x] [F8][safety] Persist pending VERIFYING decisions across restarts (`tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
 - [x] [F8][safety] Test full-loop commit and rollback for every MVP action (`tests/e2e/test_action_commit_rollback.py`, SIMULATION)
-- [x] [F8][evaluation] Run the pre-registered offline recovery and regression grids (`docs/evidence/f8/recovery-bench.md`; recovery 87/100, raw regression 45/50, 45/45 executed passed and 5/50 non-executed settings unchanged)
+- [x] [F8][evaluation] Run the pre-registered offline recovery and regression grids (`docs/evidence/f8/recovery-bench.md`; recovery 87/100, raw regression 45/50, 45/45 executed passed, 5/50 non-executed settings unchanged, and executed coverage in all four families)
 - [x] [F8][evaluation] Generate event-derived incident reports (`tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
 - [x] [F8][evaluation] Classify the five `dark:0.8` runs as non-executed missed injections with unchanged device settings; retain the pre-registered grid and thresholds (`docs/evidence/f8/recovery-bench.md`, `docs/agents/DECISIONS.md`)
-- [ ] [F8][evaluation] Independent F8 gate review; the executed-regression and unchanged-settings gate passes
+- [ ] [F8][evaluation] Independent F8 gate review; executed-regression, unchanged-settings, and four-family coverage gates pass
 
 ## F9–F12
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)

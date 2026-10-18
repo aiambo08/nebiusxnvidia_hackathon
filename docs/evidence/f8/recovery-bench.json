@@ -1,6 +1,6 @@
 {
-  "code_sha": "13d25590ae5561f0eb1cd5559d80cf5da7475f9c",
-  "generated_at": "2026-10-18T11:47:24.266020+00:00",
+  "code_sha": "20c4126c218229646395ba7bff3aa8dd50399891",
+  "generated_at": "2026-10-18T12:38:24.500656+00:00",
   "label": "SIMULATION",
   "recovery": {
     "runs": [
@@ -1338,16 +1338,30 @@
     "runs": [
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "HEALTHY",
         "incident_confirmed": false,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": "no incident confirmed",
         "outcome": "timeout",
         "plan_source": null,
+        "pre_action_snapshot_settings": null,
         "recoverable": true,
         "regression_executed": false,
         "regression_gate_pass": true,
         "regression_pass": false,
         "rollback_ok": false,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 0,
         "settings_unchanged": true,
@@ -1356,16 +1370,30 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "HEALTHY",
         "incident_confirmed": false,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": "no incident confirmed",
         "outcome": "timeout",
         "plan_source": null,
+        "pre_action_snapshot_settings": null,
         "recoverable": true,
         "regression_executed": false,
         "regression_gate_pass": true,
         "regression_pass": false,
         "rollback_ok": false,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 1,
         "settings_unchanged": true,
@@ -1374,16 +1402,30 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "HEALTHY",
         "incident_confirmed": false,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": "no incident confirmed",
         "outcome": "timeout",
         "plan_source": null,
+        "pre_action_snapshot_settings": null,
         "recoverable": true,
         "regression_executed": false,
         "regression_gate_pass": true,
         "regression_pass": false,
         "rollback_ok": false,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 2,
         "settings_unchanged": true,
@@ -1392,16 +1434,30 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "HEALTHY",
         "incident_confirmed": false,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": "no incident confirmed",
         "outcome": "timeout",
         "plan_source": null,
+        "pre_action_snapshot_settings": null,
         "recoverable": true,
         "regression_executed": false,
         "regression_gate_pass": true,
         "regression_pass": false,
         "rollback_ok": false,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 3,
         "settings_unchanged": true,
@@ -1410,16 +1466,30 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "HEALTHY",
         "incident_confirmed": false,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": "no incident confirmed",
         "outcome": "timeout",
         "plan_source": null,
+        "pre_action_snapshot_settings": null,
         "recoverable": true,
         "regression_executed": false,
         "regression_gate_pass": true,
         "regression_pass": false,
         "rollback_ok": false,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 4,
         "settings_unchanged": true,
@@ -1428,16 +1498,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 0,
         "settings_unchanged": null,
@@ -1446,16 +1535,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 1,
         "settings_unchanged": null,
@@ -1464,16 +1572,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 2,
         "settings_unchanged": null,
@@ -1482,16 +1609,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 3,
         "settings_unchanged": null,
@@ -1500,16 +1646,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 4,
         "settings_unchanged": null,
@@ -1518,16 +1683,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 0,
         "settings_unchanged": null,
@@ -1536,16 +1720,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 1,
         "settings_unchanged": null,
@@ -1554,16 +1757,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 2,
         "settings_unchanged": null,
@@ -1572,16 +1794,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 3,
         "settings_unchanged": null,
@@ -1590,16 +1831,35 @@
       },
       {
         "fault": "dark",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "dark",
         "seed": 4,
         "settings_unchanged": null,
@@ -1608,16 +1868,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 0,
         "settings_unchanged": null,
@@ -1626,16 +1905,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 1,
         "settings_unchanged": null,
@@ -1644,16 +1942,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 2,
         "settings_unchanged": null,
@@ -1662,16 +1979,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 3,
         "settings_unchanged": null,
@@ -1680,16 +2016,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 4,
         "settings_unchanged": null,
@@ -1698,16 +2053,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 0,
         "settings_unchanged": null,
@@ -1716,16 +2090,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 1,
         "settings_unchanged": null,
@@ -1734,16 +2127,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 2,
         "settings_unchanged": null,
@@ -1752,16 +2164,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 3,
         "settings_unchanged": null,
@@ -1770,16 +2201,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 4,
         "settings_unchanged": null,
@@ -1788,16 +2238,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 0,
         "settings_unchanged": null,
@@ -1806,16 +2275,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 1,
         "settings_unchanged": null,
@@ -1824,16 +2312,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 2,
         "settings_unchanged": null,
@@ -1842,16 +2349,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 3,
         "settings_unchanged": null,
@@ -1860,16 +2386,35 @@
       },
       {
         "fault": "defocus",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": false,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "defocus",
         "seed": 4,
         "settings_unchanged": null,
@@ -1878,16 +2423,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 0,
         "settings_unchanged": null,
@@ -1896,16 +2460,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 1,
         "settings_unchanged": null,
@@ -1914,16 +2497,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 2,
         "settings_unchanged": null,
@@ -1932,16 +2534,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 3,
         "settings_unchanged": null,
@@ -1950,16 +2571,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 4,
         "settings_unchanged": null,
@@ -1968,16 +2608,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 0,
         "settings_unchanged": null,
@@ -1986,16 +2645,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 1,
         "settings_unchanged": null,
@@ -2004,16 +2682,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 2,
         "settings_unchanged": null,
@@ -2022,16 +2719,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 3,
         "settings_unchanged": null,
@@ -2040,16 +2756,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 4,
         "settings_unchanged": null,
@@ -2058,16 +2793,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 0,
         "settings_unchanged": null,
@@ -2076,16 +2830,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 1,
         "settings_unchanged": null,
@@ -2094,16 +2867,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 2,
         "settings_unchanged": null,
@@ -2112,16 +2904,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 3,
         "settings_unchanged": null,
@@ -2130,16 +2941,35 @@
       },
       {
         "fault": "overexpose",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "scripted",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "overexpose",
         "seed": 4,
         "settings_unchanged": null,
@@ -2148,16 +2978,35 @@
       },
       {
         "fault": "frozen_black",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "rules",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "frozen_black",
         "seed": 0,
         "settings_unchanged": null,
@@ -2166,16 +3015,35 @@
       },
       {
         "fault": "frozen_black",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "rules",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "frozen_black",
         "seed": 1,
         "settings_unchanged": null,
@@ -2184,16 +3052,35 @@
       },
       {
         "fault": "frozen_black",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "rules",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "frozen_black",
         "seed": 2,
         "settings_unchanged": null,
@@ -2202,16 +3089,35 @@
       },
       {
         "fault": "frozen_black",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "rules",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "frozen_black",
         "seed": 3,
         "settings_unchanged": null,
@@ -2220,16 +3126,35 @@
       },
       {
         "fault": "frozen_black",
+        "final_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "final_state": "NEEDS_HUMAN",
         "incident_confirmed": true,
+        "initial_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "non_executed_reason": null,
         "outcome": "needs_human",
         "plan_source": "rules",
+        "pre_action_snapshot_settings": {
+          "exposure": 0.0,
+          "focus_ok": true,
+          "profile": "main",
+          "safe_mode": false
+        },
         "recoverable": true,
         "regression_executed": true,
         "regression_gate_pass": true,
         "regression_pass": true,
         "rollback_ok": true,
+        "safe_mode": false,
         "scenario": "frozen_black",
         "seed": 4,
         "settings_unchanged": null,
@@ -2238,114 +3163,154 @@
       }
     ],
     "summary": {
+      "by_fault": {
+        "dark": {
+          "executed": 10,
+          "executed_pass": 10,
+          "not_executed": 5,
+          "not_executed_unchanged": 5,
+          "runs": 15
+        },
+        "defocus": {
+          "executed": 15,
+          "executed_pass": 15,
+          "not_executed": 0,
+          "not_executed_unchanged": 0,
+          "runs": 15
+        },
+        "frozen_black": {
+          "executed": 5,
+          "executed_pass": 5,
+          "not_executed": 0,
+          "not_executed_unchanged": 0,
+          "runs": 5
+        },
+        "overexpose": {
+          "executed": 15,
+          "executed_pass": 15,
+          "not_executed": 0,
+          "not_executed_unchanged": 0,
+          "runs": 15
+        }
+      },
       "by_fault_strength": {
         "dark:0.8": {
           "executed": 0,
-          "executed_passed": 0,
+          "executed_pass": 0,
           "not_executed": 5,
+          "not_executed_unchanged": 5,
           "passed": 0,
           "rollback_ok": 0,
           "runs": 5,
-          "settings_identical": 0,
-          "settings_unchanged": 5
+          "settings_identical": 0
         },
         "dark:0.9": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         },
         "dark:0.99": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         },
         "defocus:0.6": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         },
         "defocus:0.8": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         },
         "defocus:1.0": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         },
         "frozen_black:n/a": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         },
         "overexpose:0.6": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         },
         "overexpose:0.8": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         },
         "overexpose:1.0": {
           "executed": 5,
-          "executed_passed": 5,
+          "executed_pass": 5,
           "not_executed": 0,
+          "not_executed_unchanged": 0,
           "passed": 5,
           "rollback_ok": 5,
           "runs": 5,
-          "settings_identical": 5,
-          "settings_unchanged": 0
+          "settings_identical": 5
         }
       },
+      "coverage_floor": {
+        "missing_families": [],
+        "pass": true,
+        "required_families": [
+          "dark",
+          "defocus",
+          "overexpose",
+          "frozen_black"
+        ]
+      },
       "executed": 45,
-      "executed_passed": 45,
+      "executed_pass": 45,
       "failed": 5,
       "gate_pass": true,
       "not_executed": 5,
-      "not_executed_settings_unchanged": 5,
+      "not_executed_unchanged": 5,
       "passed": 45,
       "rollback_ok": 45,
       "runs": 50,
