@@ -81,7 +81,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F6][nebius] Send `exposure_min`/`exposure_max` scalars in the planner packet (with F7 capability discovery), then reintroduce the `exposure_edge` golden variant
 - [x] [F7][safety] Real subprocess crash recovery at snapshot, device-apply, and VERIFYING checkpoints (`tests/integration/test_crash_recovery.py`; atomic markers and checkout import path)
 - [x] [F7][safety] Reject oversized numeric plan arguments at the policy gate without escaping `on_window` (`tests/adversarial/test_policy_fuzz.py`, `tests/integration/test_policy_gate_overflow.py`)
-- [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery)
+- [ ] [F7][safety] Real webcam adapter for exposure/autofocus (capability discovery; outside the 8 F7 gate boxes; real `OpenCVSource` exposes `restart` only)
+- [x] [F7][evaluation] Independent F7 gate review (PASS on `788dc10` + #67 (`76797de`); all 8 boxes verified, 28+5 mutants; box 5 proven in SIMULATION; box-2 OverflowError fixed in #67; https://app.devin.ai/sessions/89606c2deb464b06ade1f4dd47b2eb77)
 - [x] [F8][safety] Persist pending VERIFYING decisions across restarts (`tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
 - [x] [F8][safety] Test full-loop commit and rollback for every MVP action (`tests/e2e/test_action_commit_rollback.py`, SIMULATION)
 - [x] [F8][evaluation] Run the pre-registered offline recovery and regression grids (`docs/evidence/f8/recovery-bench.md`; recovery 87/100, raw regression 45/50, 45/45 executed passed, 5/50 non-executed settings unchanged, and executed coverage in all four families)

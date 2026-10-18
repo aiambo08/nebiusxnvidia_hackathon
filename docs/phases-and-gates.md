@@ -20,7 +20,7 @@ recalibrated with real camera data.
 | F4 | Dataset & reproducible benchmark | 2 | Evaluation | scaffolded |
 | F5 | Adaptive baseline & temporal fusion | 2 | Architecture | passed |
 | F6 | Nemotron integration | 3 | Nebius | passed |
-| F7 | Executor & safety | 3 | Safety | in progress |
+| F7 | Executor & safety | 3 | Safety | passed |
 | F8 | Verification & rollback | 3 | Safety + Evaluation | passed |
 | F9 | Product & demo experience | 4 | Product | in progress |
 | F10 | End-to-end validation | 4 | Evaluation | in progress |
@@ -138,6 +138,8 @@ classification; automatic planning stays disabled (`configs/default.yaml: planne
 - [x] No risky physical action available
 - [x] 100 adversarial cases cannot bypass allowlist, ranges or cooldown
 - [x] Unsupported actions end in NEEDS_HUMAN, never a false confirmation
+
+Independent F7 gate review: PASS on 788dc10 + #67 (76797de), all 8 boxes verified, 28+5 mutants; box 5 proven in SIMULATION; the box-2 OverflowError blocker was fixed in #67 (https://app.devin.ai/sessions/89606c2deb464b06ade1f4dd47b2eb77). Of the 28 mutants, 5 survived the targeted F7 suite: the full suite kills the failed-execution-as-success mutant (`test_a8_failed_apply_restarts_in_failed_before_rollback`), #67's tests now kill the capability-check and cooldown-boundary mutants, and two are unreachable and non-blocking (an action added only to the registry, outside the pinned offer table, and an offered action with no implementation). Known non-blocking risk: an exception raised during rollback escapes the camera loop; the next start recovers the incident to NEEDS_HUMAN without replanning.
 
 ## F8 — Verification & rollback
 - [x] Each MVP action has a full commit test and a rollback test (simulated device) (SIMULATION; `tests/e2e/test_action_commit_rollback.py`)
