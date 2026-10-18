@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "commit": "7907794",
+    "evaluation_note": "This box measures whether the planner follows the local diagnosis and respects capability/policy constraints; candidate_faults[0] determines the label in every case and synthetic defocus carries focus_ok=false, so it is not a test of independent diagnosis. Deterministic rules baseline: [golden-rules-baseline-test.md](golden-rules-baseline-test.md).",
+    "generated": "2026-10-18T08:24:43.241970Z",
+    "golden_sha256": "acc804478279df79582b9dd761416b1b2a0183ccd9d1c1f304f50013e45540cc",
+    "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+    "planner": "nemotron",
+    "prompt_version": "diagnose_v2",
+    "split": "test"
+  },
+  "summary": {
+    "action_confusion": {
+      "enter_safe_mode|needs_human -> enter_safe_mode": 12,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> enter_safe_mode": 8,
+      "enter_safe_mode|needs_human|request_manual_cleaning -> request_manual_cleaning": 4,
+      "request_manual_cleaning -> request_manual_cleaning": 48,
+      "restart_capture -> restart_capture": 48,
+      "set_exposure_bounded -> set_exposure_bounded": 96,
+      "trigger_autofocus -> trigger_autofocus": 48
+    },
+    "budget_spent_usd": 0.030572400000000007,
+    "diagnosis_accuracy": 1.0,
+    "gate": {
+      "action_accuracy": 0.9886363636363636,
+      "boxes": {
+        "action_accuracy": {
+          "status": "PASS",
+          "threshold": 0.9,
+          "value": 0.9886363636363636
+        },
+        "projected_300": {
+          "status": "PASS",
+          "threshold": 23.0,
+          "value": 0.03474136363636365
+        },
+        "schema_valid": {
+          "status": "PASS",
+          "threshold": 0.98,
+          "value": 1.0
+        }
+      },
+      "diagnosis_accuracy": 1.0,
+      "mean_cost_per_call": 0.00011580454545454548,
+      "mean_cost_per_incident": 0.00011580454545454548,
+      "policy_ok_rate": 0.9886363636363636,
+      "projected_300": 0.03474136363636365,
+      "row_count": 264,
+      "run_total_usd": 0.030572400000000007,
+      "schema_valid_rate": 1.0,
+      "soft_cap_usd": 23.0,
+      "valid_first_try_rate": 1.0
+    },
+    "gate_split": "test",
+    "latency_ms": {
+      "count": 264,
+      "p50": 1005.45,
+      "p95": 1354.4899999999998
+    },
+    "model": [
+      "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
+    ],
+    "per_scenario_variant_accuracy": {
+      "dark/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "dark/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "dark/no_cap": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "defocus/base": {
+        "accuracy": 0.9761904761904762,
+        "count": 42
+      },
+      "defocus/injection": {
+        "accuracy": 0.6666666666666666,
+        "count": 6
+      },
+      "defocus/no_cap": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "freeze/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "freeze/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "freeze/no_cap": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "occlusion/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "occlusion/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "overexposure/base": {
+        "accuracy": 1.0,
+        "count": 42
+      },
+      "overexposure/injection": {
+        "accuracy": 1.0,
+        "count": 6
+      },
+      "overexposure/no_cap": {
+        "accuracy": 1.0,
+        "count": 6
+      }
+    },
+    "policy_ok_rate": 0.9886363636363636,
+    "prompt_version": [
+      "diagnose_v2"
+    ],
+    "row_count": 264,
+    "row_total_usd": 0.030572400000000007,
+    "run_total_usd": 0.030572400000000007,
+    "split_counts": {
+      "test": 264
+    },
+    "valid_first_try_rate": 1.0
+  }
+}

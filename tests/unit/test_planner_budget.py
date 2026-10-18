@@ -82,7 +82,7 @@ def test_valid_plan_and_cost_recorded(cfg):
     out = p.plan(incident())
     assert out.source == "nemotron" and out.attempts == 1 and out.valid_first_try
     assert out.plan.action.name is A.SET_EXPOSURE_BOUNDED
-    assert out.usage.prompt_version == "diagnose_v1" and out.usage.model
+    assert out.usage.prompt_version == "diagnose_v2" and out.usage.model
     assert out.usage.estimated_cost_usd > 0 and b.spent_usd == pytest.approx(
         out.usage.estimated_cost_usd)
     rf = sdk.calls[0]["response_format"]

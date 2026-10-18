@@ -73,6 +73,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F6][safety] Offer only capability-supported actions relevant to local candidate faults (ADR-009, `PolicyGate.offered_for`); preserve frozen-black restart
 - [x] [F6][evaluation] Add `golden_v2.jsonl` with v1 labels/splits unchanged and regenerate the deterministic test baseline (`docs/evidence/f6/golden-rules-baseline-test.md`)
 - [x] [F6][nebius] Re-run diagnose_v2 on dev → test on `golden_v2` (141/144 dev; 261/264 test; reports in `docs/evidence/f6/`)
+- [x] [F6][nebius] Default the configured planner prompt to `diagnose_v2`, matching the live `golden_v2` run (`configs/default.yaml`)
 - [ ] [F6][evaluation] Independent F6 gate review
 - [ ] [F6][nebius] Update `build_golden.py` to write `golden_v2` (or accept `--out`) and make `spike_nemotron.py` use `offered_for` (reviewer non-blocking follow-up, PR #51)
 - [ ] [F6][nebius] Investigate whether unknown plan args should be stripped/rejected before the gate; invented `trigger_autofocus` args caused all three test misses (the gate rejected them)

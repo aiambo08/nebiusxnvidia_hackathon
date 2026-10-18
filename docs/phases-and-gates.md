@@ -113,7 +113,7 @@ Gate review (independent, 2026-10-17, main d425c03): passed 6/6 in SIMULATION �
 
 ## F6 — Nemotron integration
 - Live run 2026-10-18 (diagnose_v1, fast): schema-valid 100 %, cost projected $0.033/300 incidents, action accuracy 75.4 % — not passed ([v1 test report](evidence/f6/golden-diagnose-v1-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)).
-- Live re-run 2026-10-18 after ADR-009 (diagnose_v2, fast, golden_v2): schema-valid 100 %, action accuracy 98.9 %, projected $0.035/300 incidents — passed ([v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)).
+- Live re-run 2026-10-18 after ADR-009 (diagnose_v2, fast, golden_v2): schema-valid 100 %, action accuracy 98.9 %, projected $0.035/300 incidents — passed ([v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md)). `configs/default.yaml` now defaults to `diagnose_v2`.
 - [x] ≥ 98% schema-valid responses after ≤ 1 retry (100 % schema-valid and 100 % valid first try; [v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md))
 - [x] ≥ 90% correct action choice on the golden set (98.864 %; follows local diagnosis and respects capability/policy limits; rules baseline 100 %; [v2 test report](evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md))
 - [x] 100% invented actions / out-of-range args rejected by policy gate (adversarial tests)
