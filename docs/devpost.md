@@ -70,10 +70,13 @@ rollback evidence must distinguish executed actions from cases where no incident
 
 ## What's next
 
-Complete the independent product review, run the F4 REAL HARDWARE benchmark, verify the webcam's
-real UVC exposure/focus set-and-read-back, complete the F10 soak and hardware work, record the
-public demo, conduct the five-user test, verify links and submit the final commit through the
-owner's account. F11 license/audit evidence is pending review in [PR #59](https://github.com/aiambo08/nebiusxnvidia_hackathon/pull/59).
+Complete the independent product review, run the F4 REAL HARDWARE benchmark, complete the F10 soak
+and hardware work, record the public demo, conduct the five-user test, verify links and submit the
+final commit through the owner's account. Real UVC/ONVIF exposure/focus control is not implemented
+yet: `OpenCVSource.capabilities()` returns only `restart`, so on a real webcam the gate offers only
+restart, safe mode, cleaning/human tickets. Bounded exposure/focus commit/rollback is demonstrated
+in SIMULATION only ([source](../src/reliability_agent/capture/sources.py)). F11 license/audit
+evidence is pending review in [PR #59](https://github.com/aiambo08/nebiusxnvidia_hackathon/pull/59).
 
 ## Built with
 

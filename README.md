@@ -108,7 +108,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate    Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev,api]"
 
-pytest -q                              # 854 passed; transcript: docs/evidence/f12/quickstart.md
+pytest -q                              # 854 passed, 1 deselected, 2 xfailed; transcript: docs/evidence/f12/quickstart.md
 ra-demo all                            # deterministic SIMULATION of every scenario
 ```
 
@@ -194,8 +194,11 @@ foundation model · managing thousands of cameras · replacing an NVR (Frigate, 
 
 - F4 REAL HARDWARE recall/precision and varied-session benchmarking remain pending
   ([evaluation protocol](docs/evaluation.md)); the F3 camera checks do not close the F4 benchmark.
-- The integrated webcam's UVC exposure/autofocus control and set-and-read-back have not been
-  verified; the owner must run that check ([open task](docs/agents/TASKS.md)).
+- Real UVC/ONVIF exposure/focus control is not implemented yet:
+  `OpenCVSource.capabilities()` returns only `restart`, so on a real webcam the gate offers only
+  restart, safe mode, cleaning/human tickets. Bounded exposure/focus commit/rollback is
+  demonstrated in SIMULATION only ([source](src/reliability_agent/capture/sources.py),
+  [open task](docs/agents/TASKS.md)).
 - The F6 action score is not an independent-diagnosis measure: the local selector also scores
   100% by action name ([F6 report](docs/evidence/f6/golden-diagnose-v2-nvidia-nvidia-nemotron-3-nano-30b-a3b-test.md),
   [baseline](docs/evidence/f6/golden-rules-baseline-test.md)).

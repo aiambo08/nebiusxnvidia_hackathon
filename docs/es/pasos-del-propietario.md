@@ -101,6 +101,13 @@ Abre `http://127.0.0.1:8000/`. Esperado: fuente webcam y etiqueta REAL HARDWARE;
 el modo local debe explicarse y no debe aparentar una llamada live. Pega si la webcam abrió,
 el modo mostrado y cualquier error (sin claves ni URI privados).
 
+Para el vídeo, cubre el objetivo de la cámara durante una entrada física visible. Esperado: un
+incidente confirmado, un plan visible y una decisión del gate limitada a
+`enter_safe_mode` / `request_manual_cleaning` / `needs_human`, seguida de un ticket o safe mode.
+El adapter real no implementa control UVC/ONVIF de exposición/foco; no afirmes que la webcam
+confirma un commit de exposición ni de autofocus. Mantén el badge REAL HARDWARE visible durante
+esta toma.
+
 ## 4. Prueba con cinco usuarios
 
 **Human-only; no rellenes resultados antes de observarlos.** Invita a cinco usuarios técnicos que
@@ -125,10 +132,35 @@ Pega el formulario completado y el protocolo seguido, sin datos personales innec
 
 ## 5. Grabar y publicar el vídeo
 
-**Human-only.** Sigue `docs/demo-script.md`; confirma la etiqueta SIMULATION/REAL HARDWARE,
-mantén la clave fuera de cámara, cierra notificaciones, usa silencio o audio autorizado y muestra
-la entrada física real. Sube el vídeo como público a YouTube y pega la URL en
-`docs/devpost.md` y la matriz de cumplimiento. No se afirma que exista hasta que lo hagas.
+**Human-only.** Cada segmento debe llevar la etiqueta SIMULATION o REAL HARDWARE y el badge del
+dashboard debe permanecer visible.
+
+**SIMULATION:** desde el entorno virtual, inicia los escenarios:
+
+```powershell
+ra-demo dashboard --scenario dark --planner nemotron
+ra-demo dashboard --scenario bad_action
+```
+
+Esperado: `dark` muestra exposición acotada y COMMITTED; `bad_action` muestra ROLLED BACK. La
+grabación debe captar al menos una llamada Nemotron live exitosa usando `NEBIUS_API_KEY` en `.env`.
+No muestres la clave. Si Token Factory falla, di “local mode—Token Factory unavailable”; el
+fallback local no sustituye la llamada live requerida.
+
+**REAL HARDWARE:** graba la webcam del propietario durante al menos 60 segundos:
+
+```powershell
+ra-demo dashboard --live --uri 0
+```
+
+Cubre el objetivo con la mano visible; espera el incidente, muestra el plan y el gate, y después
+el ticket de limpieza o safe mode. En hardware real no se debe mostrar ni afirmar commit/rollback
+de exposición o foco: ese control está demostrado solo en SIMULATION.
+
+Sigue el resto de `docs/demo-script.md`; cierra notificaciones, usa silencio o audio autorizado y
+mantén la entrada física en cuadro. No se incluye una secuencia stream-down/restart: no hay una
+prueba del recorrido combinado por el dashboard live. Sube el vídeo como público a YouTube y pega
+la URL en `docs/devpost.md` y la matriz de cumplimiento. No se afirma que exista hasta que lo hagas.
 
 ## 6. Etiqueta final
 
