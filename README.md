@@ -21,6 +21,25 @@ recovers** — otherwise it rolls back and escalates to a human.
 > passed and owner/reviewer actions remain. Evidence is labelled SIMULATION or REAL HARDWARE.
 > See [`docs/phases-and-gates.md`](docs/phases-and-gates.md).
 
+## See it (SIMULATION)
+
+![Dashboard: a live Nemotron call fixes a focus drift and the verifier commits it (SIMULATION, 2x speed)](docs/media/dashboard-nemotron-defocus.gif)
+
+*SIMULATION, 2× speed. Local probes detect `focus_drift`. A live Nemotron call on Nebius Token
+Factory proposes `trigger_autofocus`. The policy gate approves it, and the executor saves a
+snapshot and applies it. Verification commits the change because `task.success_rate` recovers
+from 0.00 to 1.00.*
+
+| A live Nemotron plan that did not help is rolled back | A harmful action is rolled back |
+|---|---|
+| ![Live Nemotron plan for blackout rolled back by the verifier (SIMULATION)](docs/media/nemotron-live-call.png) | ![Harmful scripted action rolled back (SIMULATION)](docs/media/dashboard-bad_action.gif) |
+| For `blackout`, Nemotron proposed `delta_ev: 1`. The gate approved it, but the verifier saw that the fault was still present, restored the snapshot and escalated to a human. | The scripted demo planner (not Nemotron) proposes a wrong but policy-valid exposure change. Verification detects the regression and restores the snapshot. |
+
+![Injected faults, one SyntheticSource frame each (SIMULATION)](docs/media/fault-gallery.png)
+
+Provenance, commands and the $0.00071 Token Factory spend for these captures are in
+[`docs/media/README.md`](docs/media/README.md). No REAL HARDWARE footage is shown yet.
+
 ## Why
 
 A camera can be "online" and useless: defocused, covered, too dark, frozen on the last frame,
@@ -147,8 +166,8 @@ ra-demo dashboard --live --uri 0 --db runs/readme-webcam-check.sqlite
 ```
 
 Expected: `Mode: REAL HARDWARE`, the selected database path, and the dashboard URL. The static page
-is [`apps/dashboard/index.html`](apps/dashboard/index.html). No dashboard screenshots are committed,
-so none is shown here.
+is [`apps/dashboard/index.html`](apps/dashboard/index.html). SIMULATION captures of this dashboard
+are shown in [See it](#see-it-simulation).
 
 Before rerunning a dashboard command, delete the database file named by `--db` or choose a new path.
 
