@@ -135,7 +135,7 @@ function kv(el,rows){
 }
 const PLANNER_LABELS={rules:"rules (local planner, no LLM call)",scripted:"scripted (demo planner, no LLM call)",
   fallback:"local fallback (no LLM call)",cache:"nemotron (cached plan, no new call)"};
-let lastPlanSource;
+let lastPlanSource,lastScenario;
 function plannerLabel(p,source){
   if(source&&source!=="nemotron")return PLANNER_LABELS[source]||String(source);
   if(!source&&p?.kind==="rules")return PLANNER_LABELS.rules;
@@ -155,7 +155,9 @@ async function status(){
     $("mode").className="badge "+cls;$("mode").textContent=m;$("ovmode").className="badge "+cls;$("ovmode").textContent=m;
     $("src").textContent=s.source_label||"event store";$("scn").textContent=s.scenario||"–";
     const st=s.state||"–";$("state").textContent=st;$("state").className="state s-"+st;
-    const p=s.planner||{};plannerStatus=p;$("plnr").textContent=plannerLabel(p,lastPlanSource);
+    const p=s.planner||{};plannerStatus=p;
+    if(s.scenario!==lastScenario){lastScenario=s.scenario;lastPlanSource=undefined}
+    $("plnr").textContent=plannerLabel(p,lastPlanSource||s.planner_source);
     $("model").textContent=p.model||"–";$("prompt").textContent=p.prompt_version||"–";
     const b=s.budget||{};$("spend").textContent=b.spent_usd_estimate!=null?`$${(+b.spent_usd_estimate).toFixed(4)} / $${b.hard_cap_usd} cap`:"–";
     $("chain").innerHTML=s.chain_valid?'<span class="ok">verified</span>':'<span class="bad">BROKEN</span>';

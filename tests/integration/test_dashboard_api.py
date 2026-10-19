@@ -2,6 +2,7 @@ import re
 from datetime import timedelta
 from itertools import cycle
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 
 import cv2
@@ -11,9 +12,15 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from reliability_agent.cli import mode_label  # noqa: E402
+from reliability_agent.cli import _run_dashboard_scenarios, mode_label  # noqa: E402
 from reliability_agent.config import load_config  # noqa: E402
-from reliability_agent.demo import SCENARIOS, demo_config, run_scenario  # noqa: E402
+from reliability_agent.demo import (  # noqa: E402
+    SCENARIOS,
+    WrongActionPlanner,
+    demo_config,
+    run_scenario,
+    scenario_planner_source,
+)
 from reliability_agent.feed import LiveFeed  # noqa: E402
 from reliability_agent.nemotron.planner import RuleBasedPlanner  # noqa: E402
 from reliability_agent.storage.event_store import EventStore  # noqa: E402
@@ -47,6 +54,52 @@ def test_live_feed_rate_limits_jpeg_and_bounds_windows():
     assert feed.snapshot()["last_window"]["ts"] == (
         last_window.window_start + timedelta(seconds=1.0)
     ).isoformat()
+
+
+def test_dashboard_status_publishes_scenario_planner_source():
+    from apps.api.main import create_app
+
+    cfg = load_config(env=False)
+    store = EventStore()
+    feed = LiveFeed("SIMULATION", "SyntheticSource")
+    client = TestClient(create_app(store=store, feed=feed, cfg=cfg))
+    try:
+        feed.set_scenario("bad_action", planner_source="scripted")
+        assert client.get("/api/status").json()["planner_source"] == "scripted"
+        feed.set_scenario("dark")
+        assert client.get("/api/status").json()["planner_source"] is None
+    finally:
+        store.close()
+
+
+def test_scenario_planner_source_matches_wrong_action_planner():
+    assert (
+        scenario_planner_source("bad_action")
+        == WrongActionPlanner().plan(None).source
+    )
+    assert scenario_planner_source("dark") is None
+
+
+def test_dashboard_scenario_tour_passes_planner_source(monkeypatch):
+    observed = []
+    feed = LiveFeed("SIMULATION", "SyntheticSource")
+    store = EventStore()
+
+    def fake_run_scenario(name, *_args, **_kwargs):
+        observed.append((name, feed.snapshot()["planner_source"]))
+
+    monkeypatch.setattr("reliability_agent.demo.run_scenario", fake_run_scenario)
+    args = SimpleNamespace(
+        scenarios=["bad_action", "dark"], pace=0.0, gap=0.0, loop=False
+    )
+    try:
+        _run_dashboard_scenarios(
+            args, demo_config(), feed, store, "rules", Event()
+        )
+    finally:
+        store.close()
+
+    assert observed == [("bad_action", "scripted"), ("dark", None)]
 
 
 def test_dashboard_api_and_legacy_routes_read_shared_store(monkeypatch):
@@ -132,7 +185,11 @@ def test_dashboard_html_escapes_template_interpolations():
     }.items():
         assert f'{source}:"{label}"' in page
     # Header and panel must agree on the plan source, or the header flickers.
-    assert "plannerLabel(p,lastPlanSource)" in page
+    assert "plannerLabel(p,lastPlanSource||s.planner_source)" in page
+    assert (
+        "if(s.scenario!==lastScenario){lastScenario=s.scenario;"
+        "lastPlanSource=undefined}" in page
+    )
     assert "lastPlanSource=P.source" in page
     kv = re.search(r"function kv\(el,rows\)\s*\{(.*?)\n\}", page, re.S).group(1)
     assert ".innerHTML" not in kv

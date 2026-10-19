@@ -42,6 +42,10 @@ SCENARIOS: dict[str, tuple[str, float, int | None]] = {
 }
 
 
+def scenario_planner_source(name: str) -> str | None:
+    return "scripted" if name == "bad_action" else None
+
+
 class WrongActionPlanner:
     """Deliberately proposes a harmful (but policy-valid) action to prove rollback works."""
 
@@ -112,7 +116,7 @@ def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None 
         if src.fault in ("freeze", "disconnect"):
             src.set_fault(None)
 
-    if name == "bad_action":
+    if scenario_planner_source(name) is not None:
         planner = WrongActionPlanner()
     owns_store = store is None
     store = store if store is not None else EventStore()

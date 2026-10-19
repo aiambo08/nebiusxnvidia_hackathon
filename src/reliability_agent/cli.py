@@ -50,14 +50,14 @@ def mode_label(args_or_uri) -> str:
 
 
 def _run_dashboard_scenarios(args, cfg, feed, store, planner_kind, stop_event) -> None:
-    from reliability_agent.demo import run_scenario
+    from reliability_agent.demo import run_scenario, scenario_planner_source
 
     scenarios = args.scenarios or list(TOUR_SCENARIOS)
     while not stop_event.is_set():
         for index, name in enumerate(scenarios):
             if stop_event.is_set():
                 return
-            feed.set_scenario(name)
+            feed.set_scenario(name, planner_source=scenario_planner_source(name))
             run_scenario(
                 name,
                 _planner(planner_kind, cfg),

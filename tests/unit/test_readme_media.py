@@ -2,6 +2,7 @@ import importlib.util
 import re
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -68,6 +69,21 @@ def test_gallery_cli_writes_a_readable_png(gallery_module, tmp_path):
     assert decoded is not None
     assert decoded.dtype == np.uint8
     assert decoded.shape == gallery_module.render_gallery().shape
+
+
+def test_committed_gallery_matches_fresh_render(gallery_module):
+    committed = cv2.imread(str(MEDIA_DIR / "fault-gallery.png"))
+    assert committed is not None
+    assert np.array_equal(committed, gallery_module.render_gallery())
+
+
+def test_readme_media_images_are_labeled_simulation():
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    assert re.search(r"^## See it \(SIMULATION\)$", readme, re.MULTILINE)
+    references = re.findall(r"!\[([^\]]+)\]\((docs/media/[^)\s]+)\)", readme)
+    assert references
+    for alt_text, reference in references:
+        assert "SIMULATION" in alt_text, reference
 
 
 def test_readme_media_links_exist_and_all_assets_are_referenced():
