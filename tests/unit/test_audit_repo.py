@@ -628,6 +628,84 @@ def test_different_fake_credential_in_same_file_still_fails(tmp_path):
     assert near_match.decode("ascii") not in report
 
 
+def _assert_fake_sentinel_combo_fails_in_current_and_history(
+    tmp_path, content, credential_label
+):
+    relative = "combined.txt"
+    repo, allowlist = _new_repo(tmp_path, {relative: content})
+    _write_fake_credential_allowlist(allowlist, FAKE_NVIDIA_SENTINEL_SHA256)
+    report_path = tmp_path / "audit.md"
+
+    current_result = _audit(repo, allowlist, report_path)
+    assert current_result.returncode == 1
+    current_report = report_path.read_text(encoding="utf-8")
+    current_section = current_report.split("## Tracked-file inventory", 1)[1].split(
+        "## Historical findings", 1
+    )[0]
+    current_row = next(
+        line for line in current_section.splitlines() if f"`{relative}`" in line
+    )
+    assert credential_label in current_row
+
+    (repo / relative).unlink()
+    _commit(repo, "remove combined credential fixture")
+    history_result = _audit(repo, allowlist, report_path)
+    assert history_result.returncode == 1
+    history_report = report_path.read_text(encoding="utf-8")
+    history_section = history_report.split("## Historical findings", 1)[1].split(
+        "## Known fake credential sentinels", 1
+    )[0]
+    assert f"`{relative}`" in history_section
+    assert f"credential pattern: {credential_label}" in history_section
+
+
+def test_fake_sentinel_does_not_hide_other_credential_in_current_or_history(tmp_path):
+    content = (
+        b"SENTINEL = "
+        + FAKE_NVIDIA_SENTINEL
+        + b"\nAWS_KEY = "
+        + b"AKIA"
+        + b"R" * 16
+        + b"\n"
+    )
+
+    _assert_fake_sentinel_combo_fails_in_current_and_history(
+        tmp_path, content, "AWS access-key ID"
+    )
+
+
+def test_fake_sentinel_does_not_hide_later_nvidia_key_in_current_or_history(tmp_path):
+    other_nvidia_key = b"nvapi-" + b"OTHERKEY0123456789"
+    content = b"SENTINEL = " + FAKE_NVIDIA_SENTINEL + b"\n" + other_nvidia_key + b"\n"
+
+    _assert_fake_sentinel_combo_fails_in_current_and_history(
+        tmp_path, content, "NVIDIA API key"
+    )
+
+
+@pytest.mark.parametrize(
+    "crosses_chunk_boundary", [False, True], ids=["same-chunk", "chunk-boundary"]
+)
+def test_fake_sentinel_with_word_suffix_is_not_exempt(tmp_path, crosses_chunk_boundary):
+    credential = FAKE_NVIDIA_SENTINEL + b"XYZ123"
+    if crosses_chunk_boundary:
+        content = (
+            b"x" * (64 * 1024 - len(FAKE_NVIDIA_SENTINEL) - 1)
+            + b" "
+            + credential
+        )
+    else:
+        content = credential + b"\n"
+    repo, allowlist = _new_repo(tmp_path, {"combined.txt": content})
+    _write_fake_credential_allowlist(allowlist, FAKE_NVIDIA_SENTINEL_SHA256)
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    report = (tmp_path / "audit.md").read_text(encoding="utf-8")
+    assert "credential pattern: NVIDIA API key" in report
+
+
 def test_fake_credential_hash_requires_a_full_match(tmp_path):
     content = b'SENTINEL = "' + FAKE_NVIDIA_SENTINEL + b'"\n'
     repo, allowlist = _new_repo(
