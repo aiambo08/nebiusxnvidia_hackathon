@@ -19,6 +19,8 @@ jobs:
         python: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
@@ -48,4 +50,4 @@ jobs:
       - name: gitleaks (full history)
         run: >
           docker run --rm -v "${{ github.workspace }}:/repo" ghcr.io/gitleaks/gitleaks:latest
-          git /repo --redact --verbose --exit-code 1
+          git /repo --redact --verbose --exit-code 1 --config /repo/gitleaks.toml

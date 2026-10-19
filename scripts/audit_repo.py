@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import subprocess
 from collections import defaultdict
@@ -207,10 +208,19 @@ def _is_placeholder_value(value: bytes) -> bool:
     )
 
 
-def _credential_findings_bytes(data: bytes) -> set[str]:
-    findings = {
-        label for label, pattern in CREDENTIAL_PATTERNS.items() if pattern.search(data)
-    }
+def _credential_findings_bytes(
+    data: bytes, fake_credential_sha256: set[str] | None = None
+) -> tuple[set[str], set[str]]:
+    findings = set()
+    matched_fake_hashes = set()
+    fake_hashes = fake_credential_sha256 or set()
+    for label, pattern in CREDENTIAL_PATTERNS.items():
+        for match in pattern.finditer(data):
+            digest = hashlib.sha256(match.group(0)).hexdigest()
+            if digest in fake_hashes:
+                matched_fake_hashes.add(digest)
+            else:
+                findings.add(label)
     for match in API_KEY_ASSIGNMENT_PATTERN.finditer(data):
         name = match.group(1).decode("ascii", errors="ignore").casefold()
         quoted = bool(match.group(2))
@@ -226,7 +236,7 @@ def _credential_findings_bytes(data: bytes) -> set[str]:
     for match in YAML_KEY_ASSIGNMENT_PATTERN.finditer(data):
         if not _is_placeholder_value(match.group(1)):
             findings.add("key assignment")
-    return findings
+    return findings, matched_fake_hashes
 
 
 def _is_credential_finding(reason: str) -> bool:
@@ -237,26 +247,42 @@ def _is_credential_finding(reason: str) -> bool:
     )
 
 
-def _credential_findings(path: Path) -> list[str]:
+def _credential_findings(
+    path: Path, fake_credential_sha256: set[str] | None = None
+) -> tuple[list[str], set[str]]:
     if path.is_symlink() or not path.is_file():
-        return []
+        return [], set()
     overlap = 512
     tail = b""
     findings: set[str] = set()
+    matched_fake_hashes: set[str] = set()
     with path.open("rb") as stream:
         while chunk := stream.read(64 * 1024):
             data = tail + chunk
-            findings.update(_credential_findings_bytes(data))
+            chunk_findings, chunk_fake_hashes = _credential_findings_bytes(
+                data, fake_credential_sha256
+            )
+            findings.update(chunk_findings)
+            matched_fake_hashes.update(chunk_fake_hashes)
             tail = data[-overlap:]
-    return sorted(findings)
+    return sorted(findings), matched_fake_hashes
 
 
-def inspect_file(repo: Path, relative_path: PurePosixPath) -> dict[str, Any]:
+def inspect_file(
+    repo: Path,
+    relative_path: PurePosixPath,
+    fake_credential_sha256: set[str] | None = None,
+) -> dict[str, Any]:
     path = repo.joinpath(*relative_path.parts)
     try:
         size = path.lstat().st_size
     except FileNotFoundError:
-        return {"path": relative_path, "size": None, "flags": ["missing from worktree"]}
+        return {
+            "path": relative_path,
+            "size": None,
+            "flags": ["missing from worktree"],
+            "fake_credential_sentinels": [],
+        }
 
     flags = _path_name_reasons(relative_path)
     suffixes = [suffix.casefold() for suffix in relative_path.suffixes]
@@ -264,8 +290,16 @@ def inspect_file(repo: Path, relative_path: PurePosixPath) -> dict[str, Any]:
         flags.append("image larger than 500 KB")
     if size > 1_000_000:
         flags.append("file larger than 1 MB")
-    flags.extend(_credential_findings(path))
-    return {"path": relative_path, "size": size, "flags": sorted(set(flags))}
+    credential_findings, matched_fake_hashes = _credential_findings(
+        path, fake_credential_sha256
+    )
+    flags.extend(credential_findings)
+    return {
+        "path": relative_path,
+        "size": size,
+        "flags": sorted(set(flags)),
+        "fake_credential_sentinels": sorted(matched_fake_hashes),
+    }
 
 
 def _history_paths(repo: Path) -> set[PurePosixPath]:
@@ -349,8 +383,10 @@ def _history_blob_records(
 def _scan_history_blob_chunks(
     repo: Path,
     blobs: list[tuple[str, PurePosixPath | None, int]],
-) -> dict[PurePosixPath, set[str]]:
+    fake_credential_sha256: set[str] | None = None,
+) -> tuple[dict[PurePosixPath, set[str]], dict[PurePosixPath, set[str]]]:
     findings: dict[PurePosixPath, set[str]] = defaultdict(set)
+    matched_fake_sentinels: dict[PurePosixPath, set[str]] = defaultdict(set)
     for start in range(0, len(blobs), 64):
         chunk = blobs[start : start + 64]
         result = subprocess.run(
@@ -373,19 +409,28 @@ def _scan_history_blob_chunks(
             size = int(header[2])
             blob_start = header_end + 1
             blob_end = blob_start + size
-            content_findings = _credential_findings_bytes(output[blob_start:blob_end])
+            content_findings, fake_hashes = _credential_findings_bytes(
+                output[blob_start:blob_end], fake_credential_sha256
+            )
+            history_path = path or PurePosixPath(f"blob-{object_id}")
             if content_findings:
-                history_path = path or PurePosixPath(f"blob-{object_id}")
                 findings[history_path].update(
                     f"credential pattern: {label}" for label in content_findings
                 )
+            if fake_hashes:
+                matched_fake_sentinels[history_path].update(fake_hashes)
             cursor = blob_end + 1
-    return findings
+    return findings, matched_fake_sentinels
 
 
 def history_findings(
     repo: Path,
-) -> tuple[dict[PurePosixPath, set[str]], list[str]]:
+    fake_credential_sha256: set[str] | None = None,
+) -> tuple[
+    dict[PurePosixPath, set[str]],
+    list[str],
+    dict[PurePosixPath, set[str]],
+]:
     blobs, warnings, oversized = _history_blob_records(repo)
     blob_paths = [path for _, path, _ in blobs if path is not None]
     path_sizes: dict[PurePosixPath, int] = {}
@@ -408,9 +453,12 @@ def history_findings(
         if reasons:
             findings[path].update(reasons)
 
-    for path, reasons in _scan_history_blob_chunks(repo, blobs).items():
+    credential_history, fake_sentinels = _scan_history_blob_chunks(
+        repo, blobs, fake_credential_sha256
+    )
+    for path, reasons in credential_history.items():
         findings[path].update(reasons)
-    return dict(findings), sorted(set(warnings))
+    return dict(findings), sorted(set(warnings)), fake_sentinels
 
 
 def _allowlist(path: Path) -> dict[str, dict[str, Any]]:
@@ -439,6 +487,26 @@ def _allowlist(path: Path) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _fake_credential_allowlist(path: Path) -> dict[str, str]:
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(loaded, dict):
+        raise ValueError("allowlist must be a mapping")
+    entries = loaded.get("fake_credential_sha256", {})
+    if not isinstance(entries, dict):
+        raise ValueError("'fake_credential_sha256' must be a mapping")
+    result = {}
+    for digest, value in entries.items():
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
+            raise ValueError("fake credential hash keys must be 64 hexadecimal characters")
+        if not isinstance(value, dict):
+            raise ValueError("fake credential hash entries must contain a justification")
+        justification = value.get("justification")
+        if not isinstance(justification, str) or not justification.strip():
+            raise ValueError("fake credential hash entries need a non-empty justification")
+        result[digest.lower()] = justification.strip()
+    return result
+
+
 def _display_path(path: PurePosixPath) -> str:
     return str(path).replace("|", "\\|").replace("\n", "\\n").replace("`", "\\`")
 
@@ -459,9 +527,13 @@ def build_report(
     history: dict[PurePosixPath, set[str]],
     history_warnings: list[str],
     allowlist: dict[str, dict[str, Any]],
+    fake_credential_sentinels: dict[PurePosixPath, set[str]] | None = None,
+    fake_credential_sha256: dict[str, str] | None = None,
 ) -> tuple[str, list[str]]:
     unapproved = set()
     active_allowlist_paths = set()
+    fake_credential_sentinels = fake_credential_sentinels or {}
+    fake_credential_sha256 = fake_credential_sha256 or {}
 
     def waived_findings(path: str, reasons: set[str] | list[str]) -> set[str]:
         entry = allowlist.get(path)
@@ -498,6 +570,12 @@ def build_report(
             unapproved.add(display_path)
 
     stale_allowlist = sorted(set(allowlist) - active_allowlist_paths)
+    matched_fake_hashes = {
+        digest
+        for hashes in fake_credential_sentinels.values()
+        for digest in hashes
+    }
+    stale_fake_hashes = sorted(set(fake_credential_sha256) - matched_fake_hashes)
     status = "PASS" if not unapproved else "FAIL"
     lines = [
         "# Public repository audit",
@@ -539,8 +617,9 @@ def build_report(
     if history:
         lines.extend(
             [
-                "Historical media, dataset, model-weight, environment-file, or credential "
-                "hits require a justified allowlist entry. History was not rewritten.",
+                "Historical media, dataset, model-weight, and environment-file hits require "
+                "a justified allowlist entry; credential findings are non-waivable by path. "
+                "History was not rewritten.",
                 "",
                 "| Path | Findings | Allowlisted types and justification |",
                 "|---|---|---|",
@@ -555,6 +634,25 @@ def build_report(
     else:
         lines.append("No historical file-name or blob-content findings were detected.")
 
+    lines.extend(["", "## Known fake credential sentinels", ""])
+    if fake_credential_sentinels:
+        lines.extend(
+            [
+                "Only exact SHA-256 matches are excluded; credential findings remain "
+                "non-waivable through path allowlists.",
+                "",
+                "| Path | SHA-256 prefix |",
+                "|---|---|",
+            ]
+        )
+        for path, hashes in sorted(
+            fake_credential_sentinels.items(), key=lambda item: str(item[0])
+        ):
+            for digest in sorted(hashes):
+                lines.append(f"| `{_display_path(path)}` | `{digest[:12]}` |")
+    else:
+        lines.append("No configured fake credential sentinels were found.")
+
     lines.extend(["", "## History scan warnings", ""])
     if history_warnings:
         lines.extend(f"- {warning}" for warning in history_warnings)
@@ -562,8 +660,11 @@ def build_report(
         lines.append("No history blobs above 5 MB were skipped.")
 
     lines.extend(["", "## Stale allowlist entries", ""])
-    if stale_allowlist:
+    if stale_allowlist or stale_fake_hashes:
         lines.extend(f"- `{_display_path(PurePosixPath(path))}`" for path in stale_allowlist)
+        lines.extend(
+            f"- `fake_credential_sha256: {digest}`" for digest in stale_fake_hashes
+        )
     else:
         lines.append("No stale allowlist entries.")
 
@@ -575,9 +676,9 @@ def build_report(
         )
     else:
         lines.append(
-            "All current and historical findings are justified by the allowlist. "
-            "No unallowlisted private-key material, credentials, environment files, "
-            "media, model weights, or datasets were found."
+            "All current and historical findings are covered by the path/type allowlist or "
+            "an exact fake-credential SHA-256 match. No unallowlisted private-key material, "
+            "credentials, environment files, media, model weights, or datasets were found."
         )
     return "\n".join(lines) + "\n", sorted(unapproved)
 
@@ -597,10 +698,28 @@ def main(argv: list[str] | None = None) -> int:
         if shallow == "true":
             raise RuntimeError("refusing to audit a shallow clone; full Git history is required")
         allowlist = _allowlist(allowlist_path)
+        fake_credential_sha256 = _fake_credential_allowlist(allowlist_path)
         for _ in range(10):
-            rows = [inspect_file(repo, path) for path in tracked_paths(repo)]
-            history, history_warnings = history_findings(repo)
-            report, unapproved = build_report(rows, history, history_warnings, allowlist)
+            fake_hashes = set(fake_credential_sha256)
+            rows = [
+                inspect_file(repo, path, fake_hashes) for path in tracked_paths(repo)
+            ]
+            history, history_warnings, historical_fake_sentinels = history_findings(
+                repo, fake_hashes
+            )
+            fake_sentinels: dict[PurePosixPath, set[str]] = defaultdict(set)
+            for row in rows:
+                fake_sentinels[row["path"]].update(row["fake_credential_sentinels"])
+            for path, hashes in historical_fake_sentinels.items():
+                fake_sentinels[path].update(hashes)
+            report, unapproved = build_report(
+                rows,
+                history,
+                history_warnings,
+                allowlist,
+                fake_sentinels,
+                fake_credential_sha256,
+            )
             current = (
                 report_path.read_text(encoding="utf-8")
                 if report_path.exists()
