@@ -1,0 +1,13 @@
+title = "nebiusxnvidia hackathon secret scan"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "The F9 fake-credential SHA-256 is a digest, not a credential."
+condition = "AND"
+paths = ['''^configs/public_audit_allowlist\.yaml$''']
+regexTarget = "secret"
+regexes = [
+  '''^a5ecea9aa5027d52e4d6aa9fa8b3721f63e67a80271eb801b1d6a56824254f94$''',
+]
