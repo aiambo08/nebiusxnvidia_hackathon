@@ -2,6 +2,7 @@
 
 | Date | Decision | Why | Who |
 |---|---|---|---|
+| 2026-10-19 | Exempt known fake credentials only by exact SHA-256 | The F9 test sentinel persists in history; credentials remain non-waivable by path, and config stores only the hash | Security |
 | 2026-10-04 | Physical AI track, camera reliability agent | Owner's career focus; zero hardware cost (webcam) | Aibo |
 | 2026-10-04 | Apache-2.0 license | Hackathon requires OSI license; patent grant | Aibo |
 | 2026-10-04 | Downstream task = ArUco reference marker detection | Free, deterministic, sensitive to blur/dark/occlusion; no training | Architecture |

@@ -1,9 +1,15 @@
+import hashlib
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "audit_repo.py"
+FAKE_NVIDIA_SENTINEL = b"nvapi-" + b"F9SENTINEL0123456789abcdef"
+FAKE_NVIDIA_SENTINEL_SHA256 = hashlib.sha256(FAKE_NVIDIA_SENTINEL).hexdigest()
+FAKE_NVIDIA_SENTINEL_PATH = "tests/integration/test_dashboard_f9.py"
 EXPECTED_EXTENSION_CLASSES = {
     "model-weight extension": (
         ".pkl",
@@ -92,6 +98,16 @@ def _audit(repo, allowlist, report):
         check=False,
         capture_output=True,
         text=True,
+    )
+
+
+def _write_fake_credential_allowlist(allowlist, digest, justification="test sentinel"):
+    allowlist.write_text(
+        "files: {}\n"
+        "fake_credential_sha256:\n"
+        f'  "{digest}":\n'
+        f'    justification: "{justification}"\n',
+        encoding="utf-8",
     )
 
 
@@ -562,6 +578,118 @@ def test_credential_types_are_never_waivable_in_current_and_history(tmp_path):
             line for line in history_report.splitlines() if f"`{relative}`" in line
         )
         assert f"credential pattern: {reason}" in history_row
+
+
+def test_fake_credential_hash_is_exempt_in_current_and_history(tmp_path):
+    content = b'SENTINEL = "' + FAKE_NVIDIA_SENTINEL + b'"\n'
+    repo, allowlist = _new_repo(
+        tmp_path, {FAKE_NVIDIA_SENTINEL_PATH: content}
+    )
+    _write_fake_credential_allowlist(allowlist, FAKE_NVIDIA_SENTINEL_SHA256)
+    report_path = tmp_path / "audit.md"
+
+    result = _audit(repo, allowlist, report_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = report_path.read_text(encoding="utf-8")
+    tracked_section = report.split("## Tracked-file inventory", 1)[1].split(
+        "## Historical findings", 1
+    )[0]
+    current_row = next(
+        line for line in tracked_section.splitlines() if FAKE_NVIDIA_SENTINEL_PATH in line
+    )
+    history_section = report.split("## Historical findings", 1)[1].split(
+        "## Known fake credential sentinels", 1
+    )[0]
+    assert "NVIDIA API key" not in current_row
+    assert FAKE_NVIDIA_SENTINEL_PATH not in history_section
+    assert (
+        f"| `{FAKE_NVIDIA_SENTINEL_PATH}` | "
+        f"`{FAKE_NVIDIA_SENTINEL_SHA256[:12]}` |"
+    ) in report
+    assert "Known fake credential sentinels" in report
+    assert FAKE_NVIDIA_SENTINEL.decode("ascii") not in report
+
+
+def test_different_fake_credential_in_same_file_still_fails(tmp_path):
+    near_match = FAKE_NVIDIA_SENTINEL[:-1] + b"e"
+    content = b'SENTINEL = "' + near_match + b'"\n'
+    repo, allowlist = _new_repo(
+        tmp_path, {FAKE_NVIDIA_SENTINEL_PATH: content}
+    )
+    _write_fake_credential_allowlist(allowlist, FAKE_NVIDIA_SENTINEL_SHA256)
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    report = (tmp_path / "audit.md").read_text(encoding="utf-8")
+    assert "NVIDIA API key" in report
+    assert "credential pattern: NVIDIA API key" in report
+    assert near_match.decode("ascii") not in report
+
+
+def test_fake_credential_hash_requires_a_full_match(tmp_path):
+    content = b'SENTINEL = "' + FAKE_NVIDIA_SENTINEL + b'"\n'
+    repo, allowlist = _new_repo(
+        tmp_path, {FAKE_NVIDIA_SENTINEL_PATH: content}
+    )
+    last_digit = "0" if FAKE_NVIDIA_SENTINEL_SHA256[-1] != "0" else "1"
+    almost_matching_hash = FAKE_NVIDIA_SENTINEL_SHA256[:-1] + last_digit
+    _write_fake_credential_allowlist(allowlist, almost_matching_hash)
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    report = (tmp_path / "audit.md").read_text(encoding="utf-8")
+    assert "NVIDIA API key" in report
+
+
+@pytest.mark.parametrize(
+    ("digest", "justification", "expected_error"),
+    [
+        ("not-a-sha256", "valid justification", "64 hexadecimal"),
+        (FAKE_NVIDIA_SENTINEL_SHA256, "", "non-empty justification"),
+    ],
+)
+def test_fake_credential_allowlist_validates_hash_and_justification(
+    tmp_path, digest, justification, expected_error
+):
+    repo, allowlist = _new_repo(tmp_path, {"safe.txt": "safe\n"})
+    _write_fake_credential_allowlist(allowlist, digest, justification)
+
+    result = _audit(repo, allowlist, tmp_path / "audit.md")
+
+    assert result.returncode == 1
+    assert expected_error in result.stdout + result.stderr
+
+
+def test_unused_fake_credential_hash_is_reported_as_stale(tmp_path):
+    repo, allowlist = _new_repo(tmp_path, {"safe.txt": "safe\n"})
+    _write_fake_credential_allowlist(allowlist, FAKE_NVIDIA_SENTINEL_SHA256)
+    report_path = tmp_path / "audit.md"
+
+    result = _audit(repo, allowlist, report_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = report_path.read_text(encoding="utf-8")
+    assert (
+        f"`fake_credential_sha256: {FAKE_NVIDIA_SENTINEL_SHA256}`"
+    ) in report
+
+
+def test_repository_audit_has_no_unallowlisted_findings(tmp_path):
+    report_path = tmp_path / "public-repo-audit.md"
+
+    result = _audit(
+        ROOT,
+        ROOT / "configs" / "public_audit_allowlist.yaml",
+        report_path,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = report_path.read_text(encoding="utf-8")
+    assert "**Result: PASS**" in report
+    assert "- Unallowlisted findings: 0" in report
 
 
 def test_allowlist_entry_does_not_waive_an_unlisted_finding_type(tmp_path):
