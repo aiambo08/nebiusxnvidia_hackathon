@@ -102,7 +102,8 @@ def create_app(
             header_source is None and kind != "rules"
         )
         return {
-            **snapshot,
+            **{key: value for key, value in snapshot.items() if key != "planner_source"},
+            "planner_source": header_source,
             "chain_valid": store.verify_chain(),
             "planner": {
                 "kind": kind,

@@ -134,7 +134,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate    Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev,api]"
 
-pytest -q                              # 907 passed, 1 deselected, 2 xfailed at 190ce74 (count grows as tests are added); transcripts: docs/evidence/f11/readme-install.md, docs/evidence/f12/quickstart.md
+pytest -q                              # 952 passed, 1 deselected, 2 xfailed at bc6ea44 (count grows as tests are added); transcripts: docs/evidence/f11/readme-install.md, docs/evidence/f12/quickstart.md
 ra-demo all                            # deterministic SIMULATION of every scenario
 ```
 
