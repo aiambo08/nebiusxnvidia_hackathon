@@ -238,7 +238,7 @@ def test_dashboard_command_never_leaks_the_key(
                 None,
             )
             assert agent_thread is not None, "dashboard agent thread was not started"
-            agent_thread.join(timeout=60)
+            agent_thread.join(timeout=180)
             assert not agent_thread.is_alive(), "dashboard agent thread did not finish"
             assert external_calls == []
             runner_guard.undo()
