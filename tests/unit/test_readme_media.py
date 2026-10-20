@@ -2,6 +2,7 @@ import importlib.util
 import re
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -68,6 +69,36 @@ def test_gallery_cli_writes_a_readable_png(gallery_module, tmp_path):
     assert decoded is not None
     assert decoded.dtype == np.uint8
     assert decoded.shape == gallery_module.render_gallery().shape
+
+
+def test_committed_gallery_matches_fresh_render(gallery_module):
+    committed = cv2.imread(str(MEDIA_DIR / "fault-gallery.png"))
+    assert committed is not None
+    assert np.array_equal(committed, gallery_module.render_gallery())
+
+
+def test_readme_media_images_are_labeled_simulation():
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    assert re.search(r"^## See it \(SIMULATION\)$", readme, re.MULTILINE)
+    references = re.findall(r"!\[([^\]]+)\]\((docs/media/[^)\s]+)\)", readme)
+    assert references
+    for alt_text, reference in references:
+        assert "SIMULATION" in alt_text, reference
+
+
+def test_readme_media_spend_and_speed_captions_are_current():
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    provenance = (MEDIA_DIR / "README.md").read_text(encoding="utf-8")
+    # N1: the spend covers the seven captured live calls, not the stale six.
+    assert "$0.0008336" in readme
+    assert "$0.0008336" in provenance
+    assert "$0.00071" not in readme
+    # N2: the GIFs play at real speed (500 ms frame delay), downscaled to 800x500;
+    # the captions must not claim 2x.
+    assert "800×500" in readme
+    assert "800×500" in provenance
+    assert "2×" not in readme and "2x" not in readme
+    assert "2×" not in provenance and "2x" not in provenance
 
 
 def test_readme_media_links_exist_and_all_assets_are_referenced():

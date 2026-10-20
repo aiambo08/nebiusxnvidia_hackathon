@@ -38,7 +38,7 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `apps/api/__init__.py` | 0 | — | — |
 | `apps/api/main.py` | 4395 | — | — |
 | `apps/dashboard/README.md` | 429 | — | — |
-| `apps/dashboard/index.html` | 20364 | — | — |
+| `apps/dashboard/index.html` | 20484 | — | — |
 | `benchmarks/__init__.py` | 0 | — | — |
 | `benchmarks/build_manifests.py` | 3578 | — | — |
 | `benchmarks/dataset.py` | 4609 | — | — |
@@ -70,8 +70,8 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `docs/adr/ADR-009-offer-only-fault-relevant-actions.md` | 2905 | — | — |
 | `docs/adr/ADR-010-dashboard.md` | 960 | — | — |
 | `docs/agents/DECISIONS.md` | 26364 | — | — |
-| `docs/agents/PROJECT_STATE.md` | 23886 | — | — |
-| `docs/agents/TASKS.md` | 26994 | — | — |
+| `docs/agents/PROJECT_STATE.md` | 23890 | — | — |
+| `docs/agents/TASKS.md` | 26998 | — | — |
 | `docs/budget.md` | 1207 | — | — |
 | `docs/compliance-matrix.md` | 6176 | — | — |
 | `docs/demo-script.md` | 5381 | — | — |
@@ -89,7 +89,7 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `docs/evidence/f10/soak/soak.json` | 19843 | — | — |
 | `docs/evidence/f10/soak/soak.md` | 1442 | — | — |
 | `docs/evidence/f10/soak/soak.sqlite` | 475136 | — | — |
-| `docs/evidence/f11/public-repo-audit.md` | 19222 | — | — |
+| `docs/evidence/f11/public-repo-audit.md` | 19223 | — | — |
 | `docs/evidence/f11/readme-install.md` | 2409 | — | — |
 | `docs/evidence/f12/quickstart.md` | 5649 | — | — |
 | `docs/evidence/f2/README.md` | 7412 | — | — |
@@ -130,11 +130,11 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `docs/evidence/f9/dashboard-simulation-bad-action.png` | 401640 | — | — |
 | `docs/evidence/f9/demo-flow.md` | 5574 | — | — |
 | `docs/feedback.md` | 2831 | — | — |
-| `docs/media/README.md` | 2300 | — | — |
-| `docs/media/dashboard-bad_action.gif` | 328206 | — | — |
+| `docs/media/README.md` | 2872 | — | — |
+| `docs/media/dashboard-bad_action.gif` | 389931 | — | — |
 | `docs/media/dashboard-nemotron-defocus.gif` | 471584 | — | — |
 | `docs/media/fault-gallery.png` | 489692 | — | — |
-| `docs/media/nemotron-live-call.png` | 222640 | — | — |
+| `docs/media/nemotron-live-call.png` | 235011 | — | — |
 | `docs/phases-and-gates.md` | 21802 | — | — |
 | `docs/research.md` | 1259 | — | — |
 | `docs/safety-model.md` | 1876 | — | — |
@@ -177,12 +177,12 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `src/reliability_agent/capture/base.py` | 3062 | — | — |
 | `src/reliability_agent/capture/sources.py` | 11439 | — | — |
 | `src/reliability_agent/capture/worker.py` | 9742 | — | — |
-| `src/reliability_agent/cli.py` | 9358 | — | — |
+| `src/reliability_agent/cli.py` | 9429 | — | — |
 | `src/reliability_agent/config.py` | 2590 | — | — |
 | `src/reliability_agent/contracts/__init__.py` | 652 | — | — |
 | `src/reliability_agent/contracts/models.py` | 7662 | — | — |
-| `src/reliability_agent/demo.py` | 6617 | — | — |
-| `src/reliability_agent/feed.py` | 4205 | — | — |
+| `src/reliability_agent/demo.py` | 6750 | — | — |
+| `src/reliability_agent/feed.py` | 4391 | — | — |
 | `src/reliability_agent/incidents/__init__.py` | 0 | — | — |
 | `src/reliability_agent/incidents/fusion.py` | 11641 | — | — |
 | `src/reliability_agent/incidents/state_machine.py` | 2623 | — | — |
@@ -219,7 +219,7 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `tests/helpers/crash_child.py` | 6152 | — | — |
 | `tests/integration/test_api.py` | 900 | — | — |
 | `tests/integration/test_crash_recovery.py` | 6621 | — | — |
-| `tests/integration/test_dashboard_api.py` | 9389 | — | — |
+| `tests/integration/test_dashboard_api.py` | 11174 | — | — |
 | `tests/integration/test_dashboard_f9.py` | 13694 | — | — |
 | `tests/integration/test_experiments.py` | 20163 | — | — |
 | `tests/integration/test_incident_report.py` | 2096 | — | — |
@@ -250,7 +250,7 @@ History detection checks file names for media, model-weight, dataset, archive, a
 | `tests/unit/test_policy_actions_verifier.py` | 7752 | — | — |
 | `tests/unit/test_probe_speedups.py` | 5442 | — | — |
 | `tests/unit/test_probes.py` | 26470 | — | — |
-| `tests/unit/test_readme_media.py` | 3445 | — | — |
+| `tests/unit/test_readme_media.py` | 4083 | — | — |
 | `tests/unit/test_recovery_classifier.py` | 9720 | — | — |
 | `tests/unit/test_restore.py` | 24271 | — | — |
 | `tests/unit/test_runtime.py` | 3443 | — | — |

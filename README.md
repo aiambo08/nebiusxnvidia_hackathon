@@ -23,9 +23,9 @@ recovers** — otherwise it rolls back and escalates to a human.
 
 ## See it (SIMULATION)
 
-![Dashboard: a live Nemotron call fixes a focus drift and the verifier commits it (SIMULATION, 2x speed)](docs/media/dashboard-nemotron-defocus.gif)
+![Dashboard: a live Nemotron call fixes a focus drift and the verifier commits it (SIMULATION, real speed)](docs/media/dashboard-nemotron-defocus.gif)
 
-*SIMULATION, 2× speed. Local probes detect `focus_drift`. A live Nemotron call on Nebius Token
+*SIMULATION, real speed (1×), downscaled to 800×500. Local probes detect `focus_drift`. A live Nemotron call on Nebius Token
 Factory proposes `trigger_autofocus`. The policy gate approves it, and the executor saves a
 snapshot and applies it. Verification commits the change because `task.success_rate` recovers
 from 0.00 to 1.00.*
@@ -37,7 +37,7 @@ from 0.00 to 1.00.*
 
 ![Injected faults, one SyntheticSource frame each (SIMULATION)](docs/media/fault-gallery.png)
 
-Provenance, commands and the $0.00071 Token Factory spend for these captures are in
+Provenance, commands and the $0.0008336 Token Factory spend for these captures are in
 [`docs/media/README.md`](docs/media/README.md). No REAL HARDWARE footage is shown yet.
 
 ## Why

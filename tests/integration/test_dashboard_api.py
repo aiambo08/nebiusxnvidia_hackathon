@@ -2,6 +2,7 @@ import re
 from datetime import timedelta
 from itertools import cycle
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 
 import cv2
@@ -11,9 +12,15 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from reliability_agent.cli import mode_label  # noqa: E402
+from reliability_agent.cli import _run_dashboard_scenarios, mode_label  # noqa: E402
 from reliability_agent.config import load_config  # noqa: E402
-from reliability_agent.demo import SCENARIOS, demo_config, run_scenario  # noqa: E402
+from reliability_agent.demo import (  # noqa: E402
+    SCENARIOS,
+    WrongActionPlanner,
+    demo_config,
+    run_scenario,
+    scenario_planner_source,
+)
 from reliability_agent.feed import LiveFeed  # noqa: E402
 from reliability_agent.nemotron.planner import RuleBasedPlanner  # noqa: E402
 from reliability_agent.storage.event_store import EventStore  # noqa: E402
@@ -47,6 +54,131 @@ def test_live_feed_rate_limits_jpeg_and_bounds_windows():
     assert feed.snapshot()["last_window"]["ts"] == (
         last_window.window_start + timedelta(seconds=1.0)
     ).isoformat()
+
+
+def test_dashboard_status_publishes_scenario_planner_source():
+    from apps.api.main import create_app
+
+    cfg = load_config(env=False)  # config default kind is nemotron
+    store = EventStore()
+    feed = LiveFeed("SIMULATION", "SyntheticSource")
+    client = TestClient(create_app(store=store, feed=feed, cfg=cfg))
+    try:
+        feed.set_scenario("bad_action", planner_source="scripted")
+        status = client.get("/api/status").json()
+        assert status["planner_source"] == "scripted"
+        assert status["scenario_started_at"] is not None
+        # N3: even with a Nemotron config, a scripted planner must not advertise
+        # the model or prompt chips in the header.
+        assert status["planner"]["model"] is None
+        assert status["planner"]["prompt_version"] is None
+        feed.set_scenario("dark")
+        status = client.get("/api/status").json()
+        assert status["planner_source"] is None
+        assert status["scenario_started_at"] is not None
+    finally:
+        store.close()
+
+
+def test_dashboard_header_planner_resets_across_scenario_switch():
+    import threading
+    import time as time_mod
+
+    from apps.api.main import create_app
+
+    cfg = demo_config()
+    cfg["planner"]["kind"] = "rules"  # ra-demo dashboard SIMULATION default
+    store = EventStore()
+    feed = LiveFeed("SIMULATION", "SyntheticSource")
+    client = TestClient(create_app(store=store, feed=feed, cfg=cfg))
+    args = SimpleNamespace(
+        scenarios=["bad_action", "dark"], pace=0.0, gap=0.0, loop=False
+    )
+    stop = Event()
+    tour = threading.Thread(
+        target=_run_dashboard_scenarios,
+        args=(args, cfg, feed, store, "rules", stop),
+        daemon=True,
+    )
+    tour.start()
+
+    def status():
+        return client.get("/api/status").json()
+
+    def wait_for(predicate, timeout=120.0):
+        deadline = time_mod.time() + timeout
+        while time_mod.time() < deadline:
+            payload = status()
+            if predicate(payload):
+                return payload
+            time_mod.sleep(0.02)
+        return None
+
+    try:
+        # The bad_action scenario goes live with its scripted planner.
+        live = wait_for(
+            lambda s: s.get("scenario") == "bad_action"
+            and s.get("planner_source") == "scripted"
+        )
+        assert live is not None, "bad_action never became live"
+        assert live["planner"]["model"] is None  # N3: no Nemotron chip on scripted
+
+        # The tour really switches to the next scenario (the reviewer's repro).
+        switched = wait_for(lambda s: s.get("scenario") == "dark")
+        assert switched is not None, "scenario never switched to dark"
+        assert switched["planner_source"] is None
+        assert switched["planner"]["model"] is None
+        assert switched.get("scenario_started_at") is not None
+
+        # The previous scenario's incident is still in the store, opened before
+        # the switch: its plan source must never drive the header again
+        # (JS guard: Date.parse(inc.opened) >= scenarioSince is false for it).
+        incidents = client.get("/api/incidents").json()
+        stale = [inc for inc in incidents if inc["opened"] < switched["scenario_started_at"]]
+        assert stale, "expected the previous scenario's incident to remain in the store"
+
+        # Poll across the whole handover: the backend header source may be the
+        # new scenario's configured planner or its own rules plan, never scripted.
+        deadline = time_mod.time() + 20.0
+        while time_mod.time() < deadline:
+            current = status()
+            assert current["planner_source"] in (None, "rules"), current
+            assert current["planner"]["model"] is None, current
+            time_mod.sleep(0.05)
+    finally:
+        stop.set()
+        tour.join(timeout=10)
+        store.close()
+
+
+def test_scenario_planner_source_matches_wrong_action_planner():
+    assert (
+        scenario_planner_source("bad_action")
+        == WrongActionPlanner().plan(None).source
+    )
+    assert scenario_planner_source("dark") is None
+
+
+def test_dashboard_scenario_tour_passes_planner_source(monkeypatch):
+    observed = []
+    feed = LiveFeed("SIMULATION", "SyntheticSource")
+    store = EventStore()
+
+    def fake_run_scenario(name, *_args, **_kwargs):
+        observed.append((name, feed.snapshot()["planner_source"]))
+
+    monkeypatch.setattr("reliability_agent.demo.run_scenario", fake_run_scenario)
+    args = SimpleNamespace(
+        scenarios=["bad_action", "dark"], pace=0.0, gap=0.0, loop=False
+    )
+    try:
+        _run_dashboard_scenarios(
+            args, demo_config(), feed, store, "rules", Event()
+        )
+    finally:
+        store.close()
+
+    assert observed == [("bad_action", "scripted"), ("dark", None)]
 
 
 def test_dashboard_api_and_legacy_routes_read_shared_store(monkeypatch):
@@ -131,9 +263,12 @@ def test_dashboard_html_escapes_template_interpolations():
         "cache": "nemotron (cached plan, no new call)",
     }.items():
         assert f'{source}:"{label}"' in page
-    # Header and panel must agree on the plan source, or the header flickers.
-    assert "plannerLabel(p,lastPlanSource)" in page
-    assert "lastPlanSource=P.source" in page
+    # The header planner is decided by the backend and truly resets on scenario
+    # switch: renderDetail only adopts a plan source from incidents opened during
+    # the current scenario, so a stale incident can never flicker the header back.
+    assert "plannerLabel(p,s.planner_source)" in page
+    assert "scenarioSince" in page
+    assert "Date.parse(inc.opened)>=scenarioSince" in page
     kv = re.search(r"function kv\(el,rows\)\s*\{(.*?)\n\}", page, re.S).group(1)
     assert ".innerHTML" not in kv
     assignments = re.findall(
