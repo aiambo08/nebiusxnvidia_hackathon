@@ -1,39 +1,33 @@
 # Fresh-clone quickstart transcript
 
-The workflow below was run from a fresh clone in `/home/ubuntu/f12-fresh` at
-`34390e7a624325ea2e251fc4f58ee1532b7f6894` (Python 3.11.13). The environment-specific clone
-destination was used instead of the README's generic default directory name.
+Re-run on 2026-10-20 from a fresh clone in `f12-fresh/repo` at
+`bc6ea442970bf241039c87f8a7be2a7e06c5065f` (origin/main after merging PR #72), Python
+3.13.16 on Windows. The clone destination and `python -m venv` command are
+environment-specific; the steps mirror the README quickstart exactly.
 
 ```text
+$ git rev-parse HEAD
+bc6ea442970bf241039c87f8a7be2a7e06c5065f
+
+$ python --version
+Python 3.13.16
+
 $ python -m venv .venv
 exit code: 0
 
-$ source .venv/bin/activate
-$ python --version
-Python 3.11.13
-exit code: 0
-
-$ pip install -e ".[dev,api]"
+$ .venv\Scripts\python.exe -m pip install -e ".[dev,api]"
 Editable install completed successfully.
 exit code: 0
 
-$ nice -n 19 pytest -q
-........................................................................ [  8%]
-........................................................................ [ 16%]
-........................................................................ [ 25%]
-........................................................................ [ 33%]
-........................................................................ [ 42%]
-........................................................................ [ 50%]
-........................................................................ [ 58%]
-...............................................................xx....... [ 67%]
-........................................................................ [ 75%]
-........................................................................ [ 84%]
-........................................................................ [ 92%]
-................................................................         [100%]
-854 passed, 1 deselected, 2 xfailed in 694.66s (0:11:34)
+$ .venv\Scripts\python.exe -m pytest -q
+........................................................................ [ 83%]
+........................................................................ [ 90%]
+........................................................................ [ 98%]
+..................                                                       [100%]
+952 passed, 1 deselected, 2 xfailed in 1083.29s (0:18:03)
 exit code: 0
 
-$ nice -n 19 ra-demo all
+$ .venv\Scripts\python.exe -m reliability_agent.cli all
 === SIMULATION scenario: dark ===
 plan[rules]: blackout -> set_exposure_bounded {'delta_ev': 2.0} | model=local-rules tokens=0/0 cost=$0.00000
 verification: ['committed']
@@ -77,53 +71,65 @@ transitions: HEALTHY->SUSPECT | SUSPECT->CONFIRMED | CONFIRMED->DIAGNOSING | DIA
 final: HEALTHY
 exit code: 0
 
-$ ra-demo dashboard --help
-Relevant help flags: --scenario, --live, --uri
+$ .venv\Scripts\python.exe -m reliability_agent.cli dashboard --help
+usage: ra-demo dashboard [-h] [--live |
+                         --scenario {dark,defocus,freeze,occlusion,overexposure,bad_action,frozen_black}]
+                         [--uri URI] [--planner {rules,nemotron}]
+                         [--pace PACE] [--loop] [--gap GAP] [--host HOST]
+                         [--port PORT] [--db DB] [--append]
 exit code: 0
 
-$ ra-demo dashboard --live --uri 0 --help
+$ .venv\Scripts\python.exe -m reliability_agent.cli dashboard --live --uri 0 --help
+(help shown as above; no webcam was opened by --help)
 exit code: 0
 ```
-
-The output is summarized to the relevant flags and exit codes. The `--help` invocations only
-inspected argument parsing; no webcam was opened.
 
 The default dashboard started in SIMULATION mode:
 
 ```text
-$ ra-demo dashboard
+$ .venv\Scripts\python.exe -m reliability_agent.cli dashboard --db runs\readme-simulation.sqlite
 Mode: SIMULATION
+Planner: rules
+Database: runs\readme-simulation.sqlite
 Dashboard: http://127.0.0.1:8000
+INFO:     Started server process [42600]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64413 - "GET / HTTP/1.1" 200 OK
 
-$ curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:8000/
+$ curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8000/
 HTTP 200
 exit code: 0
 
-Ctrl+C; clean server shutdown
-exit code: 0
+server stopped after the check
 ```
 
-The commands used no live Token Factory calls and no hardware input.
+All commands used no live Token Factory calls and no hardware input.
 
-## Synthetic-file F4 CLI smoke test
+## Synthetic-file CLI smoke test
 
-SIMULATION only; this verifies that the recorder can open a generated file and write a local clip.
-It is not an F4 benchmark, a webcam test, or REAL HARDWARE evidence.
+SIMULATION only; verifies that the recorder can open a generated file and write a local clip.
+It is not a webcam test or REAL HARDWARE evidence.
 
 ```text
 # Input: locally generated synthetic 160x120 MJPG AVI with 1200 frames; not a camera recording.
-$ python scripts/record_clip.py --uri /tmp/f12-synthetic-dry-run.avi --seconds 0.000001 --warmup 0.01 --session f12-synthetic-dry-run-mini
-Relevant output fields:
+$ .venv\Scripts\python.exe scripts/record_clip.py --uri benchmarks\data\f12-synthetic-dry-run.avi --seconds 0.000001 --warmup 0.01 --session f12-synthetic-dry-run-mini
 {
   "session": "f12-synthetic-dry-run-mini",
   "path": "benchmarks/data/f12-synthetic-dry-run-mini_clean.avi",
-  "sha256": "10d27e4432994373b4c259e3097498cc1bab55c289976bf23ab177d0837624a6",
+  "sha256": "4bf1bb733d3ee3d2133e1c6feaf59c190578ad9b8417deb0e3b2d06782421e0e",
   "frames": 1,
+  "fps": 1712.04,
+  "header_fps": 7746.93,
+  "resolution": [160, 120],
   "seconds": 0.0,
+  "read_misses": 0,
   "uri_kind": "file"
 }
+warning: recorded at 1712.04 FPS, warm-up measured 7746.93 FPS
 exit code: 0
 ```
 
-No `--split` was passed, no session was added to `sessions.yaml`, and the generated file was not
-used for detector metrics.
+No `--split` was passed, so no session was added to `sessions.yaml`; the generated clip was
+not used for detector metrics.
