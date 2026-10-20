@@ -34,6 +34,24 @@ def create_app(
         return {"spent_usd_estimate": round(spent, 5), **b,
                 "remaining_to_hard_cap": round(b["hard_cap_usd"] - spent, 5)}
 
+    def header_planner_source(snapshot: dict) -> str | None:
+        """Planner source the header must show, decided by the backend.
+
+        The header belongs to the *current* scenario: take the plan source of the
+        latest incident opened after ``scenario_started_at`` if it has planned yet,
+        otherwise the scenario's configured planner (``planner_source``). Incidents
+        left over from a previous scenario never drive the header again.
+        """
+        started = snapshot.get("scenario_started_at")
+        if started:
+            for event in reversed(store.events(kind="incident")):
+                if event["ts"] >= started:
+                    plans = [plan for plan in store.events(event["incident_id"], "plan")]
+                    if plans:
+                        return plans[-1]["payload"].get("source")
+                    break
+        return snapshot.get("planner_source")
+
     @app.get("/")
     def dashboard() -> FileResponse:
         path = Path(__file__).resolve().parents[1] / "dashboard" / "index.html"
@@ -77,13 +95,19 @@ def create_app(
         snapshot = feed.snapshot() if feed is not None else {
             "mode": "OFFLINE (event store only)",
         }
+        header_source = header_planner_source(snapshot)
+        # N3: the model/prompt chips only describe an LLM call. With a local or
+        # scripted planner the header must not advertise the configured Nemotron.
+        uses_llm = header_source in ("nemotron", "cache") or (
+            header_source is None and kind != "rules"
+        )
         return {
             **snapshot,
             "chain_valid": store.verify_chain(),
             "planner": {
                 "kind": kind,
-                "model": model,
-                "prompt_version": planner_cfg.get("prompt_version"),
+                "model": model if uses_llm else None,
+                "prompt_version": planner_cfg.get("prompt_version") if uses_llm else None,
                 "tier": tier,
                 "api_key_present": bool(api_key()),
             },

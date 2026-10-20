@@ -38,6 +38,7 @@ class LiveFeed:
         self.source_label = source_label
         self.scenario = scenario
         self.planner_source: str | None = None
+        self.scenario_started_at: str | None = None
         self.started_at = datetime.now(UTC).isoformat()
         self._clock = clock
         self._jpeg_interval = 1.0 / jpeg_fps
@@ -95,6 +96,7 @@ class LiveFeed:
         with self._lock:
             self.scenario = name
             self.planner_source = planner_source
+            self.scenario_started_at = datetime.now(UTC).isoformat()
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -103,6 +105,7 @@ class LiveFeed:
                 "source_label": self.source_label,
                 "scenario": self.scenario,
                 "planner_source": self.planner_source,
+                "scenario_started_at": self.scenario_started_at,
                 "state": self._state,
                 "last_window": dict(self._last_window) if self._last_window else None,
                 "started_at": self.started_at,

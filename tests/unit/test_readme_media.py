@@ -86,6 +86,21 @@ def test_readme_media_images_are_labeled_simulation():
         assert "SIMULATION" in alt_text, reference
 
 
+def test_readme_media_spend_and_speed_captions_are_current():
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    provenance = (MEDIA_DIR / "README.md").read_text(encoding="utf-8")
+    # N1: the spend covers the seven captured live calls, not the stale six.
+    assert "$0.0008336" in readme
+    assert "$0.0008336" in provenance
+    assert "$0.00071" not in readme
+    # N2: the GIFs play at real speed (500 ms frame delay), downscaled to 800x500;
+    # the captions must not claim 2x.
+    assert "800×500" in readme
+    assert "800×500" in provenance
+    assert "2×" not in readme and "2x" not in readme
+    assert "2×" not in provenance and "2x" not in provenance
+
+
 def test_readme_media_links_exist_and_all_assets_are_referenced():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     provenance = (MEDIA_DIR / "README.md").read_text(encoding="utf-8")

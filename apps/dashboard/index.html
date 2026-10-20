@@ -109,7 +109,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=(v,d=2)=>v==null||Number.isNaN(+v)?"–":(+v).toFixed(d);
 const usd=v=>v==null?"–":"$"+(+v).toFixed(5);
-let selected=null, autoFollow=true, lastIncidents=[], plannerStatus=null;
+let selected=null, autoFollow=true, lastIncidents=[], plannerStatus=null, scenarioSince=0;
 const MODE_CLASS={"SIMULATION":"b-sim","REAL HARDWARE":"b-real","REPLAY":"b-replay"};
 const METRICS=[["brightness","Brightness"],["blur","Blur effect"],["occluded","Occluded cells"],["fps","Capture FPS"],["task_success","Task success"],["exact_repeat_ratio","Frozen frames"]];
 $("metrics").innerHTML=METRICS.map(([k,l])=>`<div class="metric"><div class="k">${esc(l)}</div><div class="v" id="m-${esc(k)}">–</div><canvas id="c-${esc(k)}" width="300" height="34"></canvas></div>`).join("");
@@ -135,7 +135,6 @@ function kv(el,rows){
 }
 const PLANNER_LABELS={rules:"rules (local planner, no LLM call)",scripted:"scripted (demo planner, no LLM call)",
   fallback:"local fallback (no LLM call)",cache:"nemotron (cached plan, no new call)"};
-let lastPlanSource,lastScenario;
 function plannerLabel(p,source){
   if(source&&source!=="nemotron")return PLANNER_LABELS[source]||String(source);
   if(!source&&p?.kind==="rules")return PLANNER_LABELS.rules;
@@ -155,9 +154,9 @@ async function status(){
     $("mode").className="badge "+cls;$("mode").textContent=m;$("ovmode").className="badge "+cls;$("ovmode").textContent=m;
     $("src").textContent=s.source_label||"event store";$("scn").textContent=s.scenario||"–";
     const st=s.state||"–";$("state").textContent=st;$("state").className="state s-"+st;
+    const sts=Date.parse(s.scenario_started_at||"");if(!Number.isNaN(sts))scenarioSince=sts;
     const p=s.planner||{};plannerStatus=p;
-    if(s.scenario!==lastScenario){lastScenario=s.scenario;lastPlanSource=undefined}
-    $("plnr").textContent=plannerLabel(p,lastPlanSource||s.planner_source);
+    $("plnr").textContent=plannerLabel(p,s.planner_source);
     $("model").textContent=p.model||"–";$("prompt").textContent=p.prompt_version||"–";
     const b=s.budget||{};$("spend").textContent=b.spent_usd_estimate!=null?`$${(+b.spent_usd_estimate).toFixed(4)} / $${b.hard_cap_usd} cap`:"–";
     $("chain").innerHTML=s.chain_valid?'<span class="ok">verified</span>':'<span class="bad">BROKEN</span>';
@@ -268,7 +267,7 @@ function renderDetail(inc){
   const P=s.plan&&s.plan.payload;
   if(P){const u=P.usage||{},pl=P.plan;
     renderDiagnosisHeading(P.source);
-    lastPlanSource=P.source;$("plnr").textContent=plannerLabel(plannerStatus,P.source);
+    if(Date.parse(inc.opened)>=scenarioSince)$("plnr").textContent=plannerLabel(plannerStatus,P.source);
     kv($("diag"),[["source",P.source==="nemotron"?[{text:P.source},{text:" ● live runtime call",cls:"nv"}]:plannerLabel(plannerStatus,P.source)],["model",{text:u.model||"–",cls:"nv"}],["prompt",u.prompt_version||"–"],
       ["tokens",`${num(u.input_tokens,0)} in / ${num(u.output_tokens,0)} out${u.cached?" (cache)":""}`],["cost",usd(u.estimated_cost_usd)],["latency",u.latency_ms!=null?num(u.latency_ms,0)+" ms":"–"],
       ["attempts",P.attempts],["diagnosis",`${pl.diagnosis} (${num(pl.confidence)})`],["proposes",`${pl.action.name} ${JSON.stringify(pl.action.arguments)}`],["message",pl.human_message||"–"]]);
