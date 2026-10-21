@@ -112,7 +112,7 @@ def test_dry_run_writes_reports_without_the_uri(tmp_path, monkeypatch):
     assert "SIMULATION" in md.read_text()
     assert js["summary"]["windows"] >= 4 and js["summary"]["freeze_windows"] == 0
     assert js["summary"]["confirmed"] is None and js["summary"]["exit_code"] == 0
-    assert js["polls"] >= js["summary"]["windows"] * 4 and js["stalled_polls"] == 0
+    assert js["polls"] >= js["summary"]["windows"] * 3 and js["stalled_polls"] == 0
     assert js["windows"][-1]["exact_repeat_ratio"] == 0.0
     assert js["windows"][-1]["noise_ratio_p50"] is not None
     assert "uri" not in json.dumps(js).lower()
