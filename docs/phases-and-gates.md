@@ -153,7 +153,7 @@ Independent F7 gate review: PASS on 788dc10 + #67 (76797de), all 8 boxes verifie
 ## F9 — Product & demo
 - [ ] 5 technical users who did not build it can answer: what failed, how detected, what Nemotron
       decided, what action ran, how improvement was checked, what happens if it got worse
-- [x] Main flow completes in ≤ 90 s (SIMULATION: 19.7–32.5 s wall clock per scenario at the default pace, `docs/evidence/f9/demo-flow.md`)
+- [x] Main flow completes in ≤ 90 s (SIMULATION: 20.9–34.3 s wall clock per scenario at the default pace, refreshed on `bc6ea44`, `docs/evidence/f9/demo-flow.md`)
 - [x] No manual interaction between confirmation and verification (SIMULATION: `tests/integration/test_dashboard_f9.py::test_scenarios_run_confirm_to_verify_without_input`; the API is GET-only)
 - [x] UI clearly labels simulation vs real hardware (SIMULATION and REPLAY badges rendered in `docs/evidence/f9/`; the REAL HARDWARE label is unit-tested in `test_mode_label` and still to be seen on the owner's webcam run)
 - [ ] No secrets on screen, logs or video
