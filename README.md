@@ -207,7 +207,7 @@ Without `NEBIUS_API_KEY` the agent starts in **local mode** (rule-based planner)
 | `occlusion` | covered lens → maintenance **ticket** → waits for human → closes when clean |
 | `bad_action` | a deliberately harmful plan → verification fails → **exact rollback** → human |
 
-These are labelled SIMULATION everywhere. The hackathon video uses the real webcam.
+These are labelled SIMULATION everywhere. The hackathon video will add a REAL HARDWARE webcam segment; it has not been recorded yet.
 
 ## Repository map
 

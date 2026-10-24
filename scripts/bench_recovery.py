@@ -74,7 +74,9 @@ def _markdown(code_sha: str, recovery: dict, regression: dict) -> str:
         "Margin note: 87/100 is only 1–2 cases above the 85% threshold. "
         "The reviewer reported 86/100 under heavy parallel CPU load when "
         "`defocus:1.0`, seed 2, hit the wall-clock `task.latency_ms_p95` guard "
-        "with 5 ms tolerance; 12 repeats across idle and loaded conditions recovered.",
+        "with 5 ms tolerance; 12 repeats across idle and loaded conditions recovered. "
+        "Since `47fd021` the SIMULATION harness times the marker task with its simulated "
+        "clock, so host CPU load no longer reaches that guard; thresholds are unchanged.",
         "",
         "## Deliberate regression grid",
         "",

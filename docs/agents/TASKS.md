@@ -89,7 +89,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F8][evaluation] Generate event-derived incident reports (`tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
 - [x] [F8][evaluation] Classify the five `dark:0.8` runs as non-executed missed injections with unchanged device settings; retain the pre-registered grid and thresholds (`docs/evidence/f8/recovery-bench.md`, `docs/agents/DECISIONS.md`)
 - [x] [F8][evaluation] Pin regression diagnostics and changed-settings coverage (`tests/unit/test_recovery_classifier.py::test_successful_execution_without_rollback_or_safe_mode_fails`, `::test_successful_execution_with_non_exact_rollback_fails`, and `::test_regression_gate_fails_non_executed_run_with_changed_settings`; M14/M6a/M7 mutation checks)
-- [ ] [F8][evaluation] Independent F8 gate review; executed-regression, unchanged-settings, and four-family coverage gates pass
+- [x] [F8][evaluation] Independent F8 gate review; executed-regression, unchanged-settings, and four-family coverage gates pass (PASS on `095617a`, `docs/evidence/f8/independent-review-2026-10-24.md`)
+- [ ] [F8][architecture] ADR for the containment-criterion redefinition (`46c383a` -> `13d2559`, now only in DECISIONS.md; non-blocking review risk)
 
 ## F9–F12
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)
@@ -97,7 +98,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [ ] [F9][product] Complete F9 product evidence (`tests/integration/test_dashboard_f9.py`, `docs/evidence/f9/demo-flow.md`; author-side evidence refreshed on `main` at `bc6ea44`: 7 SIMULATION timings, REPLAY readiness, the `bad_action → dark` header-reset tour (1,227 samples, never back to `scripted`), fresh headless screenshots cross-checked against the rendered DOM; audit/license/secret checks pass (244 tracked files, 0 findings, 35 distributions, 49 tests). The backend now serves the computed header planner source to the dashboard (`apps/api/main.py`), so the header, model and prompt chips stay consistent for `cache`/`fallback` sources. final-video no-secrets check, five-user product validation and gate review remain open)
 - README SIMULATION media is in `docs/media/`, with provenance in `docs/media/README.md`; seven live Nemotron calls cost $0.0008336. No REAL HARDWARE footage is shown.
 - F12 documentation drafts and the author-run fresh-clone quickstart transcript are prepared in `docs/evidence/f12/quickstart.md` (re-run on 2026-10-20 at `bc6ea44`, Python 3.13.16: 952 passed / 1 deselected / 2 xfailed, `ra-demo all` 7/7, `dashboard --help` incl. `--live --uri 0 --help`, default dashboard HTTP 200, synthetic `record_clip` smoke). A PR reviewer also reproduced the fresh-clone quickstart, but that review transcript is not committed as judge-open evidence; the reviewer/hardware/owner boxes below remain unchecked. Real UVC/ONVIF exposure/focus control is not implemented (`OpenCVSource.capabilities()` exposes only `restart`), and the webcam demo claims only detection plus a cleaning ticket, safe mode or `needs_human` escalation; bounded exposure/focus commit/rollback is SIMULATION only. No stream-down/restart segment is claimed because the live-dashboard outage-to-verification path lacks an end-to-end test.
-- [ ] [F12][product] Independent fresh reviewer reproduces the README happy path
+- [x] [F12][product] Independent fresh reviewer reproduces the README happy path (`docs/evidence/f9/independent-review-2026-10-24.md`, `9d026d1`)
 - [ ] [F12][product] Run F4 REAL HARDWARE recordings and benchmark with the owner
 - [ ] [F12][product] Five-user product test with completed observation forms
 - [ ] [F12][product] Record and publish the public demo video with real physical input

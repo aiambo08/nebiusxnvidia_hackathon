@@ -92,10 +92,12 @@ show exactly those values (planner label, `model –`, `prompt –`).
 ## Known limitation (REPLAY)
 
 A file source is read as fast as it decodes, so the replay panel showed Capture FPS ≈ 13110
-for the synthetic 15 fps clip. When the clip ends, the watchdog reports `stream_down` and
-the agent plans `restart_capture`. The deterministic demo for the video is therefore the
-SIMULATION mode (`SyntheticSource`). REPLAY proves the label and the read-only loop on a
-recorded file, not real-time playback.
+for the synthetic 15 fps clip in this run (the committed screenshot shows 9291.6; the value
+depends on host decode speed). When the clip ends, the watchdog reports `stream_down` and
+the agent plans `restart_capture`. REPLAY is not deterministic: an independent review on
+`9d026d1` saw different incident sequences in two runs on the same clip. The deterministic demo
+for the video is therefore the SIMULATION mode (`SyntheticSource`). REPLAY proves the label and
+the read-only loop on a recorded file, not real-time or repeatable playback.
 
 Still open for F9: the five-user check, the no-secrets check on the final video, and the
 real-webcam (`--live --uri 0`) run on the owner's machine. The secret/audit/license checks

@@ -101,7 +101,7 @@ header for ~15 s.
 While it runs, poll the read-only status endpoint (PowerShell):
 
 ```powershell
-1..60 | ForEach-Object { Start-Sleep -Milliseconds 500; (Invoke-RestMethod http://127.0.0.1:8000/api/status) | Select-Object scenario, planner_source, scenario_started_at | ConvertTo-Json -Compress }
+1..150 | ForEach-Object { Start-Sleep -Milliseconds 500; (Invoke-RestMethod http://127.0.0.1:8000/api/status) | Select-Object scenario, planner_source, scenario_started_at | ConvertTo-Json -Compress }
 ```
 
 Expected: the `planner_source` flips from `scripted` (bad_action) to `None` (dark, before any
@@ -140,8 +140,12 @@ Then run the committed behavioural test:
 
 ### B4. Deterministic demo with a recorded source (gate box, REPLAY part)
 
-The REPLAY run above is the deterministic recorded-source mode. The REAL webcam half of this box
-is an owner/hardware task (Part D) and is **not** covered by this review.
+REPLAY is **not** deterministic: a file source is read as fast as it decodes, so window
+boundaries and the incident sequence vary between runs (independent review on `9d026d1`). The
+deterministic demo is SIMULATION (`SyntheticSource`, see `docs/evidence/f9/demo-flow.md`); REPLAY
+only proves the label and the read-only loop on a recorded file. This box stays open until a
+deterministic recorded-source mode exists. The REAL webcam half of this box is an owner/hardware
+task (Part D) and is **not** covered by this review.
 
 ---
 
