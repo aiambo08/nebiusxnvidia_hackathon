@@ -89,7 +89,8 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F8][evaluation] Generate event-derived incident reports (`tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
 - [x] [F8][evaluation] Classify the five `dark:0.8` runs as non-executed missed injections with unchanged device settings; retain the pre-registered grid and thresholds (`docs/evidence/f8/recovery-bench.md`, `docs/agents/DECISIONS.md`)
 - [x] [F8][evaluation] Pin regression diagnostics and changed-settings coverage (`tests/unit/test_recovery_classifier.py::test_successful_execution_without_rollback_or_safe_mode_fails`, `::test_successful_execution_with_non_exact_rollback_fails`, and `::test_regression_gate_fails_non_executed_run_with_changed_settings`; M14/M6a/M7 mutation checks)
-- [ ] [F8][evaluation] Independent F8 gate review; executed-regression, unchanged-settings, and four-family coverage gates pass
+- [x] [F8][evaluation] Independent F8 gate review; executed-regression, unchanged-settings, and four-family coverage gates pass (PASS on `095617a`, `docs/evidence/f8/independent-review-2026-10-24.md`)
+- [ ] [F8][architecture] ADR for the containment-criterion redefinition (`46c383a` -> `13d2559`, now only in DECISIONS.md; non-blocking review risk)
 
 ## F9–F12
 - [x] [F9][product] Read-only dashboard backend: LiveFeed, FastAPI endpoints, and ra-demo runner (ADR-010)

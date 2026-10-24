@@ -133,3 +133,71 @@ coverage floor).
   untested.
 - CI evidence came from the public GitHub Actions API. `gh` was not authenticated, and no CI run was found for
   the docs branch itself.
+
+## Re-review of box 5 (2026-10-24)
+
+- **Reviewer:** independent Cursor review agent (Evaluation role, no authorship of this repo)
+- **Revision:** `095617a39cf5368848455610ea93eb24e5e178b2` (fast-forward from `d67f08a`, via `334ef3e`). `git diff d67f08a 095617a -- src configs benchmarks` is empty; the commit only adds a test and changes docs.
+- **Scope:** box 5 only. Boxes 1–4 and 6–7 keep their PROVEN status from the review above, because no production, config or benchmark code changed.
+
+### New evidence
+
+`tests/e2e/test_action_commit_rollback.py::test_execution_failure_and_no_improvement_leave_distinct_records`
+runs the same `set_exposure_bounded` plan for a blackout through the full `ReliabilityAgent` loop, twice:
+
+- **`failed`:** `FailingApplyDevice` raises `OSError` on any settings change. The test asserts execution status
+  is not `success`, there are **no** verification events, the state history contains `failed` and **not**
+  `verifying`.
+- **`no_effect`:** `RecoveryDevice(effect=False)`. The test asserts execution `success`, verifications
+  `== ["rolled_back"]`, and a state history containing `verifying` and **not** `failed`.
+- **Both runs:** rollback `ok`, device settings equal to the original, hash chain valid, final state
+  `NEEDS_HUMAN`.
+
+This is the orchestrator-level test asked for in the original review. It exercises the production failure path
+(`orchestrator.py` lines 445–448), not the unused `Verifier.execution_ok` branch. Minor: it asserts
+`execution != "success"` rather than `== "failed"`, but the `failed` state assertion makes the distinction explicit.
+
+### Outputs
+
+```
+pytest -q tests/e2e/test_action_commit_rollback.py::test_execution_failure_and_no_improvement_leave_distinct_records
+1 passed in 0.25s
+pytest -q tests/e2e/test_action_commit_rollback.py
+11 passed in 0.36s
+```
+
+### Mutation check (reviewer's own; restored with `git checkout -- src/`)
+
+| Mutant in `src/reliability_agent/orchestrator.py` | Result |
+|---|---|
+| A: treat a non-success execution as success (`if False and rec.status != "success":`) | **Killed** by an assertion: `assert failed["verifications"] == []` → `AssertionError: assert ['rolled_back'] == []` (test line 209) |
+| B: delete `self._to(S.FAILED, ...)` | **Killed**: `IllegalTransition: ACTING -> ROLLED_BACK not allowed (execution failed)` |
+| B': replace FAILED with ROLLING_BACK | **Killed**: `IllegalTransition: ACTING -> ROLLING_BACK not allowed` |
+
+From ACTING the state machine only allows FAILED or VERIFYING. Skipping FAILED therefore either goes through
+VERIFYING, which the test's assertions catch (A), or raises `IllegalTransition` (B, B'). After restoring,
+`git status --short` was empty (clean worktree) and the file reran with `11 passed`.
+
+A first attempt at mutant B did not apply because of CRLF line endings (empty diff), so it was redone with a
+line-ending-safe regex. Only the applied mutants are reported above.
+
+### Citation
+
+`docs/phases-and-gates.md` line 149 now cites
+`tests/e2e/test_action_commit_rollback.py::test_execution_failure_and_no_improvement_leave_distinct_records`
+(full agent loop) and keeps the verifier unit test as secondary evidence. Confirmed.
+
+### Updated status
+
+| # | Box | Status |
+|---|---|---|
+| 5 | Execution failure distinguished from "no improvement" | **PROVEN** (SIMULATION) |
+
+**Updated overall verdict: Phase F8 — Verification & rollback: PASSED (7/7 boxes PROVEN, SIMULATION scope).**
+
+The known non-blocking risks listed above still apply: no ADR for the containment-criterion redefinition, a
+2-case recovery margin, the latency guard being inert in SIMULATION, half the regression cases using non-harmful
+`enter_safe_mode`, the trivial exact-restore for `restart_capture`, SIMULATION-only evidence, and CI status taken
+from the public API. One addition: the verifier unit test
+`test_execution_failure_distinct_from_no_improvement` is still cited as secondary evidence and still does not
+reach `ROLLED_BACK`. It is harmless now that the orchestrator-level test carries the claim.

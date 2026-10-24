@@ -25,7 +25,7 @@ recalibrated with real camera data.
 | F9 | Product & demo experience | 4 | Product | in progress |
 | F10 | End-to-end validation | 4 | Evaluation | in progress |
 | F11 | Hardening & security | 4 | Integrator | passed |
-| F12 | Submission | 4 | Product + human | not started |
+| F12 | Submission | 4 | Product + human | in progress |
 
 "scaffolded" = interfaces, first implementation and unit tests exist; the gate is **not** passed.
 Ticked boxes are proven by unit/adversarial/e2e tests in CI; boxes that need real camera data,
@@ -149,6 +149,8 @@ Independent F7 gate review: PASS on 788dc10 + #67 (76797de), all 8 boxes verifie
 - [x] Execution failure distinguished from "no improvement" (SIMULATION; full agent loop: `tests/e2e/test_action_commit_rollback.py::test_execution_failure_and_no_improvement_leave_distinct_records`; verifier unit: `tests/unit/test_policy_actions_verifier.py::test_execution_failure_distinct_from_no_improvement`)
 - [x] Before/after report with metrics and evidence persisted (SIMULATION; `tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
 - [x] Restart during VERIFYING does not lose the pending decision (SIMULATION; `tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
+
+Independent F8 gate review (Evaluation role, fresh clone): PASS on `095617a`, all 7 boxes proven in SIMULATION. The benchmark was reproduced exactly (87/100, raw 45/50, 45/45 executed contained, 5/5 non-executed unchanged, coverage floor PASS); the first pass on `d67f08a` found box 5 partial and the full-loop test was added, killing three mutants. Non-blocking risks: thin 87/100 margin, containment criterion redefined in DECISIONS.md without an ADR, the latency guard cannot fire in SIMULATION, and `restart_capture` restores trivially (`docs/evidence/f8/independent-review-2026-10-24.md`).
 
 ## F9 — Product & demo
 - [ ] 5 technical users who did not build it can answer: what failed, how detected, what Nemotron
