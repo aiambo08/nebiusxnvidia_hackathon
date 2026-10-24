@@ -38,6 +38,7 @@ from reliability_agent.nemotron.planner import RuleBasedPlanner, make_planner
 from reliability_agent.orchestrator import ReliabilityAgent
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 from reliability_agent.storage import EventStore
+from reliability_agent.tasks.marker import MarkerTask
 
 FAULT_GRID: tuple[tuple[str, float | None], ...] = (
     ("dark", 0.99),
@@ -462,7 +463,7 @@ def _run_custom(
             original_apply_settings(settings)
 
         source.apply_settings = apply_settings
-    runner = ProbeRunner(cfg)
+    runner = ProbeRunner(cfg, task=MarkerTask(timer=lambda: now[0]))
     meter = TransportMeter()
     source_scenario = source_scenario or scenario
     source_fault, default_strength, human_fix = DEMO_SCENARIOS[source_scenario]

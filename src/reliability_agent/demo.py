@@ -29,6 +29,7 @@ from reliability_agent.nemotron.planner import Planner, PlanOutcome, RuleBasedPl
 from reliability_agent.orchestrator import ReliabilityAgent
 from reliability_agent.probes.runner import ProbeRunner, WindowAggregator
 from reliability_agent.storage.event_store import EventStore
+from reliability_agent.tasks.marker import MarkerTask
 
 # scenario -> (synthetic fault, strength, human_fix_after_windows or None)
 SCENARIOS: dict[str, tuple[str, float, int | None]] = {
@@ -124,7 +125,7 @@ def run_scenario(name: str, planner: Planner | None = None, *, cfg: dict | None 
     scenario_start_seq = existing_events[-1]["seq"] if existing_events else 0
     agent = ReliabilityAgent(cfg, src, planner or RuleBasedPlanner(), store,
                              restart_cb=restart, clock=clock)
-    runner = ProbeRunner(cfg)
+    runner = ProbeRunner(cfg, task=MarkerTask(timer=clock))
     meter = TransportMeter()
     meter.connected = True
     res = ScenarioResult(name)
