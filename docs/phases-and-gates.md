@@ -194,7 +194,7 @@ Results must be generated from event files, never typed into the README by hand.
 Independent F11 gate review: PASS on `d16436f`, all 7 boxes verified against CI, unit tests, `license_report.py --check`, a full-history `audit_repo.py` re-run and its own README-only reproduction (https://app.devin.ai/sessions/171485f5368345f89997f9ab93ae8ee7).
 
 ## F12 — Submission
-- [ ] A fresh reviewer reproduces the happy path
+- [x] A fresh reviewer reproduces the happy path (fresh clone of `9d026d1` by an independent review agent: 953 passed / 1 deselected / 2 xfailed, `ra-demo all` 7/7, SIMULATION dashboard HTTP 200; `docs/evidence/f9/independent-review-2026-10-24.md`)
 - [ ] Video shows real hardware / physical input for ≥ 1 minute, total < 3 min
 - [ ] Runtime call visible in code, logs and video
 - [ ] Links work in incognito
