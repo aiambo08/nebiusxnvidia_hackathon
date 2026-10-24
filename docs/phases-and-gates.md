@@ -146,7 +146,7 @@ Independent F7 gate review: PASS on 788dc10 + #67 (76797de), all 8 boxes verifie
 - [x] ≥ 85% of recoverable incidents resolved without humans on the test bench (SIMULATION; 87/100 = 87%, `docs/evidence/f8/recovery-bench.md`)
 - [x] 100% regression containment (SIMULATION; 45/50 raw rollback/safe-mode, 45/45 executed actions contained, 5/50 non-executed runs left settings unchanged, all four fault families had executed coverage; `tests/unit/test_recovery_classifier.py`, `docs/evidence/f8/recovery-bench.md`)
 - [x] Rollback restores exactly the previous versioned config (SIMULATION; `tests/e2e/test_action_commit_rollback.py`)
-- [x] Execution failure distinguished from "no improvement" (SIMULATION; `tests/unit/test_policy_actions_verifier.py::test_execution_failure_distinct_from_no_improvement`)
+- [x] Execution failure distinguished from "no improvement" (SIMULATION; full agent loop: `tests/e2e/test_action_commit_rollback.py::test_execution_failure_and_no_improvement_leave_distinct_records`; verifier unit: `tests/unit/test_policy_actions_verifier.py::test_execution_failure_distinct_from_no_improvement`)
 - [x] Before/after report with metrics and evidence persisted (SIMULATION; `tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
 - [x] Restart during VERIFYING does not lose the pending decision (SIMULATION; `tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
 
