@@ -1,5 +1,7 @@
 # Demo video script (< 3:00, public YouTube, no copyrighted music)
 
+Owner minute-by-minute runbook: [`docs/evidence/f12/recording-checklist.md`](evidence/f12/recording-checklist.md).
+
 Every segment below is labelled SIMULATION or REAL HARDWARE. Keep the dashboard mode badge visible
 whenever the dashboard is on screen; do not splice simulated results into webcam footage.
 
@@ -37,11 +39,12 @@ ra-demo dashboard --scenario dark --planner nemotron --db runs/demo-dark.sqlite
 ra-demo dashboard --scenario bad_action --planner rules --db runs/demo-bad-action.sqlite
 
 # [REAL HARDWARE] owner's webcam; keep it running for at least one minute
-ra-demo dashboard --live --uri 0 --db runs/demo-webcam.sqlite
+# Prefer --planner nemotron so the hardware minute also shows model/tokens/cost
+ra-demo dashboard --live --uri 0 --planner nemotron --db runs/demo-webcam.sqlite
 ```
 
 Expected startup: `Mode: SIMULATION` and `Planner: nemotron` for `dark`; `Mode: SIMULATION` and
-`Planner: rules` for `bad_action`; `Mode: REAL HARDWARE` for the webcam. Each prints its `Database`
+`Planner: rules` for `bad_action`; `Mode: REAL HARDWARE` (and preferably `Planner: nemotron`) for the webcam. Each prints its `Database`
 path and `Dashboard` URL. In the completed SIMULATION scenarios, `dark` is COMMITTED and
 `bad_action` is ROLLED BACK; the webcam outcome is a cleaning ticket, safe mode or `needs_human`
 escalation. Before rerunning a dashboard command, delete the database file named by `--db` or choose
