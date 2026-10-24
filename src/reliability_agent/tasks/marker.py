@@ -9,6 +9,7 @@ detector (e.g. an NVIDIA TAO/DeepStream model) behind the same interface later.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 
 import cv2
 import numpy as np
@@ -19,17 +20,21 @@ from reliability_agent.probes.base import ProbeResult
 class MarkerTask:
     name = "reference_marker_detection"
 
-    def __init__(self, expected_ids: set[int] | None = None, dictionary: int | None = None):
+    def __init__(self, expected_ids: set[int] | None = None, dictionary: int | None = None,
+                 timer: Callable[[], float] = time.perf_counter):
         d = cv2.aruco.getPredefinedDictionary(
             dictionary if dictionary is not None else cv2.aruco.DICT_4X4_50
         )
         self.detector = cv2.aruco.ArucoDetector(d, cv2.aruco.DetectorParameters())
         self.expected_ids = expected_ids or {7}
+        # Simulated runs pass their simulated clock: host CPU jitter must not reach the
+        # task.latency_ms_p95 verification guard of a simulated device.
+        self.timer = timer
 
     def run(self, gray: np.ndarray) -> ProbeResult:
-        t0 = time.perf_counter()
+        t0 = self.timer()
         corners, ids, _ = self.detector.detectMarkers(gray)
-        latency = (time.perf_counter() - t0) * 1000
+        latency = (self.timer() - t0) * 1000
         found = set() if ids is None else {int(i) for i in ids.flatten()}
         hit = bool(self.expected_ids & found)
         conf = 0.0

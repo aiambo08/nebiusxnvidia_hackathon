@@ -1,10 +1,13 @@
 """End-to-end MAPE-K loop on the deterministic synthetic source (no network)."""
 
+import time
+
 import pytest
 
 from reliability_agent.demo import SCENARIOS, run_scenario
 from reliability_agent.nemotron.planner import RuleBasedPlanner
 from reliability_agent.storage import EventStore
+from reliability_agent.tasks.marker import MarkerTask
 
 
 def kinds(res):
@@ -24,6 +27,28 @@ def test_recoverable_faults_are_committed(name, seed):
     t = res.transitions
     assert t.index("CONFIRMED->DIAGNOSING") < t.index("PLANNED->ACTING") < t.index(
         "VERIFYING->RECOVERED")
+
+
+def test_host_cpu_jitter_does_not_roll_back_a_simulated_recovery(monkeypatch):
+    original_init = MarkerTask.__init__
+
+    class SlowOnNormalFrames:
+        def __init__(self, detector):
+            self.detector = detector
+
+        def detectMarkers(self, gray):  # noqa: N802 - mirrors the OpenCV method name
+            if gray.mean() < 200:  # saturated overexposed frames stay fast, as on a loaded host
+                time.sleep(0.008)
+            return self.detector.detectMarkers(gray)
+
+    def slow_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self.detector = SlowOnNormalFrames(self.detector)
+
+    monkeypatch.setattr(MarkerTask, "__init__", slow_init)
+    res = run_scenario("overexposure", RuleBasedPlanner(), seed=0)
+    assert verification(res) == ["committed"], res.transitions
+    assert res.final_state == "HEALTHY"
 
 
 def test_occlusion_opens_ticket_and_waits_for_human():
