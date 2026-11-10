@@ -101,6 +101,7 @@ Format: `- [ ] [Fx][role] task — acceptance`
 - [x] [F12][product] Independent fresh reviewer reproduces the README happy path (`docs/evidence/f9/independent-review-2026-10-24.md`, `9d026d1`)
 - [ ] [F12][product] Run F4 REAL HARDWARE recordings and benchmark with the owner
 - [ ] [F12][product] Five-user product test with completed observation forms
+- [x] [F12][product] Owner recording checklist from the demo script (`docs/evidence/f12/recording-checklist.md`; linked from `docs/demo-script.md`)
 - [ ] [F12][product] Record and publish the public demo video with real physical input
 - [ ] [F12][product] Confirm video and final commit match; create and push the submission tag
 - [ ] [F12][product] Verify public evidence links in an incognito session
