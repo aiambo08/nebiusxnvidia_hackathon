@@ -25,7 +25,7 @@ recalibrated with real camera data.
 | F9 | Product & demo experience | 4 | Product | in progress |
 | F10 | End-to-end validation | 4 | Evaluation | in progress |
 | F11 | Hardening & security | 4 | Integrator | passed |
-| F12 | Submission | 4 | Product + human | not started |
+| F12 | Submission | 4 | Product + human | in progress |
 
 "scaffolded" = interfaces, first implementation and unit tests exist; the gate is **not** passed.
 Ticked boxes are proven by unit/adversarial/e2e tests in CI; boxes that need real camera data,
@@ -146,9 +146,11 @@ Independent F7 gate review: PASS on 788dc10 + #67 (76797de), all 8 boxes verifie
 - [x] ≥ 85% of recoverable incidents resolved without humans on the test bench (SIMULATION; 87/100 = 87%, `docs/evidence/f8/recovery-bench.md`)
 - [x] 100% regression containment (SIMULATION; 45/50 raw rollback/safe-mode, 45/45 executed actions contained, 5/50 non-executed runs left settings unchanged, all four fault families had executed coverage; `tests/unit/test_recovery_classifier.py`, `docs/evidence/f8/recovery-bench.md`)
 - [x] Rollback restores exactly the previous versioned config (SIMULATION; `tests/e2e/test_action_commit_rollback.py`)
-- [x] Execution failure distinguished from "no improvement" (SIMULATION; `tests/unit/test_policy_actions_verifier.py::test_execution_failure_distinct_from_no_improvement`)
+- [x] Execution failure distinguished from "no improvement" (SIMULATION; full agent loop: `tests/e2e/test_action_commit_rollback.py::test_execution_failure_and_no_improvement_leave_distinct_records`; verifier unit: `tests/unit/test_policy_actions_verifier.py::test_execution_failure_distinct_from_no_improvement`)
 - [x] Before/after report with metrics and evidence persisted (SIMULATION; `tests/integration/test_incident_report.py`, `docs/evidence/f8/incident-reports/`)
 - [x] Restart during VERIFYING does not lose the pending decision (SIMULATION; `tests/unit/test_restore.py::test_restart_while_verifying_rolls_back_and_escalates_without_a_new_plan`)
+
+Independent F8 gate review (Evaluation role, fresh clone): PASS on `095617a`, all 7 boxes proven in SIMULATION. The benchmark was reproduced exactly (87/100, raw 45/50, 45/45 executed contained, 5/5 non-executed unchanged, coverage floor PASS); the first pass on `d67f08a` found box 5 partial and the full-loop test was added, killing three mutants. Non-blocking risks: thin 87/100 margin, containment criterion redefined in DECISIONS.md without an ADR, the latency guard cannot fire in SIMULATION, and `restart_capture` restores trivially (`docs/evidence/f8/independent-review-2026-10-24.md`).
 
 ## F9 — Product & demo
 - [ ] 5 technical users who did not build it can answer: what failed, how detected, what Nemotron
@@ -194,7 +196,7 @@ Results must be generated from event files, never typed into the README by hand.
 Independent F11 gate review: PASS on `d16436f`, all 7 boxes verified against CI, unit tests, `license_report.py --check`, a full-history `audit_repo.py` re-run and its own README-only reproduction (https://app.devin.ai/sessions/171485f5368345f89997f9ab93ae8ee7).
 
 ## F12 — Submission
-- [ ] A fresh reviewer reproduces the happy path
+- [x] A fresh reviewer reproduces the happy path (fresh clone of `9d026d1` by an independent review agent: 953 passed / 1 deselected / 2 xfailed, `ra-demo all` 7/7, SIMULATION dashboard HTTP 200; `docs/evidence/f9/independent-review-2026-10-24.md`)
 - [ ] Video shows real hardware / physical input for ≥ 1 minute, total < 3 min
 - [ ] Runtime call visible in code, logs and video
 - [ ] Links work in incognito

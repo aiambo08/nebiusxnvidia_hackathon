@@ -1,8 +1,8 @@
 # F8 Offline Recovery Benchmark
 
 **SIMULATION** — deterministic `SyntheticSource` runs; no network or paid services.
-Code commit: `20c4126c218229646395ba7bff3aa8dd50399891`
-Generated: 2026-10-18T12:38:24.502778+00:00
+Code commit: `be746655438548f26cf20db3f1bde2aa03885184`
+Generated: 2026-10-24T13:13:11.556199+00:00
 
 ## Recovery grid
 
@@ -22,7 +22,7 @@ Pre-registered cases: dark=[0.8, 0.9, 0.99], defocus=[0.6, 0.8, 1.0], overexpose
 | overexpose | 1.0 | 10 | 10 / 10 | 0 | 0 |
 
 Global: **87 / 100** recoverable cases (87.0%); 3 needs-human, 10 timeouts. Gate ≥85%: PASS.
-Margin note: 87/100 is only 1–2 cases above the 85% threshold. The reviewer reported 86/100 under heavy parallel CPU load when `defocus:1.0`, seed 2, hit the wall-clock `task.latency_ms_p95` guard with 5 ms tolerance; 12 repeats across idle and loaded conditions recovered.
+Margin note: 87/100 is only 1–2 cases above the 85% threshold. The reviewer reported 86/100 under heavy parallel CPU load when `defocus:1.0`, seed 2, hit the wall-clock `task.latency_ms_p95` guard with 5 ms tolerance; 12 repeats across idle and loaded conditions recovered. Since `47fd021` the SIMULATION harness times the marker task with its simulated clock, so host CPU load no longer reaches that guard; thresholds are unchanged.
 
 ## Deliberate regression grid
 

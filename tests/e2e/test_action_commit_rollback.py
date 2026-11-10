@@ -163,6 +163,59 @@ def _check_case(cfg, window, action, fault, effect):
                 store.close()
 
 
+class FailingApplyDevice(RecoveryDevice):
+    def apply_settings(self, settings):
+        if settings != self.get_settings():
+            raise OSError("synthetic adapter apply failure")
+        super().apply_settings(settings)
+
+
+def _states(store):
+    return [str(event["payload"]["to"]).lower().rsplit(".", 1)[-1]
+            for event in store.events(kind="state")]
+
+
+def test_execution_failure_and_no_improvement_leave_distinct_records(cfg, window):
+    action, fault = ActionName.SET_EXPOSURE_BOUNDED, FaultType.BLACKOUT
+    runs = {}
+    for label, device_cls in (("failed", FailingApplyDevice), ("no_effect", RecoveryDevice)):
+        device = device_cls(effect=False, action=action)
+        original = device.get_settings()
+        store = EventStore()
+        agent = ReliabilityAgent(cfg, device, ScriptedPlanner(fault, action, {"delta_ev": 1.5}),
+                                 store)
+        try:
+            for _ in range(cfg["baseline"]["min_samples"] + 2):
+                agent.on_window(window())
+            for _ in range(cfg["fusion"]["enter_windows"] + agent._verify_windows):
+                agent.on_window(_fault_window(window, fault, device))
+            runs[label] = {
+                "execution": store.events(kind="execution")[-1]["payload"]["status"],
+                "verifications": [e["payload"]["status"]
+                                  for e in store.events(kind="verification")],
+                "rollback_ok": store.events(kind="rollback")[-1]["payload"]["ok"],
+                "states": _states(store),
+                "final": agent.state,
+                "restored": device.get_settings() == original,
+                "chain": store.verify_chain(),
+            }
+        finally:
+            agent.checkpoint()
+            agent.release_lease()
+            store.close()
+
+    failed, no_effect = runs["failed"], runs["no_effect"]
+    assert failed["execution"] != "success"
+    assert failed["verifications"] == []
+    assert "failed" in failed["states"] and "verifying" not in failed["states"]
+    assert no_effect["execution"] == "success"
+    assert no_effect["verifications"] == ["rolled_back"]
+    assert "failed" not in no_effect["states"] and "verifying" in no_effect["states"]
+    for run in (failed, no_effect):
+        assert run["rollback_ok"] is True and run["restored"] and run["chain"]
+        assert run["final"] is IncidentState.NEEDS_HUMAN
+
+
 @pytest.mark.parametrize(("action", "fault"), CASES, ids=CASE_IDS)
 def test_each_mvp_action_commits(cfg, window, action, fault):
     _check_case(cfg, window, action, fault, effect=True)
